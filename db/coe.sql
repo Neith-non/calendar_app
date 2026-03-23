@@ -69,3 +69,7 @@ INSERT INTO event_categories (category_id, category_name, category_type) VALUES
 (3, 'Mass', 'Religious'),
 (4, 'Staff Meetings', 'Administrative'),
 (5, 'Holidays', 'General');
+
+ALTER TABLE events 
+ADD COLUMN end_date DATE NULL AFTER start_date,
+ADD COLUMN end_time TIME NULL AFTER start_time;
