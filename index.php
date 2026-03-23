@@ -8,11 +8,12 @@ require_once 'functions/database.php';
 $stmt = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmt->fetchAll();
 
-// 3. Fetch ALL Events (Sorted by closest date first)
+// 3. Fetch ALL Events (With Publish Status)
 $stmt = $pdo->query("
-    SELECT e.*, c.category_name 
+    SELECT e.*, c.category_name, p.status 
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
+    LEFT JOIN event_publish p ON e.publish_id = p.id
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
 $events = $stmt->fetchAll();
@@ -143,13 +144,35 @@ function getCategoryColor($categoryName) {
                                 </div>
                             </div>
                             
-                            <div class="text-right">
-                                <?php if ($event['publish_id'] === null): ?>
-                                    <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200"><i class="fa-solid fa-check-circle mr-1"></i> Auto-Approved</span>
-                                <?php else: ?>
-                                    <span class="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">ID: <?php echo $event['publish_id']; ?></span>
-                                <?php endif; ?>
-                            </div>
+                            <div class="text-right flex flex-col items-end gap-2">
+    <?php if ($event['publish_id'] === null): ?>
+        <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+            <i class="fa-solid fa-check-circle mr-1"></i> Auto-Approved
+        </span>
+        
+    <?php elseif ($event['status'] === 'Approved'): ?>
+        <span class="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+            <i class="fa-solid fa-check-double mr-1"></i> Approved (ID: <?php echo $event['publish_id']; ?>)
+        </span>
+
+    <?php elseif ($event['status'] === 'Pending'): ?>
+        <span class="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 mb-1 animate-pulse">
+            <i class="fa-solid fa-clock mr-1"></i> Pending Approval
+        </span>
+        <div class="flex gap-2">
+            <a href="approve_event.php?id=<?php echo $event['publish_id']; ?>&action=approve" 
+               class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition"
+               onclick="return confirm('Approve this event?');">
+               <i class="fa-solid fa-check"></i>
+            </a>
+            <a href="approve_event.php?id=<?php echo $event['publish_id']; ?>&action=reject" 
+               class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition"
+               onclick="return confirm('Reject this event? It will be removed from the calendar.');">
+               <i class="fa-solid fa-xmark"></i>
+            </a>
+        </div>
+    <?php endif; ?>
+</div>
                         </div>
 
                     <?php endforeach; ?>
