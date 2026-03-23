@@ -166,4 +166,35 @@ function getCategoryColor($categoryName) {
     </main>
 
 </body>
+<script>
+    // 1. Grab all the checkboxes and event cards
+    const checkboxes = document.querySelectorAll('.category-filter');
+    const eventCards = document.querySelectorAll('.event-card');
+    const counterBadge = document.getElementById('event-counter');
+
+    // 2. Listen for clicks on any checkbox
+    checkboxes.forEach(box => {
+        box.addEventListener('change', () => {
+            
+            // 3. Make a list of which categories are currently checked
+            const checkedCategories = Array.from(checkboxes)
+                                         .filter(cb => cb.checked)
+                                         .map(cb => cb.value);
+            
+            // 4. Show or hide the cards based on the checked list
+            let visibleCount = 0;
+            eventCards.forEach(card => {
+                if (checkedCategories.includes(card.dataset.category)) {
+                    card.style.display = 'flex'; // Show it
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none'; // Hide it
+                }
+            });
+
+            // 5. Update the total counter at the top
+            if(counterBadge) counterBadge.innerText = `Total: ${visibleCount}`;
+        });
+    });
+</script>
 </html>
