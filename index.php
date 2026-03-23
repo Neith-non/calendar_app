@@ -83,6 +83,9 @@ function getCategoryColor($categoryName) {
             <a href="functions/sync_holidays.php" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
                 <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
             </a>
+            <a href="calendar.php" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-slate-600">
+                <i class="fa-regular fa-calendar-days"></i> View Calendar
+            </a>
         </div>
     </aside>
 
