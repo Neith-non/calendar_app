@@ -17,15 +17,28 @@ $stmt = $pdo->query("
 ");
 $events = $stmt->fetchAll();
 
-// Helper function to map Category Names to Tailwind Colors
+// Helper function to map Category Names to FULL Tailwind Classes
 function getCategoryColor($categoryName) {
     $name = strtolower($categoryName);
-    if (strpos($name, 'curricular') !== false && strpos($name, 'extra') === false) return 'blue';
-    if (strpos($name, 'extra-curricular') !== false || strpos($name, 'sports') !== false) return 'green';
-    if (strpos($name, 'mass') !== false) return 'purple';
-    if (strpos($name, 'meeting') !== false || strpos($name, 'staff') !== false) return 'orange';
-    if (strpos($name, 'holiday') !== false) return 'yellow';
-    return 'slate'; // Default color
+    
+    // Returns an array: [Text Color, Background Color, Border Color, Focus Ring]
+    if (strpos($name, 'curricular') !== false && strpos($name, 'extra') === false) 
+        return ['text' => 'text-blue-700', 'bg' => 'bg-blue-100', 'border' => 'border-blue-200', 'ring' => 'focus:ring-blue-500', 'checkbox' => 'text-blue-500'];
+        
+    if (strpos($name, 'extra-curricular') !== false || strpos($name, 'sports') !== false) 
+        return ['text' => 'text-green-700', 'bg' => 'bg-green-100', 'border' => 'border-green-200', 'ring' => 'focus:ring-green-500', 'checkbox' => 'text-green-500'];
+        
+    if (strpos($name, 'mass') !== false) 
+        return ['text' => 'text-purple-700', 'bg' => 'bg-purple-100', 'border' => 'border-purple-200', 'ring' => 'focus:ring-purple-500', 'checkbox' => 'text-purple-500'];
+        
+    if (strpos($name, 'meeting') !== false || strpos($name, 'staff') !== false) 
+        return ['text' => 'text-orange-700', 'bg' => 'bg-orange-100', 'border' => 'border-orange-200', 'ring' => 'focus:ring-orange-500', 'checkbox' => 'text-orange-500'];
+        
+    if (strpos($name, 'holiday') !== false) 
+        return ['text' => 'text-yellow-700', 'bg' => 'bg-yellow-100', 'border' => 'border-yellow-200', 'ring' => 'focus:ring-yellow-500', 'checkbox' => 'text-yellow-500'];
+        
+    // Default fallback (Slate)
+    return ['text' => 'text-slate-700', 'bg' => 'bg-slate-100', 'border' => 'border-slate-200', 'ring' => 'focus:ring-slate-500', 'checkbox' => 'text-slate-500'];
 }
 ?>
 <!DOCTYPE html>
@@ -63,9 +76,9 @@ function getCategoryColor($categoryName) {
 
         <div class="p-6 border-t border-slate-700 space-y-3">
             <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
-            <button class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+            <a href="add_event.php" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
                 <i class="fa-solid fa-plus"></i> Add New Event
-            </button>
+            </a>
             <a href="functions/sync_holidays.php" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
                 <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
             </a>
@@ -123,7 +136,7 @@ function getCategoryColor($categoryName) {
                                     <div class="flex items-center gap-3 mt-1 text-sm text-slate-500">
                                         <span><i class="fa-regular fa-clock mr-1"></i> <?php echo $formattedTime; ?></span>
                                         <span class="text-slate-300">|</span>
-                                        <span class="bg-<?php echo $color; ?>-100 text-<?php echo $color; ?>-700 px-2 py-0.5 rounded text-xs font-semibold">
+                                        <span class="<?php echo $color['bg']; ?> <?php echo $color['text']; ?> px-2 py-0.5 rounded text-xs font-semibold">
                                             <?php echo htmlspecialchars($event['category_name']); ?>
                                         </span>
                                     </div>
