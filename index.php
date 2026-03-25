@@ -153,8 +153,8 @@ function getCategoryColor($categoryName) {
             <h1 class="text-3xl font-bold text-white">All Scheduled Events</h1>
         </div>
 
-        <!-- Frontend Change: Controls container (Search and Filter) with glassmorphism effect -->
-        <div class="glass-container rounded-xl p-4 mb-6 flex flex-col sm:flex-row items-center gap-4">
+        <!-- Frontend Change: Controls container. Added `relative` and `z-10` to ensure the dropdown appears above the content below it. -->
+        <div class="glass-container rounded-xl p-4 mb-6 flex flex-col sm:flex-row items-center gap-4 relative z-10">
             <!-- Search Bar Container -->
             <div class="relative w-full flex-1">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -173,8 +173,8 @@ function getCategoryColor($categoryName) {
                     <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform" :class="{ 'rotate-180': open }"></i>
                 </button>
 
-                <!-- Frontend Change: Dropdown panel with glassmorphism effect -->
-                <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-full sm:w-72 glass-container rounded-xl shadow-lg z-20 p-4" style="display: none;">
+                <!-- Frontend Change: Dropdown panel. Replaced 'glass-container' with a solid background for 100% visibility. -->
+                <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-full sm:w-72 bg-[#002a1d] border border-white/20 rounded-xl shadow-lg z-20 p-4" style="display: none;">
                     <h4 class="text-sm font-bold text-slate-300 mb-3">Filter by Category</h4>
                     <!-- Backend Note: This PHP block lists categories. We only styled the checkboxes and labels. -->
                     <div class="space-y-3">
