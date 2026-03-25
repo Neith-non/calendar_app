@@ -20,19 +20,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'];
 
     if (!empty($username) && !empty($password)) {
-        // Find the user in the database
-        $stmt = $pdo->prepare("SELECT user_id, role_id, username, password, full_name FROM users WHERE username = ? AND is_active = 1");
+        
+        // 1. We JOIN the users and roles tables together to get the role_name!
+        $stmt = $pdo->prepare("
+            SELECT u.user_id, u.role_id, u.username, u.password, u.full_name, r.role_name 
+            FROM users u 
+            JOIN roles r ON u.role_id = r.role_id 
+            WHERE u.username = ? AND u.is_active = 1
+        ");
         $stmt->execute([$username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Check if the user exists AND the password matches
-        // (Note: We are using a basic text match since we manually added 'password123' earlier)
+        // 2. Check if the user exists AND the password matches
         if ($user && $password === $user['password']) {
             
-            // Success! Give them their Session Wristband
+            // 3. Success! Give them their Session Wristband with all the correct info
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['role_id'] = $user['role_id'];
             $_SESSION['full_name'] = $user['full_name'];
+            
+            // --> THE MAGIC LINE: Grab the word 'Admin' from the database!
+            $_SESSION['role_name'] = $user['role_name']; 
             
             // Send them to the dashboard
             header("Location: index.php");

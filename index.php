@@ -67,9 +67,12 @@ function getCategoryColor($categoryName) {
                 <i class="fa-solid fa-user text-3xl text-slate-500"></i>
             </div>
             <h2 class="text-xl font-bold text-white">
-            <?php echo htmlspecialchars($_SESSION['full_name']); ?>
+            </p><h2 class="text-xl font-bold text-white">
+            <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Ma\'am Reyes'); ?>
             </h2>
-            <p class="text-sm text-slate-400">Head Scheduler</p>
+            <p class="text-sm text-slate-400 capitalize">
+            <?php echo htmlspecialchars($_SESSION['role_name'] ?? ''); ?>
+            </p>
         </div>
 
         <div class="p-6 flex-1 overflow-y-auto">
