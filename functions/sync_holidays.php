@@ -10,7 +10,7 @@ $myApiKey = 'AIzaSyBQ7lCu6H5vVlGwXuxQ68BY9VIdfujErR4';
 $holidayCategoryId = 5; // Make sure this is your actual Holiday category ID!
 
 // 3. Run the sync
-$result = syncHolidaysThisYear($pdo, $myApiKey, $holidayCategoryId);
+$result = syncHolidaysThreeYears($pdo, $myApiKey, $holidayCategoryId);
 
 // 4. URL Encode the message so it's safe to pass in the web address
 $message = urlencode($result['message']);

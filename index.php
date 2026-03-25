@@ -1,12 +1,5 @@
 <?php
 // index.php
-session_start();
-
-// The Bouncer: If they are not logged in, kick them out!
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit;
-}
 
 // 1. Include database connection from the functions folder
 require_once 'functions/database.php';
@@ -15,14 +8,20 @@ require_once 'functions/database.php';
 $stmt = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmt->fetchAll();
 
-// 3. Fetch ALL Events (With Publish Status)
-$stmt = $pdo->query("
+// 3. Fetch ONLY This Year's Events (With Publish Status)
+$currentYear = date('Y'); // Get the current year dynamically
+
+$stmt = $pdo->prepare("
     SELECT e.*, c.category_name, p.status 
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
     LEFT JOIN event_publish p ON e.publish_id = p.id
+    WHERE YEAR(e.start_date) = :current_year
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
+
+// Execute the prepared statement securely
+$stmt->execute([':current_year' => $currentYear]);
 $events = $stmt->fetchAll();
 
 // Helper function to map Category Names to FULL Tailwind Classes
@@ -66,13 +65,8 @@ function getCategoryColor($categoryName) {
             <div class="w-20 h-20 mx-auto bg-slate-300 rounded-full flex items-center justify-center mb-4 overflow-hidden border-4 border-slate-600">
                 <i class="fa-solid fa-user text-3xl text-slate-500"></i>
             </div>
-            <h2 class="text-xl font-bold text-white">
-            </p><h2 class="text-xl font-bold text-white">
-            <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Ma\'am Reyes'); ?>
-            </h2>
-            <p class="text-sm text-slate-400 capitalize">
-            <?php echo htmlspecialchars($_SESSION['role_name'] ?? ''); ?>
-            </p>
+            <h2 class="text-xl font-bold text-white">Ma'am Reyes</h2>
+            <p class="text-sm text-slate-400">Head Scheduler</p>
         </div>
 
         <div class="p-6 flex-1 overflow-y-auto">
@@ -98,11 +92,6 @@ function getCategoryColor($categoryName) {
             </a>
             <a href="calendar.php" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-slate-600">
                 <i class="fa-regular fa-calendar-days"></i> View Calendar
-            </a>
-
-            <a href="logout.php" class="flex items-center gap-3 px-4 py-3 mt-auto text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
-                <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                    <span>Logout</span>
             </a>
         </div>
     </aside>
