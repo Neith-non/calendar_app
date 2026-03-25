@@ -1,6 +1,6 @@
 <?php
 // add_event.php
-require_once 'database.php';
+require_once 'functions/database.php';
 
 $message = '';
 $msgType = 'error'; // Can be 'error' or 'success'
@@ -15,6 +15,7 @@ $venues = $stmt_venues->fetchAll();
 // 2. Process Form Submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title = trim($_POST['title']);
+    $description = trim($_POST['description']);
     $category_id = (int)$_POST['category_id'];
     $venue_id = (int)$_POST['venue_id'];
     
@@ -57,14 +58,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             try {
                 $pdo->beginTransaction();
 
-                // Step A: Create Request
-                $stmt_pub = $pdo->prepare("INSERT INTO event_publish (venue_id, title, status) VALUES (?, ?, 'Pending')");
-                $stmt_pub->execute([$venue_id, $title]);
+                // Step A: Create Request (Now with description!)
+                $stmt_pub = $pdo->prepare("INSERT INTO event_publish (venue_id, title, description, status) VALUES (?, ?, ?, 'Pending')");
+                $stmt_pub->execute([$venue_id, $title, $description]);
                 $publish_id = $pdo->lastInsertId();
 
-                // Step B: Create Calendar Block (Now with End Dates!)
-                $stmt_event = $pdo->prepare("INSERT INTO events (publish_id, category_id, title, start_date, start_time, end_date, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt_event->execute([$publish_id, $category_id, $title, $start_date, $start_time, $end_date, $end_time]);
+                // Step B: Create Calendar Block (Now with description!)
+                $stmt_event = $pdo->prepare("INSERT INTO events (publish_id, category_id, title, description, start_date, start_time, end_date, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt_event->execute([$publish_id, $category_id, $title, $description, $start_date, $start_time, $end_date, $end_time]);
 
                 $pdo->commit();
                 
@@ -114,7 +115,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div>
                     <label class="block text-sm font-bold text-slate-700 mb-1">Event Title</label>
                     <input type="text" name="title" required placeholder="e.g., Grade 10 Math Olympiad" 
-                           class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-slate-50 focus:bg-white">
+                        value="<?php echo htmlspecialchars($_POST['title'] ?? ''); ?>"
+                        class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-slate-50 focus:bg-white">
+                </div>
+
+                <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Event Description</label>
+                <textarea name="description" rows="3" placeholder="Optional details, instructions, or agenda..." 
+                        class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-slate-50 focus:bg-white resize-none"><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
                 </div>
 
                 <div class="grid grid-cols-2 gap-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
