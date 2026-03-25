@@ -50,6 +50,7 @@ function getCategoryColor($categoryName) {
     <title>St. Joseph School Foundation - Event List</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen flex overflow-hidden font-sans">
 
@@ -67,11 +68,11 @@ function getCategoryColor($categoryName) {
             <div class="space-y-3">
                 <?php foreach($categories as $cat): ?>
                     <?php $color = getCategoryColor($cat['category_name']); ?>
-                    <label class="flex items-center space-x-3 cursor-pointer group">
-                        <input type="checkbox" checked class="w-5 h-5 rounded text-<?php echo $color; ?>-500 bg-slate-700 border-slate-600 focus:ring-<?php echo $color; ?>-500">
-                        <span class="group-hover:text-white transition-colors"><?php echo htmlspecialchars($cat['category_name']); ?></span>
-                    </label>
-                <?php endforeach; ?>
+                        <label class="flex items-center space-x-3 cursor-pointer group">
+                    <input type="checkbox" checked value="<?php echo htmlspecialchars($cat['category_name']); ?>" class="category-filter w-5 h-5 rounded <?php echo $color['checkbox']; ?> bg-slate-700 border-slate-600 <?php echo $color['ring']; ?>">
+                <span class="group-hover:text-white transition-colors"><?php echo htmlspecialchars($cat['category_name']); ?></span>
+             </label>
+            <?php endforeach; ?>
             </div>
         </div>
 
@@ -106,7 +107,7 @@ function getCategoryColor($categoryName) {
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <div class="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
                 <h1 class="text-2xl font-bold text-slate-800">All Scheduled Events</h1>
-                <span class="bg-slate-100 text-slate-600 py-1 px-3 rounded-full text-sm font-semibold">
+                <span id="event-counter" class="bg-slate-100 text-slate-600 py-1 px-3 rounded-full text-sm font-semibold">
                     Total: <?php echo count($events); ?>
                 </span>
             </div>
@@ -118,17 +119,24 @@ function getCategoryColor($categoryName) {
                             $color = getCategoryColor($event['category_name']); 
                             
                             // Format the Date (e.g., "March 15, 2026")
-                            $formattedDate = date('F j, Y', strtotime($event['start_date']));
-                            
-                            // Format the Time (If 00:00:00, show "All Day")
-                            if ($event['start_time'] == '00:00:00') {
-                                $formattedTime = "All Day";
-                            } else {
-                                $formattedTime = date('g:i A', strtotime($event['start_time']));
-                            }
-                        ?>
-                        
-                        <div class="flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:border-blue-300 hover:shadow-md transition bg-slate-50 group">
+                           
+                                $formattedDate = date('F j, Y', strtotime($event['start_date']));
+                                $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
+
+                                // NEW: Format the End Date/Time
+                                $formattedEndDate = date('F j, Y', strtotime($event['end_date']));
+                                $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
+                                ?>
+
+                                <div class="event-card cursor-pointer flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:border-blue-300 hover:shadow-md transition bg-slate-50 group" 
+                                    data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
+                                    data-title="<?php echo htmlspecialchars($event['title']); ?>"
+                                    data-desc="<?php echo htmlspecialchars($event['description'] ?? 'No description provided.'); ?>"
+                                    data-date="<?php echo $formattedDate; ?>"
+                                    data-time="<?php echo $formattedTime; ?>"
+                                    data-end-date="<?php echo $formattedEndDate; ?>"  
+                                    data-end-time="<?php echo $formattedEndTime; ?>"  
+                                    onclick="openModal(this)">
                             <div class="flex items-center gap-4">
                                 <div class="bg-white border border-slate-200 rounded-md text-center p-2 min-w-[80px] shadow-sm">
                                     <span class="block text-xs font-bold text-slate-400 uppercase"><?php echo date('M', strtotime($event['start_date'])); ?></span>
@@ -163,17 +171,16 @@ function getCategoryColor($categoryName) {
             <i class="fa-solid fa-clock mr-1"></i> Pending Approval
         </span>
         <div class="flex gap-2">
-            <a href="approve_event.php?id=<?php echo $event['publish_id']; ?>&action=approve" 
-               class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition"
-               onclick="return confirm('Approve this event?');">
-               <i class="fa-solid fa-check"></i>
-            </a>
-            <a href="approve_event.php?id=<?php echo $event['publish_id']; ?>&action=reject" 
-               class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition"
-               onclick="return confirm('Reject this event? It will be removed from the calendar.');">
-               <i class="fa-solid fa-xmark"></i>
-            </a>
-        </div>
+    <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=approve', 'approve')" 
+            class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition">
+        <i class="fa-solid fa-check"></i>
+    </button>
+    
+    <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=reject', 'reject')" 
+            class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition">
+        <i class="fa-solid fa-xmark"></i>
+    </button>
+</div>
     <?php endif; ?>
 </div>
                         </div>
@@ -190,37 +197,54 @@ function getCategoryColor($categoryName) {
         </div>
 
     </main>
+                    <div id="eventModal" class="fixed inset-0 bg-slate-900 bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-95 opacity-0" id="modalContent">
+        
+        <div class="bg-blue-600 p-4 flex justify-between items-center text-white">
+            <h2 id="modalTitle" class="text-xl font-bold truncate">Event Title</h2>
+            <button onclick="closeModal()" class="text-white hover:text-blue-200 transition bg-blue-700 hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
 
+        <div class="p-6 space-y-4">
+            
+            <div class="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-3 shadow-inner">
+                
+                <div class="flex items-center gap-3 text-slate-700 font-medium">
+                    <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">Start</span>
+                    <i class="fa-regular fa-calendar text-emerald-500 text-lg"></i>
+                    <span id="modalDate">Date</span>
+                    <span class="text-slate-300 mx-1">|</span>
+                    <i class="fa-regular fa-clock text-emerald-500 text-lg"></i>
+                    <span id="modalTime">Time</span>
+                </div>
+
+                <div class="h-px bg-slate-200 w-full ml-12"></div>
+
+                <div class="flex items-center gap-3 text-slate-700 font-medium">
+                    <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">End</span>
+                    <i class="fa-regular fa-calendar-check text-red-400 text-lg"></i>
+                    <span id="modalEndDate">Date</span>
+                    <span class="text-slate-300 mx-1">|</span>
+                    <i class="fa-regular fa-clock text-red-400 text-lg"></i>
+                    <span id="modalEndTime">Time</span>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Description</h3>
+                <p id="modalDesc" class="text-slate-700 whitespace-pre-line leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-200 min-h-[80px]"></p>
+            </div>
+        </div>
+
+        <div class="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-end">
+            <button onclick="closeModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2 px-4 rounded-lg transition">Close</button>
+        </div>
+    </div>
+</div>
 </body>
-<script>
-    // 1. Grab all the checkboxes and event cards
-    const checkboxes = document.querySelectorAll('.category-filter');
-    const eventCards = document.querySelectorAll('.event-card');
-    const counterBadge = document.getElementById('event-counter');
+                    
 
-    // 2. Listen for clicks on any checkbox
-    checkboxes.forEach(box => {
-        box.addEventListener('change', () => {
-            
-            // 3. Make a list of which categories are currently checked
-            const checkedCategories = Array.from(checkboxes)
-                                         .filter(cb => cb.checked)
-                                         .map(cb => cb.value);
-            
-            // 4. Show or hide the cards based on the checked list
-            let visibleCount = 0;
-            eventCards.forEach(card => {
-                if (checkedCategories.includes(card.dataset.category)) {
-                    card.style.display = 'flex'; // Show it
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none'; // Hide it
-                }
-            });
-
-            // 5. Update the total counter at the top
-            if(counterBadge) counterBadge.innerText = `Total: ${visibleCount}`;
-        });
-    });
-</script>
+<script src="assets/js/filter.js"></script>
 </html>
