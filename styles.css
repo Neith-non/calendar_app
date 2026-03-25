@@ -1,0 +1,66 @@
+/* --- Global Color & Style Variables --- */
+:root {
+    --white: #ffffff;
+    --light-green: #006930;
+    --dark-green: #004731;
+    --yellow: #ffbb00;
+    --text-primary: #f0f0f0;
+    --text-secondary: #c0c0c0;
+    --input-bg: rgba(0, 0, 0, 0.15);
+    --input-border: rgba(255, 255, 255, 0.2);
+}
+
+/* --- Login Page Body Style --- */
+body.login-body {
+    background: linear-gradient(135deg, var(--dark-green), #002a1d);
+    font-family: 'Poppins', sans-serif; /* A more contemporary font */
+}
+
+/* --- Main Dashboard & Calendar Body Style --- */
+body.dashboard-body {
+    background: linear-gradient(135deg, var(--dark-green), #002a1d);
+    font-family: 'Poppins', sans-serif;
+    color: var(--text-primary);
+}
+
+/* --- Core Glassmorphism Container Style --- */
+.glass-container {
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px); /* For Safari */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* --- Custom Glass Form Input Style --- */
+.form-input-glass {
+    background-color: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
+    color: var(--text-primary) !important;
+    transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+/* Style for the placeholder text inside glass inputs */
+.form-input-glass::placeholder {
+    color: var(--text-secondary) !important;
+}
+
+/* Style for when a glass input is focused (clicked on) */
+.form-input-glass:focus {
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    border-color: var(--yellow) !important;
+    box-shadow: none !important;
+    outline: none !important;
+    ring-width: 0 !important;
+}
+
+/* --- Glass Button Style (Used for View Switchers) --- */
+.btn-glass-view {
+    background-color: transparent;
+    border: 1px solid var(--input-border);
+    color: var(--text-secondary);
+}
+/* Style for active/hovered view switcher buttons */
+.btn-glass-view.active, .btn-glass-view:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--white);
+}
