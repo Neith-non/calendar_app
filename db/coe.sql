@@ -73,3 +73,16 @@ INSERT INTO event_categories (category_id, category_name, category_type) VALUES
 ALTER TABLE events 
 ADD COLUMN end_date DATE NULL AFTER start_date,
 ADD COLUMN end_time TIME NULL AFTER start_time;
+
+ALTER TABLE event_publish ADD COLUMN description TEXT NULL AFTER title;
+ALTER TABLE events ADD COLUMN description TEXT NULL AFTER title;
+
+-- 1. Add the missing password column to your users table
+ALTER TABLE users ADD COLUMN password VARCHAR(255) NOT NULL AFTER username;
+
+-- 2. Create the Admin role (Assuming your roles table has a role_name column)
+INSERT IGNORE INTO roles (role_id, role_name) VALUES (1, 'Admin');
+
+-- 3. Create our first actual user (Ma'am Reyes) linked to Role #1
+INSERT IGNORE INTO users (user_id, role_id, username, password, full_name) 
+VALUES (1, 1, 'admin', 'password123', 'Ma''am Reyes');
