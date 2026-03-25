@@ -123,20 +123,28 @@ function getCategoryColor($categoryName) {
 
                     echo "<div class='{$dayClass} min-h-[120px] p-2 hover:bg-slate-50 transition relative group'>";
                     
-                    // The Date Number
+                    // The Date Number (Now a Clickable Link!)
                     echo "<div class='flex justify-between items-start mb-1'>";
-                    echo "<span class='text-sm {$numberClass}'>{$day}</span>";
-                    
-                    // Optional: A tiny invisible "+" button that appears on hover to add an event
-                    echo "<a href='add_event.php?date={$currentDate}' class='opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 transition'><i class='fa-solid fa-plus text-xs'></i></a>";
+
+                    // Add a hover effect so the user knows they can click the number
+                    $hoverClass = $isToday ? "hover:bg-blue-700 hover:shadow-md" : "hover:bg-blue-100 hover:text-blue-700 cursor-pointer rounded-full transition";
+
+                    echo "<a href='add_event.php?date={$currentDate}' class='text-sm {$numberClass} {$hoverClass} inline-flex items-center justify-center w-7 h-7' title='Add event on " . date('F j, Y', strtotime($currentDate)) . "'>{$day}</a>";
+
+                    // Keep the tiny "+" button for extra clarity
+                    echo "<a href='add_event.php?date={$currentDate}' class='opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 transition p-1'><i class='fa-solid fa-plus text-xs'></i></a>";
                     echo "</div>";
 
                     // Display Events for this Day
                     if (isset($eventsByDate[$currentDate])) {
+                        
+
                         echo "<div class='flex flex-col gap-1 mt-2'>";
                         foreach ($eventsByDate[$currentDate] as $evt) {
                             $color = getCategoryColor($evt['category_name']);
                             
+                            $color = getCategoryColor($evt['category_name']);
+
                             // Visual cue if it's pending
                             $opacity = ($evt['status'] === 'Pending') ? 'opacity-60 border-dashed' : '';
                             $pendingIcon = ($evt['status'] === 'Pending') ? '<i class="fa-solid fa-clock mr-1"></i>' : '';
@@ -144,8 +152,27 @@ function getCategoryColor($categoryName) {
                             // Shorten the title so it fits in the box
                             $shortTitle = strlen($evt['title']) > 15 ? substr($evt['title'], 0, 15) . '...' : $evt['title'];
 
+                            // Format Data for the Modal
+                            
+                            $formattedDate = date('F j, Y', strtotime($evt['start_date']));
+                            $formattedTime = ($evt['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($evt['start_time']));
+
+                            // NEW: Format the End Date/Time
+                            $formattedEndDate = date('F j, Y', strtotime($evt['end_date']));
+                            $formattedEndTime = ($evt['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($evt['end_time']));
+                            $safeTitle = htmlspecialchars($evt['title']);
+                            $safeDesc = htmlspecialchars($evt['description'] ?? 'No description provided.');
+
                             echo "
-                            <div class='{$color['bg']} {$color['text']} border {$color['border']} {$opacity} px-2 py-1 rounded text-xs font-semibold truncate shadow-sm cursor-pointer hover:shadow-md transition' title='" . htmlspecialchars($evt['title']) . "'>
+                            <div class='{$color['bg']} {$color['text']} border {$color['border']} {$opacity} px-2 py-1 rounded text-xs font-semibold truncate shadow-sm cursor-pointer hover:shadow-md transition' 
+                                title='{$safeTitle}'
+                                data-title='{$safeTitle}'
+                                data-desc='{$safeDesc}'
+                                data-date='{$formattedDate}'
+                                data-time='{$formattedTime}'
+                                data-end-date='{$formattedEndDate}'
+                                data-end-time='{$formattedEndTime}'
+                                onclick='openModal(this)'>
                                 {$pendingIcon}{$shortTitle}
                             </div>
                             ";
@@ -170,5 +197,53 @@ function getCategoryColor($categoryName) {
         </div>
     </main>
 
+    <div id="eventModal" class="fixed inset-0 bg-slate-900 bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-95 opacity-0" id="modalContent">
+        
+        <div class="bg-blue-600 p-4 flex justify-between items-center text-white">
+            <h2 id="modalTitle" class="text-xl font-bold truncate">Event Title</h2>
+            <button onclick="closeModal()" class="text-white hover:text-blue-200 transition bg-blue-700 hover:bg-blue-800 rounded-full w-8 h-8 flex items-center justify-center">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+            
+            <div class="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-3 shadow-inner">
+                
+                <div class="flex items-center gap-3 text-slate-700 font-medium">
+                    <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">Start</span>
+                    <i class="fa-regular fa-calendar text-emerald-500 text-lg"></i>
+                    <span id="modalDate">Date</span>
+                    <span class="text-slate-300 mx-1">|</span>
+                    <i class="fa-regular fa-clock text-emerald-500 text-lg"></i>
+                    <span id="modalTime">Time</span>
+                </div>
+
+                <div class="h-px bg-slate-200 w-full ml-12"></div>
+
+                <div class="flex items-center gap-3 text-slate-700 font-medium">
+                    <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">End</span>
+                    <i class="fa-regular fa-calendar-check text-red-400 text-lg"></i>
+                    <span id="modalEndDate">Date</span>
+                    <span class="text-slate-300 mx-1">|</span>
+                    <i class="fa-regular fa-clock text-red-400 text-lg"></i>
+                    <span id="modalEndTime">Time</span>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Description</h3>
+                <p id="modalDesc" class="text-slate-700 whitespace-pre-line leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-200 min-h-[80px]"></p>
+            </div>
+        </div>
+
+        <div class="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-end">
+            <button onclick="closeModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2 px-4 rounded-lg transition">Close</button>
+        </div>
+    </div>
+</div>
+
 </body>
+<script src="assets/js/filter.js"></script>
 </html>
