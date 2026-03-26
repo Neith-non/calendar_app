@@ -86,3 +86,16 @@ INSERT IGNORE INTO roles (role_id, role_name) VALUES (1, 'Admin');
 -- 3. Create our first actual user (Ma'am Reyes) linked to Role #1
 INSERT IGNORE INTO users (user_id, role_id, username, password, full_name) 
 VALUES (1, 1, 'admin', 'password123', 'Ma''am Reyes');
+
+-- 1. Add the Head Scheduler and Viewer (Principal) roles
+INSERT IGNORE INTO roles (role_id, role_name) VALUES 
+(2, 'Head Scheduler'),
+(3, 'Viewer');
+
+-- 2. Create a test user for the Head Scheduler (Linked to role_id 2)
+INSERT IGNORE INTO users (role_id, username, password, full_name) 
+VALUES (2, 'scheduler', 'password123', 'Mr. Head Scheduler');
+
+-- 3. Create a test user for the Principal / Viewer (Linked to role_id 3)
+INSERT IGNORE INTO users (role_id, username, password, full_name) 
+VALUES (3, 'principal', 'password123', 'Principal Viewer');
