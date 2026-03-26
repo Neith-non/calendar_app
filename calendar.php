@@ -176,6 +176,42 @@ function getCategoryColor($categoryName) {
             </div>
         </div>
 
+        <!-- Frontend Change: Controls container (Search and Filter) added for consistency. -->
+        <div class="glass-container rounded-xl p-4 mb-6 flex flex-col sm:flex-row items-center gap-4 relative z-10">
+            <!-- Search Bar Container -->
+            <div class="relative w-full flex-1">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <i class="fa-solid fa-search text-slate-400"></i>
+                </div>
+                <!-- Search bar placeholder with 'form-input-glass' style -->
+                <input type="text" id="search-bar" placeholder="Search events..." class="form-input-glass w-full pl-11 pr-4 py-2.5 rounded-lg">
+            </div>
+
+            <!-- Category Filter Dropdown Container -->
+            <div x-data="{ open: false }" class="relative w-full sm:w-auto">
+                <!-- Filter dropdown button with 'form-input-glass' style -->
+                <button @click="open = !open" class="form-input-glass w-full sm:w-56 flex items-center justify-between gap-2 font-semibold py-2.5 px-4 rounded-lg transition">
+                    <i class="fa-solid fa-filter text-slate-400"></i>
+                    <span id="filter-button-text">All Categories</span>
+                    <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform" :class="{ 'rotate-180': open }"></i>
+                </button>
+
+                <!-- Dropdown panel with a solid background for visibility -->
+                <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-full sm:w-72 bg-[#002a1d] border border-white/20 rounded-xl shadow-lg z-20 p-4" style="display: none;">
+                    <h4 class="text-sm font-bold text-slate-300 mb-3">Filter by Category</h4>
+                    <div class="space-y-3">
+                        <?php foreach($categories as $cat): ?>
+                            <?php $color = getCategoryColor($cat['category_name']); ?>
+                            <label class="flex items-center space-x-3 cursor-pointer group">
+                                <input type="checkbox" checked value="<?php echo htmlspecialchars($cat['category_name']); ?>" class="category-filter w-5 h-5 rounded <?php echo $color['checkbox']; ?> bg-transparent border-slate-500 focus:ring-offset-0 focus:ring-offset-transparent <?php echo $color['ring']; ?>">
+                                <span class="group-hover:text-yellow-400 transition-colors text-slate-200 font-medium"><?php echo htmlspecialchars($cat['category_name']); ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Frontend Change: Main calendar grid container with glassmorphism effect -->
         <div class="glass-container rounded-xl overflow-hidden flex flex-col flex-1 min-h-[600px]">
             
@@ -252,7 +288,7 @@ function getCategoryColor($categoryName) {
  
                             echo "
                             <!-- Frontend Change: An individual event item within a calendar cell -->
-                            <div class='{$color['bg']} {$color['text']} border {$color['border']} {$opacity} px-2 py-1 rounded text-xs font-semibold truncate cursor-pointer hover:bg-white/20 hover:border-yellow-400/50 transition' 
+                            <div class='calendar-event-item {$color['bg']} {$color['text']} border {$color['border']} {$opacity} px-2 py-1 rounded text-xs font-semibold truncate cursor-pointer hover:bg-white/20 hover:border-yellow-400/50 transition' 
                                 title='{$safeTitle}'
                                 data-title='{$safeTitle}'
                                 data-desc='{$safeDesc}'
@@ -333,6 +369,8 @@ function getCategoryColor($categoryName) {
 </div>
 
 </body>
+<!-- Frontend Change: Added AlpineJS for dropdown functionality -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
     // Basic modal functionality for demonstration
     const eventModal = document.getElementById('eventModal');
@@ -372,5 +410,6 @@ function getCategoryColor($categoryName) {
             closeModal();
         }
     });
+
 </script>
 </html>
