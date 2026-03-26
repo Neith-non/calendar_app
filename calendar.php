@@ -437,7 +437,7 @@ function getCategoryColor($categoryName) {
             }
         }
 
-        // 2. The Master Filter Engine! (Handles Search Text + Checkboxes)
+        // 2. The Master Filter Engine! (Now with Date Search)
         function filterEvents() {
             const searchTerm = searchBar ? searchBar.value.toLowerCase() : '';
             
@@ -452,8 +452,14 @@ function getCategoryColor($categoryName) {
                 const desc = (event.getAttribute('data-desc') || '').toLowerCase();
                 const category = (event.getAttribute('data-category') || '').toLowerCase();
                 
-                // Check if the text matches the search bar
-                const matchesSearch = title.includes(searchTerm) || desc.includes(searchTerm) || category.includes(searchTerm);
+                // NEW: Grab the formatted date (e.g., "march 17, 2026")
+                const eventDate = (event.getAttribute('data-date') || '').toLowerCase();
+                
+                // Check if the search text matches the Title, Description, Category, OR the Date!
+                const matchesSearch = title.includes(searchTerm) || 
+                                      desc.includes(searchTerm) || 
+                                      category.includes(searchTerm) || 
+                                      eventDate.includes(searchTerm);
                 
                 // Check if the event's category is currently checked in the dropdown
                 const matchesCategory = activeCategories.includes(category);
