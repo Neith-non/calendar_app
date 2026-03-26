@@ -30,6 +30,9 @@ $stmt = $pdo->prepare("
 $stmt->execute(["$year-$month"]);
 $rawEvents = $stmt->fetchAll();
 
+$stmtCats = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
+$categories = $stmtCats->fetchAll();
+
 // Group events by their exact date so we can easily put them in the right box
 $eventsByDate = [];
 foreach ($rawEvents as $event) {
@@ -286,12 +289,12 @@ function getCategoryColor($categoryName) {
                             $safeTitle = htmlspecialchars($evt['title']);
                             $safeDesc = htmlspecialchars($evt['description'] ?? 'No description provided.');
  
-                            echo "
-                            <!-- Frontend Change: An individual event item within a calendar cell -->
+                           echo "
                             <div class='calendar-event-item {$color['bg']} {$color['text']} border {$color['border']} {$opacity} px-2 py-1 rounded text-xs font-semibold truncate cursor-pointer hover:bg-white/20 hover:border-yellow-400/50 transition' 
                                 title='{$safeTitle}'
                                 data-title='{$safeTitle}'
                                 data-desc='{$safeDesc}'
+                                data-category='" . htmlspecialchars($evt['category_name']) . "' 
                                 data-date='{$formattedDate}'
                                 data-time='{$formattedTime}'
                                 data-end-date='{$formattedEndDate}'
@@ -411,5 +414,76 @@ function getCategoryColor($categoryName) {
         }
     });
 
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Grab our elements
+        const checkboxes = document.querySelectorAll('.category-filter');
+        const filterButtonText = document.getElementById('filter-button-text');
+        const searchBar = document.getElementById('search-bar');
+        const calendarEvents = document.querySelectorAll('.calendar-event-item');
+
+        // 1. Update the text on the dropdown button
+        function updateFilterButton() {
+            if (!filterButtonText) return;
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            
+            if (checkedCount === 0) {
+                filterButtonText.innerText = 'No Categories';
+            } else if (checkedCount === checkboxes.length) {
+                filterButtonText.innerText = 'All Categories';
+            } else {
+                filterButtonText.innerText = `${checkedCount} Categories Selected`;
+            }
+        }
+
+        // 2. The Master Filter Engine! (Handles Search Text + Checkboxes)
+        function filterEvents() {
+            const searchTerm = searchBar ? searchBar.value.toLowerCase() : '';
+            
+            // Get an array of whatever category checkboxes are currently ticked
+            const activeCategories = Array.from(checkboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value.toLowerCase());
+
+            // Loop through every single event on the calendar
+            calendarEvents.forEach(event => {
+                const title = (event.getAttribute('data-title') || '').toLowerCase();
+                const desc = (event.getAttribute('data-desc') || '').toLowerCase();
+                const category = (event.getAttribute('data-category') || '').toLowerCase();
+                
+                // Check if the text matches the search bar
+                const matchesSearch = title.includes(searchTerm) || desc.includes(searchTerm) || category.includes(searchTerm);
+                
+                // Check if the event's category is currently checked in the dropdown
+                const matchesCategory = activeCategories.includes(category);
+
+                // If it passes BOTH tests, show it. Otherwise, hide it!
+                if (matchesSearch && matchesCategory) {
+                    event.style.display = 'block'; 
+                } else {
+                    event.style.display = 'none'; 
+                }
+            });
+        }
+
+        // --- Event Listeners ---
+        
+        // Listen for typing in the search bar
+        if (searchBar) {
+            searchBar.addEventListener('input', filterEvents);
+        }
+
+        // Listen for checking/unchecking boxes
+        checkboxes.forEach(box => {
+            box.addEventListener('change', () => {
+                updateFilterButton();
+                filterEvents();
+            });
+        });
+
+        // Run once on page load to set the initial state
+        updateFilterButton();
+    });
 </script>
 </html>

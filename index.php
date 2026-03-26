@@ -378,8 +378,40 @@ function getCategoryColor($categoryName) {
         });
 
         // Initial update on page load
+      // Initial update on page load
         updateFilterButton();
-    });
 
+        // --- NEW SEARCH BAR ENGINE ---
+        const searchBar = document.getElementById('search-bar');
+        const eventCards = document.querySelectorAll('.event-card');
+        const eventCounter = document.getElementById('event-counter');
+
+        if (searchBar) {
+            searchBar.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase();
+                let visibleCount = 0;
+
+                eventCards.forEach(card => {
+                    // Grab the data attached to the card
+                    const title = (card.getAttribute('data-title') || '').toLowerCase();
+                    const category = (card.getAttribute('data-category') || '').toLowerCase();
+                    const desc = (card.getAttribute('data-desc') || '').toLowerCase();
+
+                    // Check if the search term matches any of the text
+                    if (title.includes(searchTerm) || category.includes(searchTerm) || desc.includes(searchTerm)) {
+                        card.style.display = ''; // Show the card (keeps your flex layout safe)
+                        visibleCount++;
+                    } else {
+                        card.style.display = 'none'; // Hide the card
+                    }
+                });
+
+                // Update the counter dynamically!
+                if (eventCounter) {
+                    eventCounter.innerHTML = `Total: ${visibleCount}`;
+                }
+            });
+        }
+    });
 </script>
 </html>
