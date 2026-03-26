@@ -179,6 +179,14 @@ function getCategoryColor($categoryName) {
             </div>
         </div>
 
+        <div id="empty-state-message" class="hidden glass-container rounded-xl p-8 mb-6 flex-col items-center justify-center text-center border border-yellow-500/30 bg-yellow-500/10">
+            <div class="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
+                <i class="fa-solid fa-calendar-xmark text-3xl text-yellow-400"></i>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2">No events found</h3>
+            <p class="text-slate-300">Try adjusting your search or category filters.</p>
+        </div>
+
         <!-- Frontend Change: Controls container (Search and Filter) added for consistency. -->
         <div class="glass-container rounded-xl p-4 mb-6 flex flex-col sm:flex-row items-center gap-4 relative z-10">
             <!-- Search Bar Container -->
@@ -422,6 +430,7 @@ function getCategoryColor($categoryName) {
         const filterButtonText = document.getElementById('filter-button-text');
         const searchBar = document.getElementById('search-bar');
         const calendarEvents = document.querySelectorAll('.calendar-event-item');
+        const emptyStateMessage = document.getElementById('empty-state-message'); // NEW
 
         // 1. Update the text on the dropdown button
         function updateFilterButton() {
@@ -437,7 +446,7 @@ function getCategoryColor($categoryName) {
             }
         }
 
-        // 2. The Master Filter Engine! (Now with Date Search)
+        // 2. The Master Filter Engine! (Now tracks visible events)
         function filterEvents() {
             const searchTerm = searchBar ? searchBar.value.toLowerCase() : '';
             
@@ -446,13 +455,13 @@ function getCategoryColor($categoryName) {
                 .filter(cb => cb.checked)
                 .map(cb => cb.value.toLowerCase());
 
+            let visibleCount = 0; // NEW: Keep track of how many events are showing
+
             // Loop through every single event on the calendar
             calendarEvents.forEach(event => {
                 const title = (event.getAttribute('data-title') || '').toLowerCase();
                 const desc = (event.getAttribute('data-desc') || '').toLowerCase();
                 const category = (event.getAttribute('data-category') || '').toLowerCase();
-                
-                // NEW: Grab the formatted date (e.g., "march 17, 2026")
                 const eventDate = (event.getAttribute('data-date') || '').toLowerCase();
                 
                 // Check if the search text matches the Title, Description, Category, OR the Date!
@@ -464,13 +473,25 @@ function getCategoryColor($categoryName) {
                 // Check if the event's category is currently checked in the dropdown
                 const matchesCategory = activeCategories.includes(category);
 
-                // If it passes BOTH tests, show it. Otherwise, hide it!
+                // If it passes BOTH tests, show it and increase the count
                 if (matchesSearch && matchesCategory) {
                     event.style.display = 'block'; 
+                    visibleCount++; 
                 } else {
                     event.style.display = 'none'; 
                 }
             });
+
+            // NEW: Show or hide the empty state message based on the count
+            if (emptyStateMessage) {
+                if (visibleCount === 0) {
+                    emptyStateMessage.classList.remove('hidden');
+                    emptyStateMessage.classList.add('flex');
+                } else {
+                    emptyStateMessage.classList.add('hidden');
+                    emptyStateMessage.classList.remove('flex');
+                }
+            }
         }
 
         // --- Event Listeners ---
@@ -490,6 +511,7 @@ function getCategoryColor($categoryName) {
 
         // Run once on page load to set the initial state
         updateFilterButton();
+        filterEvents(); // NEW: Run filter on load just in case a month has 0 events to begin with!
     });
 </script>
 </html>
