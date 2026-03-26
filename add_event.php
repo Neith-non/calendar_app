@@ -1,4 +1,14 @@
 <?php
+
+session_start();
+
+// Check if user is logged in AND is specifically the Head Scheduler
+$allowed_roles = ['Head Scheduler', 'Admin'];
+
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_roles)) {
+    header("Location: calendar.php?error=unauthorized");
+    exit;
+}
 // add_event.php
 require_once 'functions/database.php';
 

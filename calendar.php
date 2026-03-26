@@ -124,19 +124,19 @@ function getCategoryColor($categoryName) {
             </div>
 
             <!-- Quick Actions Container -->
-            <div class="p-6">
+            <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')): ?>
+            <div class="p-6 border-b border-white/10">
                 <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
                 <div class="space-y-3">
-                    <!-- "Add New Event" Button -->
                     <a href="add_event.php" class="w-full bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
                         <i class="fa-solid fa-plus"></i> Add New Event
                     </a>
-                    <!-- "Sync Holidays" Button -->
                     <a href="functions/sync_holidays.php" class="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-white/20">
                         <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
                     </a>
                 </div>
             </div>
+            <?php endif; ?>
         </div>
         
         <!-- Logout Button Container (at bottom of sidebar) -->
@@ -260,16 +260,25 @@ function getCategoryColor($categoryName) {
                     echo "<div class='{$dayClass} min-h-[120px] p-2 hover:bg-black/20 transition relative group'>";
                     
                     // The Date Number (Now a Clickable Link!)
-                    echo "<div class='flex justify-between items-start mb-1'>";
-
                     // Add a hover effect so the user knows they can click the number
                     $hoverClass = $isToday ? "hover:bg-yellow-600" : "hover:bg-white/10 hover:text-white cursor-pointer rounded-full transition";
 
-                    echo "<a href='add_event.php?date={$currentDate}' class='text-sm {$numberClass} {$hoverClass} inline-flex items-center justify-center w-7 h-7' title='Add event on " . date('F j, Y', strtotime($currentDate)) . "'>{$day}</a>";
+                    // The Date Number Header
+                    echo "<div class='flex justify-between items-start mb-1'>";
 
-                    // Keep the tiny "+" button for extra clarity
+                    // Check role (Added parentheses around the OR statement for safety)
+                    if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')) {
+                    // HEAD SCHEDULER: Gets the clickable link and the '+' icon
+                    echo "<a href='add_event.php?date={$currentDate}' class='text-sm {$numberClass} {$hoverClass} inline-flex items-center justify-center w-7 h-7' title='Add event on " . date('F j, Y', strtotime($currentDate)) . "'>{$day}</a>";
                     echo "<a href='add_event.php?date={$currentDate}' class='opacity-0 group-hover:opacity-100 text-slate-400 hover:text-yellow-400 transition p-1'><i class='fa-solid fa-plus text-xs'></i></a>";
-                    echo "</div>";
+                } else {
+                    // ADMIN / VIEWER: Just sees the number as plain text, no links, no '+'
+                    // We remove the $hoverClass so it doesn't look clickable
+                    $plainNumberClass = $isToday ? "bg-yellow-500 text-dark-green rounded-full w-7 h-7 flex items-center justify-center font-bold" : "text-slate-300 font-semibold p-1 inline-flex items-center justify-center w-7 h-7";
+                    echo "<span class='text-sm {$plainNumberClass}'>{$day}</span>";
+                }
+
+                echo "</div>";
 
                     // Display Events for this Day
                     if (isset($eventsByDate[$currentDate])) {

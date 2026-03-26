@@ -147,6 +147,7 @@ function getCategoryColor($categoryName) {
             </div>
         <?php endif; ?>
 
+
         <div class="mb-6">
             <!-- Page Title -->
             <h1 class="text-3xl font-bold text-white">All Scheduled Events</h1>
@@ -414,4 +415,6 @@ function getCategoryColor($categoryName) {
         }
     });
 </script>
+
+
 </html>
