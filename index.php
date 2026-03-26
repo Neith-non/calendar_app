@@ -98,6 +98,10 @@ function getCategoryColor($categoryName) {
                         <i class="fa-regular fa-calendar-days w-5 text-center"></i>
                         <span>View Calendar</span>
                     </a>
+                    <a href="request_status.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                    <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
+                    <span>Request Status</span>
+                    </a>
                 </div>
             </div>
 
