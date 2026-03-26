@@ -1,48 +1,65 @@
 <?php
 // approve_event.php
+session_start();
 require_once 'functions/database.php';
 
-if (isset($_GET['id']) && isset($_GET['action'])) {
-    $publish_id = (int)$_GET['id'];
-    $action = $_GET['action'];
-    
-    // For now, we'll assume Admin User ID 1 is doing the approving
-    $admin_id = 1; 
+// 1. Check Permissions (Only Admin and Head Scheduler allowed)
+$allowed_roles = ['Head Scheduler', 'Admin'];
 
-    try {
-        if ($action === 'approve') {
-            // Update status to Approved
-            $stmt = $pdo->prepare("UPDATE event_publish SET status = 'Approved', approved_by = ?, approved_date = NOW() WHERE id = ?");
-            $stmt->execute([$admin_id, $publish_id]);
-            
-            $msg = "✅ Event successfully approved!";
-            $status = "success";
-            
-        } elseif ($action === 'reject') {
-            // Update status to Rejected
-            $stmt = $pdo->prepare("UPDATE event_publish SET status = 'Rejected', approved_by = ?, approved_date = NOW() WHERE id = ?");
-            $stmt->execute([$admin_id, $publish_id]);
-            
-            // Delete the actual calendar block so it disappears from the schedule
-            $stmt_del = $pdo->prepare("DELETE FROM events WHERE publish_id = ?");
-            $stmt_del->execute([$publish_id]);
-            
-            $msg = "❌ Event rejected and removed from the calendar.";
-            $status = "success"; // Still a 'success' because the system did what we asked
-        } else {
-            $msg = "Invalid action.";
-            $status = "error";
-        }
-    } catch (PDOException $e) {
-        $msg = "Database Error: " . $e->getMessage();
-        $status = "error";
-    }
-    
-    // Send them back to the dashboard with the message
-    header("Location: index.php?sync_status=$status&sync_msg=" . urlencode($msg));
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_roles)) {
+    // Kick unauthorized users back to the index with an error message
+    header("Location: index.php?sync_status=error&sync_msg=" . urlencode("Unauthorized: You do not have permission to approve events."));
     exit();
 }
 
-header("Location: index.php");
-exit();
-?>
+// 2. Validate URL Parameters
+if (!isset($_GET['id']) || !isset($_GET['action'])) {
+    header("Location: index.php?sync_status=error&sync_msg=" . urlencode("Error: Missing event ID or action."));
+    exit();
+}
+
+$publish_id = (int)$_GET['id'];
+$action = $_GET['action'];
+
+try {
+    if ($action === 'approve') {
+        // Update the status to 'Approved'
+        $stmt = $pdo->prepare("UPDATE event_publish SET status = 'Approved' WHERE id = ?");
+        $stmt->execute([$publish_id]);
+        
+        $msg = "Event successfully approved!";
+        
+    } elseif ($action === 'reject') {
+        // If rejected, we must remove it from the calendar queue (events table) 
+        // and mark it as Rejected in the publish table.
+        $pdo->beginTransaction();
+        
+        // Remove from the calendar
+        $stmt_delete = $pdo->prepare("DELETE FROM events WHERE publish_id = ?");
+        $stmt_delete->execute([$publish_id]);
+        
+        // Mark as rejected
+        $stmt_update = $pdo->prepare("UPDATE event_publish SET status = 'Rejected' WHERE id = ?");
+        $stmt_update->execute([$publish_id]);
+        
+        $pdo->commit();
+        
+        $msg = "Event request rejected and removed from the calendar.";
+        
+    } else {
+        header("Location: index.php?sync_status=error&sync_msg=" . urlencode("Error: Invalid action."));
+        exit();
+    }
+
+    // 3. Redirect back to index with a success message
+    header("Location: index.php?sync_status=success&sync_msg=" . urlencode($msg));
+    exit();
+
+} catch (PDOException $e) {
+    // If something goes wrong, rollback and show error
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    header("Location: index.php?sync_status=error&sync_msg=" . urlencode("Database Error: " . $e->getMessage()));
+    exit();
+}
