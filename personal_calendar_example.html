@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Calendar Pro - Off-White Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* --- COLOR PALETTE (OFF-WHITE THEME) --- */
+            --bg-body: #F7F8FA;        /* Subtle Off-White/Light Grey */
+            --bg-sidebar: #FFFFFF;     /* Pure White for depth */
+            --bg-surface: #FFFFFF;
+            --border: #E1E4EA;         /* Clean, defined grey borders */
+            --text-main: #111827;      /* Near Black for legibility */
+            --text-dim: #6B7280;       /* Muted Grey for labels */
+            
+            /* Satiated Accent (Deep Teal/Blue) */
+            --accent: #1E40AF;         
+            --accent-light: rgba(30, 64, 175, 0.1); /* Subtle highlight */
+
+            /* Dimensions */
+            --hour-h: 90px;
+        }
+
+        * { box-sizing: border-box; outline: none; }
+        body {
+            margin: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- SIDEBAR ENHANCEMENT --- */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            z-index: 50; /* Above grid scroll */
+        }
+
+        .logo { 
+            font-weight: 800; 
+            font-size: 1.4rem; 
+            margin-bottom: 40px; 
+            color: var(--text-main);
+            letter-spacing: -1px;
+        }
+
+        .nav-group { margin-bottom: 30px; }
+        .nav-link {
+            padding: 12px 16px;
+            color: var(--text-dim);
+            cursor: pointer;
+            border-radius: 12px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        /* Interaction States */
+        .nav-link:hover { 
+            background: var(--accent-light); 
+            color: var(--accent); 
+        }
+        .nav-link.active { 
+            background: var(--accent-light); 
+            color: var(--accent); 
+            font-weight: 600;
+        }
+
+        /* Highlighter/Color Picker */
+        .highlighter-wrap {
+            margin-top: auto; /* Push to bottom */
+            background: var(--bg-body);
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+        .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 12px; }
+        .dot { 
+            aspect-ratio: 1; border-radius: 50%; cursor: pointer; 
+            transition: 0.2s ease; border: 3px solid #fff; /* White inner border */
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); /* Subtle outer shadow */
+        }
+        .dot.active { transform: scale(1.2); box-shadow: 0 0 0 2px var(--accent); }
+
+        /* --- MAIN VIEW --- */
+        .main { flex: 1; display: flex; flex-direction: column; position: relative; }
+
+        .top-nav {
+            height: 80px;
+            padding: 0 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 40;
+        }
+
+        .calendar-controls { display: flex; align-items: center; gap: 20px; }
+        
+        /* Icon Buttons */
+        .btn-icon {
+            background: #fff; border: 1px solid var(--border);
+            color: var(--text-dim); width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+            transition: 0.2s ease;
+        }
+        .btn-icon:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+        /* Premium Primary Button */
+        .btn-primary {
+            padding: 12px 24px; border-radius: 12px; background: var(--accent);
+            color: #fff; border: none; font-weight: 700; cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.2s ease;
+        }
+        .btn-primary:hover { 
+            box-shadow: 0 4px 15px rgba(30, 64, 175, 0.4); 
+        }
+        .btn-primary:active { transform: scale(0.98); }
+
+        /* --- THE GRID --- */
+        .grid-container {
+            flex: 1;
+            overflow-y: scroll;
+        }
+        /* Custom Scrollbar for Light Theme */
+        .grid-container::-webkit-scrollbar { width: 8px; }
+        .grid-container::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 10px; border: 2px solid var(--bg-body); }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 80px repeat(7, 1fr);
+            position: relative;
+        }
+
+        /* Sticky Headers for Dates */
+        .cell-head {
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            background: var(--bg-body);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            font-weight: 600;
+        }
+        
+        /* Today highlight (Light Theme Style) */
+        .cell-head.today { 
+            background: var(--accent-light); 
+            color: var(--accent); 
+        }
+        .cell-head.today::after {
+            content: ''; width: 6px; height: 6px; background: var(--accent);
+            border-radius: 50%; margin-top: 4px;
+        }
+
+        /* Time Labels (Sticky Left) */
+        .time-col {
+            height: var(--hour-h);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 10px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-body);
+            position: sticky; left: 0; z-index: 10;
+        }
+
+        /* Background grid slots */
+        .slot {
+            height: var(--hour-h);
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            transition: background 0.1s ease;
+            background: #fff; /* Calendar background is pure white */
+        }
+        .slot:hover { background: #F9FAFB; }
+
+        /* --- EVENT CARDS (Enhanced for Light Theme) --- */
+        .event {
+            position: absolute;
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #000;
+            
+            /* Sophisticated depth effect */
+            box-shadow: 0 6px 16px rgba(0,0,0,0.08), inset 0 0 0 1px rgba(0,0,0,0.03); 
+            backdrop-filter: blur(2px);
+            
+            border-left: 4px solid rgba(0,0,0,0.15); /* Defines the color */
+            
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            cursor: pointer;
+            overflow: hidden;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .event:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(0,0,0,0.12); z-index: 30; }
+
+        /* --- MODAL / OVERLAY --- */
+        .modal {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #fff; border: 1px solid var(--border); padding: 35px;
+            border-radius: 20px; z-index: 1000; width: 380px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.15);
+        }
+        .overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(3px); z-index: 999;
+        }
+        
+        /* Form Inputs */
+        input {
+            width: 100%; padding: 14px; margin-bottom: 15px; border-radius: 10px;
+            background: #fff; border: 1px solid var(--border); color: var(--text-main);
+            font-family: inherit; font-size: 0.9rem; transition: 0.2s ease;
+        }
+        input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+        
+    </style>
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="logo">GEMINI.OS</div>
+    
+    <nav class="nav-group">
+        <div class="nav-link active"><span>📅</span> Calendar</div>
+        <div class="nav-link"><span>📊</span> Analytics</div>
+        <div class="nav-link"><span>👤</span> Members</div>
+    </nav>
+
+    <div class="highlighter-wrap">
+        <span style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Event Color</span>
+        <div class="color-grid" id="colors">
+            <div class="dot active" style="background: #1E40AF;" data-color="rgba(30, 64, 175, 0.9)"></div> <div class="dot" style="background: #059669;" data-color="rgba(5, 150, 105, 0.9)"></div> <div class="dot" style="background: #CA8A04;" data-color="rgba(202, 138, 4, 0.9)"></div> <div class="dot" style="background: #DC2626;" data-color="rgba(220, 38, 38, 0.9)"></div> <div class="dot" style="background: #9333EA;" data-color="rgba(147, 51, 234, 0.9)"></div> </div>
+    </div>
+</aside>
+
+<main class="main">
+    <header class="top-nav">
+        <div class="calendar-controls">
+            <h2 id="currentRange" style="margin:0; font-weight: 800; letter-spacing: -0.5px;">OCTOBER 2024</h2>
+            <div>
+                <button class="btn-icon">＜</button>
+                <button class="btn-icon">＞</button>
+            </div>
+        </div>
+        <button class="btn-primary" onclick="toggleModal(true)">+ Create Event</button>
+    </header>
+
+    <div class="grid-container">
+        <div class="grid" id="mainGrid">
+            <div class="cell-head" style="position: sticky; left:0; z-index: 30;"></div>
+            <div class="cell-head">MON <span style="font-size:1.6rem">13</span></div>
+            <div class="cell-head">TUE <span style="font-size:1.6rem">14</span></div>
+            <div class="cell-head">WED <span style="font-size:1.6rem">15</span></div>
+            <div class="cell-head">THU <span style="font-size:1.6rem">16</span></div>
+            <div class="cell-head today">FRI <span style="font-size:1.6rem">18</span></div>
+            <div class="cell-head">SAT <span style="font-size:1.6rem">19</span></div>
+            <div class="cell-head">SUN <span style="font-size:1.6rem">20</span></div>
+            </div>
+    </div>
+</main>
+
+<div class="overlay" id="overlay" onclick="toggleModal(false)"></div>
+<div class="modal" id="modal">
+    <h2 style="margin-top:0; font-weight: 800;">Add New Schedule</h2>
+    <input type="text" id="inTitle" placeholder="Dev Sync, Yoga, Marketing...">
+    <div style="display:flex; gap:10px">
+        <input type="number" id="inDay" placeholder="Day (1-7)" min="1" max="7">
+        <input type="number" id="inStart" placeholder="Hour (8-20)" min="8" max="20">
+    </div>
+    <button class="btn-primary" style="width:100%;" onclick="createEvent()">Confirm Schedule</button>
+</div>
+
+<script>
+    const grid = document.getElementById('mainGrid');
+    let events = JSON.parse(localStorage.getItem('offwhite_events')) || [
+        {id: 1, title: 'Dev Team Sync', day: 1, start: 10, color: 'rgba(30, 64, 175, 0.9)'},
+        {id: 2, title: 'Yoga Flow', day: 5, start: 9, color: 'rgba(5, 150, 105, 0.9)'},
+        {id: 3, title: 'Product Review', day: 3, start: 14, color: 'rgba(147, 51, 234, 0.9)'}
+    ];
+    let selectedColor = 'rgba(30, 64, 175, 0.9)'; // Default to main accent
+
+    // Set highlighter selection
+    document.getElementById('colors').onclick = (e) => {
+        if(e.target.classList.contains('dot')) {
+            document.querySelectorAll('.dot').forEach(d => d.classList.remove('active'));
+            e.target.classList.add('active');
+            selectedColor = e.target.dataset.color;
+        }
+    }
+
+    function initGrid() {
+        for (let h = 8; h <= 20; h++) {
+            // Time Column (Sticky Left)
+            const time = document.createElement('div');
+            time.className = 'time-col';
+            time.textContent = `${h}:00`;
+            grid.appendChild(time);
+
+            // Day Slots
+            for (let d = 1; d <= 7; d++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.onclick = () => {
+                    document.getElementById('inDay').value = d;
+                    document.getElementById('inStart').value = h;
+                    toggleModal(true);
+                };
+                grid.appendChild(slot);
+            }
+        }
+        render();
+    }
+
+    function render() {
+        // Clear old event cards
+        document.querySelectorAll('.event').forEach(el => el.remove());
+        
+        events.forEach(ev => {
+            const el = document.createElement('div');
+            el.className = 'event';
+            el.style.backgroundColor = ev.color;
+            // White text for events since the colors are deep
+            el.innerHTML = `<div style="color:#fff;">${ev.title}</div><div style="font-size:0.7rem; color:#fff; opacity:0.8;">MANAGEMENT | ${ev.start}:00</div>`;
+            
+            // Positioning math: 100px is header height, 90px is hour height
+            el.style.top = `${((ev.start - 8) * 90) + 105}px`;
+            el.style.left = `calc(80px + (${ev.day - 1} * (100% - 80px) / 7) + 8px)`;
+            el.style.width = `calc((100% - 80px) / 7 - 16px)`;
+            el.style.height = `80px`; // Fixed duration (1 hour)
+
+            // CRUD: Delete functionality
+            el.onclick = (e) => {
+                e.stopPropagation(); // Don't trigger slot click
+                if(confirm('Remove this schedule from the calendar?')) {
+                    events = events.filter(t => t.id !== ev.id);
+                    render();
+                }
+            };
+            grid.appendChild(el);
+        });
+        localStorage.setItem('offwhite_events', JSON.stringify(events));
+    }
+
+    function createEvent() {
+        const title = document.getElementById('inTitle').value;
+        const day = parseInt(document.getElementById('inDay').value);
+        const start = parseInt(document.getElementById('inStart').value);
+        if(title && day && start) {
+            events.push({ id: Date.now(), title, day, start, color: selectedColor });
+            render();
+            toggleModal(false);
+            document.getElementById('inTitle').value = '';
+        }
+    }
+
+    function toggleModal(show) {
+        document.getElementById('modal').style.display = show ? 'block' : 'none';
+        document.getElementById('overlay').style.display = show ? 'block' : 'none';
+    }
+
+    initGrid();
+</script>
+</body>
+</html>
