@@ -220,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <!-- Form Actions/Buttons Container -->
                 <div class="pt-6 mt-4 border-t border-white/10 flex flex-col-reverse sm:flex-row gap-4">
                     <!-- Frontend Change: Styled "Cancel" button -->
-                    <a href="index.php" class="text-center bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-lg transition-colors border border-white/20">
+                    <a href="javascript:history.back()" class="text-center bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-lg transition-colors border border-white/20">
                         Cancel
                     </a>
                     <!-- Frontend Change: Styled "Submit" button -->
