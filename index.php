@@ -4,6 +4,11 @@
 // Start the session at the VERY TOP
 session_start();
 
+// 1. Tell the browser NEVER to cache this page
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
 // Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -108,6 +113,9 @@ function getCategoryColor($categoryName) {
                         <span>Admin Panel</span>
                     </a>
                     <?php endif; ?>
+                    <button onclick="openPdfModal()" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
+                        <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
+                    </button>
                 </div>
             </div>
 
@@ -339,4 +347,5 @@ function getCategoryColor($categoryName) {
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script src="assets/js/filter.js"></script>
 <script src="/assets/js/calendar.js"></script>
+<script src="assets/js/pdf_modal.js"></script>
 </html>
