@@ -113,8 +113,8 @@ $categories = $pdo->query("SELECT category_id, category_name, category_type FROM
                 <h1 class="text-3xl font-bold text-white"><i class="fa-solid fa-screwdriver-wrench text-blue-400 mr-3"></i> Admin Management</h1>
                 <p class="text-slate-300 text-sm mt-1">Manage users, venues, and categories.</p>
             </div>
-            <a href="../index.php" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors border border-white/20 flex items-center gap-2">
-                <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+            <a href="javascript:history.back()" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors border border-white/20 flex items-center gap-2">
+                <i class="fa-solid fa-arrow-left"></i> Back
             </a>
         </div>
 

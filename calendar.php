@@ -110,16 +110,24 @@ function getCategoryColor($categoryName) {
             <div class="p-6 border-b border-white/10">
                 <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Traversal</h3>
                 <div class="space-y-2">
-                    <!-- "All Schedule Events" Link -->
                     <a href="index.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
                         <i class="fa-solid fa-list w-5 text-center"></i>
                         <span>All Schedule Events</span>
                     </a>
-                    <!-- "View Calendar" Link (Active State) -->
                     <a href="calendar.php" class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
                         <i class="fa-regular fa-calendar-days w-5 text-center"></i>
                         <span>View Calendar</span>
                     </a>
+                    <a href="request_status.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                    <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
+                    <span>Request Status</span>
+                    </a>
+                    <?php if ($_SESSION['role_name'] === 'Admin'): ?>
+                    <a href="admin/admin_manage.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                        <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
+                        <span>Admin Panel</span>
+                    </a>
+                    <?php endif; ?>
                 </div>
             </div>
 

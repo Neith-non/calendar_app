@@ -61,8 +61,8 @@ $requests = $stmt->fetchAll();
                 <h1 class="text-3xl font-bold text-white"><i class="fa-solid fa-clipboard-list text-yellow-400 mr-3"></i> Request History</h1>
                 <p class="text-slate-300 text-sm mt-1">Track the status and details of all event submissions.</p>
             </div>
-            <a href="index.php" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors border border-white/20 flex items-center gap-2">
-                <i class="fa-solid fa-arrow-left"></i> Back to Calendar
+            <a href="javascript:history.back()" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors border border-white/20 flex items-center gap-2">
+                <i class="fa-solid fa-arrow-left"></i> Back
             </a>
         </div>
 
