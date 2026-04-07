@@ -346,6 +346,6 @@ function getCategoryColor($categoryName) {
                     
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script src="assets/js/filter.js"></script>
-<script src="/assets/js/calendar.js"></script>
+<script src="assets/js/calendar.js"></script>
 <script src="assets/js/pdf_modal.js"></script>
 </html>
