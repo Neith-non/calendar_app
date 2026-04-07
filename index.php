@@ -346,6 +346,48 @@ function getCategoryColor($categoryName) {
                     
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script src="assets/js/filter.js"></script>
-<script src="assets/js/calendar.js"></script>
 <script src="assets/js/pdf_modal.js"></script>
+<script>
+    const searchBar = document.getElementById('search-bar');
+        const eventCards = document.querySelectorAll('.event-card');
+        const eventCounter = document.getElementById('event-counter');
+
+        if (searchBar) {
+            searchBar.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase();
+                let visibleCount = 0;
+
+                eventCards.forEach(card => {
+                    // Grab the data attached to the card
+                    const title = (card.getAttribute('data-title') || '').toLowerCase();
+                    const category = (card.getAttribute('data-category') || '').toLowerCase();
+                    const desc = (card.getAttribute('data-desc') || '').toLowerCase();
+
+                    // Check if the search term matches any of the text
+                    if (title.includes(searchTerm) || category.includes(searchTerm) || desc.includes(searchTerm)) {
+                        card.style.display = ''; // Show the card (keeps your flex layout safe)
+                        visibleCount++;
+                    } else {
+                        card.style.display = 'none'; // Hide the card
+                    }
+                });
+
+                // Update the counter dynamically!
+                if (eventCounter) {
+                    eventCounter.innerHTML = `Total: ${visibleCount}`;
+                }
+
+                // INJECTED LOGIC: Toggle the empty state message based on visibleCount
+                if (emptyStateMessage) {
+                    if (visibleCount === 0) {
+                        emptyStateMessage.classList.remove('hidden');
+                        emptyStateMessage.classList.add('flex');
+                    } else {
+                        emptyStateMessage.classList.add('hidden');
+                        emptyStateMessage.classList.remove('flex');
+                    }
+                }
+            });
+        }
+</script>
 </html>
