@@ -1,6 +1,11 @@
 <?php
+require 'functions/database.php'; 
 // 1. Start the Session (Give out the VIP wristbands)
 session_start();
+// 1. Tell the browser NEVER to cache this page
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
 // 2. If they already have a wristband, send them straight to the dashboard!
 if (isset($_SESSION['user_id'])) {
     header("Location: index.php");
@@ -12,10 +17,7 @@ $error = '';
 
 // 3. Process the form when they click "Sign In"
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    
     // CHANGE THIS LINE to match your actual database connection file!
-    require 'functions/database.php'; 
-
     $username = trim($_POST['username']);
     $password = $_POST['password'];
 

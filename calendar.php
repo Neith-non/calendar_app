@@ -86,6 +86,7 @@ function getCategoryColor($categoryName) {
         exit;
     }
     ?>
+    
 
     <!-- Frontend Change: Main sidebar container with the glassmorphism effect. This is new to this page for consistency. -->
     <aside class="w-72 glass-container flex flex-col flex-shrink-0 z-10">
@@ -128,6 +129,9 @@ function getCategoryColor($categoryName) {
                         <span>Admin Panel</span>
                     </a>
                     <?php endif; ?>
+                    <button onclick="openPdfModal()" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
+                        <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
+                    </button>
                 </div>
             </div>
 
@@ -161,8 +165,10 @@ function getCategoryColor($categoryName) {
 
         <!-- Frontend Change: Calendar Header Container -->
         <div class="flex items-center justify-between mb-6">
+            
             <!-- Page Title -->
             <h1 class="text-3xl font-bold text-white">Monthly Calendar</h1>
+            
             <!-- Month Navigation Controls -->
             <div class="flex items-center gap-4">
                 <!-- Previous Month Arrow -->
@@ -440,5 +446,6 @@ function getCategoryColor($categoryName) {
     });
 
 </script>
-<script src="/assets/js/calendar.js"></script>
+<script src="assets/js/calendar.js"></script>
+<script src="assets/js/pdf_modal.js"></script>
 </html>

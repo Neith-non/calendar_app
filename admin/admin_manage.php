@@ -115,6 +115,7 @@ $categories = $pdo->query("SELECT category_id, category_name, category_type FROM
             </div>
             <a href="javascript:history.back()" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors border border-white/20 flex items-center gap-2">
                 <i class="fa-solid fa-arrow-left"></i> Back
+                
             </a>
         </div>
 
