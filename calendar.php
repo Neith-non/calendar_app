@@ -446,6 +446,6 @@ function getCategoryColor($categoryName) {
     });
 
 </script>
-<script src="/assets/js/calendar.js"></script>
+<script src="assets/js/calendar.js"></script>
 <script src="assets/js/pdf_modal.js"></script>
 </html>
