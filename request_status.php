@@ -46,7 +46,7 @@ $requests = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Request Status - St. Joseph School</title>
+    <title>Event Status - St. Joseph School</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -81,7 +81,7 @@ $requests = $stmt->fetchAll();
                     </a>
                     <a href="request_status.php" class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
                         <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
-                        <span>Request Status</span>
+                        <span>Event Status</span>
                     </a>
                     <?php if ($_SESSION['role_name'] === 'Admin'): ?>
                     <a href="admin/admin_manage.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
@@ -123,7 +123,7 @@ $requests = $stmt->fetchAll();
             
             <div class="flex items-center justify-between glass-container p-6 rounded-xl border border-white/10">
                 <div>
-                    <h1 class="text-3xl font-bold text-white"><i class="fa-solid fa-clipboard-list text-yellow-400 mr-3"></i> Request History</h1>
+                    <h1 class="text-3xl font-bold text-white"><i class="fa-solid fa-clipboard-list text-yellow-400 mr-3"></i> Event Status History</h1>
                     <p class="text-slate-300 text-sm mt-1">Track the status and details of all event submissions.</p>
                 </div>
                 <a href="javascript:history.back()" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors border border-white/20 flex items-center gap-2">
