@@ -65,16 +65,40 @@ function getCategoryColor($categoryName) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calendar View - St. Joseph School</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Frontend Change: Added Google Font for a more modern typeface -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- Frontend Change: Linked our new global stylesheet -->
     <link rel="stylesheet" href="styles.css">
+
+    <style>
+        /* 1. Hide the sidebar completely */
+        body.presentation-mode aside {
+            display: none !important;
+        }
+        
+        /* 2. Lock down ALL links, buttons, inputs, and calendar events */
+        body.presentation-mode a,
+        body.presentation-mode button,
+        body.presentation-mode input,
+        body.presentation-mode .calendar-event-item {
+            pointer-events: none !important; /* Stops all clicks */
+            cursor: default !important; /* Removes the hand pointer */
+        }
+
+        /* 3. Hide the little "+" add buttons completely for a cleaner screen */
+        body.presentation-mode .action-btn {
+            opacity: 0 !important;
+        }
+
+        /* 4. The ONLY thing that stays clickable is the Presentation Toggle button */
+        body.presentation-mode #presentationToggle {
+            pointer-events: auto !important;
+            cursor: pointer !important;
+        }
+    </style>
 </head>
-<!-- Frontend Change: Added 'dashboard-body' class for the new background and layout -->
 <body class="dashboard-body h-screen flex overflow-hidden">
 
     <?php
@@ -87,16 +111,11 @@ function getCategoryColor($categoryName) {
     }
     ?>
     
-
-    <!-- Frontend Change: Main sidebar container with the glassmorphism effect. This is new to this page for consistency. -->
-    <aside class="w-72 glass-container flex flex-col flex-shrink-0 z-10">
-        <!-- Mini Profile Container (in sidebar) -->
+    <aside class="w-72 glass-container flex flex-col flex-shrink-0 z-10 transition-all duration-300">
         <div class="p-8 text-center border-b border-white/10">
-            <!-- User Avatar Placeholder -->
             <div class="w-20 h-20 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4 overflow-hidden border-4 border-white/20">
                 <i class="fa-solid fa-user text-3xl text-white/50"></i>
             </div>
-            <!-- Backend Note: User's name and role are displayed here. We just styled the text. -->
             <h2 class="text-xl font-bold text-white">
                 <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Ma\'am Reyes'); ?>
             </h2>
@@ -105,9 +124,7 @@ function getCategoryColor($categoryName) {
             </p>
         </div>
 
-        <!-- Frontend Change: This container holds the main navigation sections of the sidebar -->
         <div class="flex-1 overflow-y-auto">
-            <!-- Traversal Links Container -->
             <div class="p-6 border-b border-white/10">
                 <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Traversal</h3>
                 <div class="space-y-2">
@@ -135,7 +152,6 @@ function getCategoryColor($categoryName) {
                 </div>
             </div>
 
-            <!-- Quick Actions Container -->
             <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')): ?>
             <div class="p-6 border-b border-white/10">
                 <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
@@ -151,7 +167,6 @@ function getCategoryColor($categoryName) {
             <?php endif; ?>
         </div>
         
-        <!-- Logout Button Container (at bottom of sidebar) -->
         <div class="p-6 mt-auto border-t border-white/10">
             <a href="logout.php" class="flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors font-medium">
                 <i class="fa-solid fa-arrow-right-from-bracket"></i>
@@ -160,36 +175,34 @@ function getCategoryColor($categoryName) {
         </div>
     </aside>
 
-    <!-- Frontend Change: Main content area for the calendar -->
     <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8">
 
-        <!-- Frontend Change: Calendar Header Container -->
         <div class="flex items-center justify-between mb-6">
             
-            <!-- Page Title -->
             <h1 class="text-3xl font-bold text-white">Monthly Calendar</h1>
             
-            <!-- Month Navigation Controls -->
             <div class="flex items-center gap-4">
-                <!-- Previous Month Arrow -->
                 <a href="?month=<?php echo $prevMonth; ?>&year=<?php echo $prevYear; ?>" class="p-2 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition">
                     <i class="fa-solid fa-chevron-left"></i>
                 </a>
                 
-                <!-- Current Month and Year Display -->
                 <h2 class="text-xl font-bold w-48 text-center text-white">
                     <?php echo "$monthName $year"; ?>
                 </h2>
                 
-                <!-- Next Month Arrow -->
                 <a href="?month=<?php echo $nextMonth; ?>&year=<?php echo $nextYear; ?>" class="p-2 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition">
                     <i class="fa-solid fa-chevron-right"></i>
                 </a>
                 
-                <!-- "Today" Button -->
                 <a href="calendar.php" class="ml-2 bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded-lg text-sm font-semibold border border-white/20 transition">
                     Today
                 </a>
+
+                <?php if (isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin'])): ?>
+                    <button id="presentationToggle" onclick="togglePresentationMode()" class="bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 px-4 py-1.5 rounded-lg text-sm font-semibold border border-blue-500/30 transition flex items-center gap-2">
+                        <i class="fa-solid fa-desktop"></i> <span>Present</span>
+                    </button>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -201,27 +214,21 @@ function getCategoryColor($categoryName) {
             <p class="text-slate-300">Try adjusting your search or category filters.</p>
         </div>
 
-        <!-- Frontend Change: Controls container (Search and Filter) added for consistency. -->
         <div class="glass-container rounded-xl p-4 mb-6 flex flex-col sm:flex-row items-center gap-4 relative z-10">
-            <!-- Search Bar Container -->
             <div class="relative w-full flex-1">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <i class="fa-solid fa-search text-slate-400"></i>
                 </div>
-                <!-- Search bar placeholder with 'form-input-glass' style -->
                 <input type="text" id="search-bar" placeholder="Search events..." class="form-input-glass w-full pl-11 pr-4 py-2.5 rounded-lg">
             </div>
 
-            <!-- Category Filter Dropdown Container -->
             <div x-data="{ open: false }" class="relative w-full sm:w-auto">
-                <!-- Filter dropdown button with 'form-input-glass' style -->
                 <button @click="open = !open" class="form-input-glass w-full sm:w-56 flex items-center justify-between gap-2 font-semibold py-2.5 px-4 rounded-lg transition">
                     <i class="fa-solid fa-filter text-slate-400"></i>
                     <span id="filter-button-text">All Categories</span>
                     <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform" :class="{ 'rotate-180': open }"></i>
                 </button>
 
-                <!-- Dropdown panel with a solid background for visibility -->
                 <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-full sm:w-72 bg-[#002a1d] border border-white/20 rounded-xl shadow-lg z-20 p-4" style="display: none;">
                     <h4 class="text-sm font-bold text-slate-300 mb-3">Filter by Category</h4>
                     <div class="space-y-3">
@@ -237,10 +244,8 @@ function getCategoryColor($categoryName) {
             </div>
         </div>
 
-        <!-- Frontend Change: Main calendar grid container with glassmorphism effect -->
         <div class="glass-container rounded-xl overflow-hidden flex flex-col flex-1 min-h-[600px]">
             
-            <!-- Day of the Week Header Row -->
             <div class="grid grid-cols-7 border-b border-white/10 bg-black/20">
                 <?php 
                 $days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -252,7 +257,6 @@ function getCategoryColor($categoryName) {
                 <?php endforeach; ?>
             </div>
 
-            <!-- Calendar Days Grid -->
             <div class="grid grid-cols-7 flex-1 bg-white/10 gap-px">
                 
                 <?php
@@ -282,9 +286,9 @@ function getCategoryColor($categoryName) {
 
                     // Check role (Added parentheses around the OR statement for safety)
                     if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')) {
-                    // HEAD SCHEDULER: Gets the clickable link and the '+' icon
-                    echo "<a href='add_event.php?date={$currentDate}' class='text-sm {$numberClass} {$hoverClass} inline-flex items-center justify-center w-7 h-7' title='Add event on " . date('F j, Y', strtotime($currentDate)) . "'>{$day}</a>";
-                    echo "<a href='add_event.php?date={$currentDate}' class='opacity-0 group-hover:opacity-100 text-slate-400 hover:text-yellow-400 transition p-1'><i class='fa-solid fa-plus text-xs'></i></a>";
+                    // HEAD SCHEDULER: Gets the clickable link and the '+' icon. ADDED 'action-btn' HERE.
+                    echo "<a href='add_event.php?date={$currentDate}' class='action-btn text-sm {$numberClass} {$hoverClass} inline-flex items-center justify-center w-7 h-7' title='Add event on " . date('F j, Y', strtotime($currentDate)) . "'>{$day}</a>";
+                    echo "<a href='add_event.php?date={$currentDate}' class='action-btn opacity-0 group-hover:opacity-100 text-slate-400 hover:text-yellow-400 transition p-1'><i class='fa-solid fa-plus text-xs'></i></a>";
                 } else {
                     // ADMIN / VIEWER: Just sees the number as plain text, no links, no '+'
                     // We remove the $hoverClass so it doesn't look clickable
@@ -403,7 +407,6 @@ function getCategoryColor($categoryName) {
 </div>
 
 </body>
-<!-- Frontend Change: Added AlpineJS for dropdown functionality -->
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
     // Basic modal functionality for demonstration
@@ -445,7 +448,41 @@ function getCategoryColor($categoryName) {
         }
     });
 
+    // PRESENTATION MODE LOGIC
+    function togglePresentationMode() {
+        const body = document.body;
+        const btn = document.getElementById('presentationToggle');
+        const btnText = btn.querySelector('span');
+        const btnIcon = btn.querySelector('i');
+
+        body.classList.toggle('presentation-mode');
+        const isPresenting = body.classList.contains('presentation-mode');
+
+        if (isPresenting) {
+            btnText.innerText = 'Exit Presenting';
+            btnIcon.className = 'fa-solid fa-compress';
+            btn.classList.replace('bg-blue-500/20', 'bg-red-500/20');
+            btn.classList.replace('text-blue-300', 'text-red-400');
+            btn.classList.replace('border-blue-500/30', 'border-red-500/30');
+            btn.classList.replace('hover:bg-blue-500/40', 'hover:bg-red-500/40');
+
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen error:", e));
+            }
+        } else {
+            btnText.innerText = 'Present';
+            btnIcon.className = 'fa-solid fa-desktop';
+            btn.classList.replace('bg-red-500/20', 'bg-blue-500/20');
+            btn.classList.replace('text-red-400', 'text-blue-300');
+            btn.classList.replace('border-red-500/30', 'border-blue-500/30');
+            btn.classList.replace('hover:bg-red-500/40', 'hover:bg-blue-500/40');
+
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+        }
+    }
 </script>
-<script src="assets/js/calendar.js"></script>
+<script src="assets/js/calendar.js?v=<?php echo time(); ?>"></script>
 <script src="assets/js/pdf_modal.js"></script>
 </html>

@@ -349,45 +349,53 @@ function getCategoryColor($categoryName) {
 <script src="assets/js/pdf_modal.js"></script>
 <script>
     const searchBar = document.getElementById('search-bar');
-        const eventCards = document.querySelectorAll('.event-card');
-        const eventCounter = document.getElementById('event-counter');
+    const eventCards = document.querySelectorAll('.event-card');
+    const eventCounter = document.getElementById('event-counter');
+    
+    const emptyStateMessage = document.getElementById('empty-state-message');
 
-        if (searchBar) {
-            searchBar.addEventListener('input', function(e) {
-                const searchTerm = e.target.value.toLowerCase();
-                let visibleCount = 0;
+    if (searchBar) {
+        searchBar.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            let visibleCount = 0;
 
-                eventCards.forEach(card => {
-                    // Grab the data attached to the card
-                    const title = (card.getAttribute('data-title') || '').toLowerCase();
-                    const category = (card.getAttribute('data-category') || '').toLowerCase();
-                    const desc = (card.getAttribute('data-desc') || '').toLowerCase();
+            eventCards.forEach(card => {
+                const title = (card.getAttribute('data-title') || '').toLowerCase();
+                const category = (card.getAttribute('data-category') || '').toLowerCase();
+                const desc = (card.getAttribute('data-desc') || '').toLowerCase();
+                
+                // THE FIX: Grab the date, but REMOVE the 4-digit year (like 2026) 
+                // so numbers like 20 or 26 don't automatically match every single event!
+                let date = (card.getAttribute('data-date') || '').toLowerCase();
+                date = date.replace(/\d{4}/g, ''); 
+                
+                const time = (card.getAttribute('data-time') || '').toLowerCase();
 
-                    // Check if the search term matches any of the text
-                    if (title.includes(searchTerm) || category.includes(searchTerm) || desc.includes(searchTerm)) {
-                        card.style.display = ''; // Show the card (keeps your flex layout safe)
-                        visibleCount++;
-                    } else {
-                        card.style.display = 'none'; // Hide the card
-                    }
-                });
-
-                // Update the counter dynamically!
-                if (eventCounter) {
-                    eventCounter.innerHTML = `Total: ${visibleCount}`;
-                }
-
-                // INJECTED LOGIC: Toggle the empty state message based on visibleCount
-                if (emptyStateMessage) {
-                    if (visibleCount === 0) {
-                        emptyStateMessage.classList.remove('hidden');
-                        emptyStateMessage.classList.add('flex');
-                    } else {
-                        emptyStateMessage.classList.add('hidden');
-                        emptyStateMessage.classList.remove('flex');
-                    }
+                // Check if the search term matches
+                if (title.includes(searchTerm) || category.includes(searchTerm) || desc.includes(searchTerm) || date.includes(searchTerm) || time.includes(searchTerm)) {
+                    card.style.display = ''; // Show the card
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none'; // Hide the card
                 }
             });
-        }
+
+            // Update the counter dynamically
+            if (eventCounter) {
+                eventCounter.innerHTML = `Total: ${visibleCount}`;
+            }
+
+            // Toggle the empty state message based on visibleCount
+            if (emptyStateMessage) {
+                if (visibleCount === 0) {
+                    emptyStateMessage.classList.remove('hidden');
+                    emptyStateMessage.classList.add('flex');
+                } else {
+                    emptyStateMessage.classList.add('hidden');
+                    emptyStateMessage.classList.remove('flex');
+                }
+            }
+        });
+    }
 </script>
 </html>
