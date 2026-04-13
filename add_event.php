@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Frontend Change: Linked our new global stylesheet -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <!-- Frontend Change: Added 'dashboard-body' class for the new background and centered layout -->
 <body class="dashboard-body flex justify-center items-center min-h-screen p-4 sm:p-6 md:p-8">

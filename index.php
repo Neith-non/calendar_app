@@ -74,7 +74,7 @@ function getCategoryColor($categoryName) {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body class="dashboard-body h-screen flex overflow-hidden">
 
@@ -112,10 +112,11 @@ function getCategoryColor($categoryName) {
                         <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
                         <span>Admin Panel</span>
                     </a>
-                    <?php endif; ?>
+                    
                     <button onclick="openPdfModal()" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
                         <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
                     </button>
+                    <?php endif; ?>
                 </div>
             </div>
 
