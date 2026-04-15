@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const filterButtonText = document.getElementById('filter-button-text');
         const searchBar = document.getElementById('search-bar');
         const calendarEvents = document.querySelectorAll('.calendar-event-item');
-        const emptyStateMessage = document.getElementById('empty-state-message'); // NEW
+        const emptyStateMessage = document.getElementById('empty-state-message'); 
 
         // 1. Update the text on the dropdown button
         function updateFilterButton() {
@@ -22,21 +22,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 2. The Master Filter Engine! (Now tracks visible events)
         function filterEvents() {
-            const searchTerm = searchBar ? searchBar.value.toLowerCase() : '';
+            const searchTerm = searchBar ? searchBar.value.toLowerCase().trim() : '';
             
             // Get an array of whatever category checkboxes are currently ticked
             const activeCategories = Array.from(checkboxes)
                 .filter(cb => cb.checked)
                 .map(cb => cb.value.toLowerCase());
 
-            let visibleCount = 0; // NEW: Keep track of how many events are showing
+            let visibleCount = 0; // Keep track of how many events are showing
 
             // Loop through every single event on the calendar
             calendarEvents.forEach(event => {
                 const title = (event.getAttribute('data-title') || '').toLowerCase();
                 const desc = (event.getAttribute('data-desc') || '').toLowerCase();
                 const category = (event.getAttribute('data-category') || '').toLowerCase();
-                const eventDate = (event.getAttribute('data-date') || '').toLowerCase();
+                
+                // THE FIX: Grab the date, but REMOVE the 4-digit year (like 2026) 
+                let eventDate = (event.getAttribute('data-date') || '').toLowerCase();
+                eventDate = eventDate.replace(/\d{4}/g, '');
                 
                 // Check if the search text matches the Title, Description, Category, OR the Date!
                 const matchesSearch = title.includes(searchTerm) || 
@@ -56,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // NEW: Show or hide the empty state message based on the count
+            // Show or hide the empty state message based on the count
             if (emptyStateMessage) {
                 if (visibleCount === 0) {
                     emptyStateMessage.classList.remove('hidden');
@@ -85,5 +88,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Run once on page load to set the initial state
         updateFilterButton();
-        filterEvents(); // NEW: Run filter on load just in case a month has 0 events to begin with!
+        filterEvents(); 
 });
