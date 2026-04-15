@@ -21,6 +21,10 @@ if (!isset($_GET['id']) || !isset($_GET['action'])) {
 $publish_id = (int)$_GET['id'];
 $action = $_GET['action'];
 
+$previousPage = $_SERVER['HTTP_REFERER'] ?? 'index.php';
+
+$separator = (parse_url($previousPage, PHP_URL_QUERY) == NULL) ? '?' : '&';
+
 try {
     if ($action === 'approve') {
         // Update the status to 'Approved'
@@ -52,14 +56,19 @@ try {
     }
 
     // 3. Redirect back to index with a success message
-    header("Location: index.php?sync_status=success&sync_msg=" . urlencode($msg));
+    $previousPage = $_SERVER['HTTP_REFERER'] ?? 'index.php';
+
+    $separator = (parse_url($previousPage, PHP_URL_QUERY) == NULL) ? '?' : '&';
+
+    header("Location: " . $previousPage . $separator . "sync_status=success&sync_msg=" . urlencode($msg));
     exit();
+    
 
 } catch (PDOException $e) {
     // If something goes wrong, rollback and show error
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    header("Location: index.php?sync_status=error&sync_msg=" . urlencode("Database Error: " . $e->getMessage()));
+    header("Location: " . $previousPage . $separator . "sync_status=error&sync_msg=" . urlencode("Database Error: " . $e->getMessage()));
     exit();
 }
