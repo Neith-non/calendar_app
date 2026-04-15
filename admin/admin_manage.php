@@ -140,7 +140,9 @@ $categories = $pdo->query("SELECT category_id, category_name, category_type FROM
                         <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
                         <span>Admin Panel</span>
                     </a>
-                    
+                    <button onclick="openPdfModal()" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
+                        <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
+                    </button>
                 </div>
             </div>
 
@@ -293,5 +295,7 @@ $categories = $pdo->query("SELECT category_id, category_name, category_type FROM
             </div>
         </div>
     </main>
+    <script src="../assets/js/pdf_modal.js"></script>
 </body>
+
 </html>

@@ -29,15 +29,19 @@ if (isset($_GET['delete_id'])) {
 }
 // -------------------------------------------------
 
-// Fetch requests and JOIN with events to get the dates and times
+// Fetch requests and JOIN with events and categories to get all needed data
 $stmt = $pdo->query("
     SELECT p.id, p.title, p.description, p.status, 
-           v.venue_name, 
+           v.venue_name, c.category_name,
            e.start_date, e.start_time, e.end_date, e.end_time
     FROM event_publish p
     LEFT JOIN venues v ON p.venue_id = v.venue_id
     LEFT JOIN events e ON p.id = e.publish_id
-    ORDER BY p.id DESC
+    LEFT JOIN event_categories c ON e.category_id = c.category_id
+    ORDER BY 
+        CASE WHEN e.start_date IS NULL THEN 1 ELSE 0 END, 
+        e.start_date ASC, 
+        e.start_time ASC
 ");
 $requests = $stmt->fetchAll();
 ?>
@@ -50,6 +54,9 @@ $requests = $stmt->fetchAll();
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body class="dashboard-body h-screen flex overflow-hidden">
@@ -79,10 +86,12 @@ $requests = $stmt->fetchAll();
                         <i class="fa-regular fa-calendar-days w-5 text-center"></i>
                         <span>View Calendar</span>
                     </a>
+                    <?php if ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler'): ?>
                     <a href="request_status.php" class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
                         <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
                         <span>Event Status</span>
                     </a>
+                    <?php endif; ?>
                     <?php if ($_SESSION['role_name'] === 'Admin'): ?>
                     <a href="admin/admin_manage.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
                         <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
@@ -131,82 +140,141 @@ $requests = $stmt->fetchAll();
                 </a>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
                 <?php if (count($requests) > 0): ?>
-                    <?php foreach ($requests as $req): ?>
-                        <?php 
-                            // Determine colors based on status
-                            if ($req['status'] === 'Approved') {
-                                $statusStyle = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-                                $icon = 'fa-check-circle';
-                            } elseif ($req['status'] === 'Rejected') {
-                                $statusStyle = 'bg-red-500/20 text-red-400 border-red-500/30';
-                                $icon = 'fa-circle-xmark';
-                            } else {
-                                $statusStyle = 'bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse';
-                                $icon = 'fa-clock';
+                    <?php 
+                    $currentMonth = ''; // Track the month we are currently displaying
+                    
+                    foreach ($requests as $req): 
+                        // Determine the month text for the current event
+                        if (empty($req['start_date'])) {
+                            $eventMonth = 'UNSCHEDULED / NO DATE';
+                        } else {
+                            // Example format: JANUARY 2024
+                            $eventMonth = strtoupper(date('F Y', strtotime($req['start_date'])));
+                        }
+
+                        // Check if we need to print a new month header
+                        if ($eventMonth !== $currentMonth) {
+                            // If it's not the very first month, close the previous grid
+                            if ($currentMonth !== '') {
+                                echo '</div>'; // Close grid div
                             }
 
-                            // Format Dates and Times for the Modal
-                            $startDate = $req['start_date'] ? date('M j, Y', strtotime($req['start_date'])) : 'N/A';
-                            $endDate = $req['end_date'] ? date('M j, Y', strtotime($req['end_date'])) : 'N/A';
-                            $startTime = $req['start_time'] ? date('g:i A', strtotime($req['start_time'])) : 'N/A';
-                            $endTime = $req['end_time'] ? date('g:i A', strtotime($req['end_time'])) : 'N/A';
+                            // Print the new Month Header
+                            echo '
+                            <div class="mt-8 mb-4 border-b border-white/10 pb-2 flex items-center gap-3">
+                                <i class="fa-regular fa-calendar-check text-yellow-400 text-xl"></i>
+                                <h2 class="text-xl font-bold text-white tracking-widest">' . htmlspecialchars($eventMonth) . '</h2>
+                            </div>';
                             
-                            // Sanitize data for passing into Javascript
-                            $jsTitle = htmlspecialchars($req['title'], ENT_QUOTES);
-                            $jsDesc = htmlspecialchars($req['description'] ?: 'No description provided.', ENT_QUOTES);
-                            $jsVenue = htmlspecialchars($req['venue_name'] ?: 'Unknown Venue', ENT_QUOTES);
-                            $jsStatus = $req['status'];
-                        ?>
+                            // Open a new grid for this month's events
+                            echo '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
+                            
+                            // Update our tracker
+                            $currentMonth = $eventMonth;
+                        }
                         
-                        <div onclick="openModal('<?php echo $jsTitle; ?>', '<?php echo $jsStatus; ?>', '<?php echo $jsVenue; ?>', '<?php echo $startDate; ?>', '<?php echo $endDate; ?>', '<?php echo $startTime; ?>', '<?php echo $endTime; ?>', '<?php echo $jsDesc; ?>')" 
-                             class="glass-container p-5 rounded-xl border border-white/10 flex flex-col hover:bg-white/10 transition duration-300 cursor-pointer shadow-md hover:shadow-lg">
-                            
-                            <div class="flex justify-between items-start mb-3">
-                                <h3 class="text-lg font-bold text-white leading-tight truncate pr-2"><?php echo htmlspecialchars($req['title']); ?></h3>
-                                <span class="px-2.5 py-1 rounded text-xs font-bold border flex items-center gap-1.5 whitespace-nowrap <?php echo $statusStyle; ?>">
-                                    <i class="fa-solid <?php echo $icon; ?>"></i> <?php echo htmlspecialchars($req['status']); ?>
-                                </span>
+                        // Prepare Card Data (Colors, Icons, Statuses)
+                        if ($req['status'] === 'Approved') {
+                            $statusStyle = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+                            $icon = 'fa-check-circle';
+                        } elseif ($req['status'] === 'Rejected') {
+                            $statusStyle = 'bg-red-500/20 text-red-400 border-red-500/30';
+                            $icon = 'fa-circle-xmark';
+                        } else {
+                            $statusStyle = 'bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse';
+                            $icon = 'fa-clock';
+                        }
+
+                        // Format Dates and Times for the Modal
+                        $startDate = $req['start_date'] ? date('M j, Y', strtotime($req['start_date'])) : 'N/A';
+                        $endDate = $req['end_date'] ? date('M j, Y', strtotime($req['end_date'])) : 'N/A';
+                        $startTime = $req['start_time'] ? date('g:i A', strtotime($req['start_time'])) : 'N/A';
+                        $endTime = $req['end_time'] ? date('g:i A', strtotime($req['end_time'])) : 'N/A';
+                        
+                        // Sanitize data for passing into Javascript
+                        $jsTitle = htmlspecialchars($req['title'], ENT_QUOTES);
+                        $jsDesc = htmlspecialchars($req['description'] ?: 'No description provided.', ENT_QUOTES);
+                        $jsCategory = htmlspecialchars($req['category_name'] ?: 'Not categorized', ENT_QUOTES);
+                        $jsVenue = htmlspecialchars($req['venue_name'] ?: 'Unknown Venue', ENT_QUOTES);
+                        $jsStatus = $req['status'];
+                    ?>
+                    
+                    <div onclick="openModal('<?php echo $jsTitle; ?>', '<?php echo $jsStatus; ?>', '<?php echo $jsCategory; ?>', '<?php echo $jsVenue; ?>', '<?php echo $startDate; ?>', '<?php echo $endDate; ?>', '<?php echo $startTime; ?>', '<?php echo $endTime; ?>', '<?php echo $jsDesc; ?>')" 
+                         class="glass-container p-5 rounded-xl border border-white/10 flex flex-col hover:bg-white/10 transition duration-300 cursor-pointer shadow-md hover:shadow-lg">
+                        
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-lg font-bold text-white leading-tight truncate pr-2"><?php echo htmlspecialchars($req['title']); ?></h3>
+                            <span class="px-2.5 py-1 rounded text-xs font-bold border flex items-center gap-1.5 whitespace-nowrap <?php echo $statusStyle; ?>">
+                                <i class="fa-solid <?php echo $icon; ?>"></i> <?php echo htmlspecialchars($req['status']); ?>
+                            </span>
+                        </div>
+                        
+                        <div class="space-y-2 mb-4 flex-1">
+                            <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
+                                <i class="fa-solid fa-tag text-slate-500 w-4 text-center"></i> 
+                                <?php echo htmlspecialchars($req['category_name'] ?? 'Not categorized'); ?>
+                            </p>
+                            <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
+                                <i class="fa-solid fa-location-dot text-slate-500 w-4 text-center"></i> 
+                                <?php echo htmlspecialchars($req['venue_name'] ?? 'Unknown Venue'); ?>
+                            </p>
+                            <?php if ($req['start_date']): ?>
+                            <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
+                                <i class="fa-regular fa-calendar text-slate-500 w-4 text-center"></i> 
+                                <?php echo $startDate; ?>
+                            </p>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <div class="text-xs font-semibold border-t border-white/10 pt-3 flex justify-between items-center w-full">
+                            <div class="text-blue-400 flex items-center gap-1">
+                                Click for details <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
                             </div>
                             
-                            <div class="space-y-2 mb-4 flex-1">
-                                <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
-                                    <i class="fa-solid fa-location-dot text-slate-500 w-4"></i> 
-                                    <?php echo htmlspecialchars($req['venue_name'] ?? 'Unknown Venue'); ?>
-                                </p>
-                                <?php if ($req['start_date']): ?>
-                                <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
-                                    <i class="fa-regular fa-calendar text-slate-500 w-4"></i> 
-                                    <?php echo $startDate; ?>
-                                </p>
+                            <div class="flex gap-2">
+                                <?php if ($req['status'] === 'Pending'): ?>
+                                    <a href="javascript:void(0);" 
+                                       onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $req['id']; ?>&action=approve', 'approve');" 
+                                       class="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/30 px-2.5 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
+                                        <i class="fa-solid fa-check"></i> Approve
+                                    </a>
+                                    <a href="javascript:void(0);" 
+                                       onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $req['id']; ?>&action=reject', 'reject');" 
+                                       class="text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/30 px-2.5 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
+                                        <i class="fa-solid fa-xmark"></i> Reject
+                                    </a>
                                 <?php endif; ?>
-                            </div>
-                            
-                            <div class="text-xs font-semibold border-t border-white/10 pt-3 flex justify-between items-center w-full">
-                                <div class="text-blue-400 flex items-center gap-1">
-                                    Click to view details <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
-                                </div>
-                                
+
                                 <?php if ($req['status'] === 'Rejected'): ?>
-                                    <a href="request_status.php?delete_id=<?php echo $req['id']; ?>" 
-                                       onclick="event.stopPropagation(); return confirm('Are you sure you want to permanently delete this rejected request from history?');" 
-                                       class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/30 px-2 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
-                                        <i class="fa-solid fa-trash"></i>
+                                    <a href="javascript:void(0);" 
+                                       onclick="event.stopPropagation(); confirmAction('request_status.php?delete_id=<?php echo $req['id']; ?>', 'delete');" 
+                                       class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/30 px-2.5 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
+                                        <i class="fa-solid fa-trash"></i> Delete
                                     </a>
                                 <?php endif; ?>
                             </div>
-
                         </div>
+
+                    </div>
                     <?php endforeach; ?>
+                    
+                    <?php 
+                    // Close the very last grid tag if there were events
+                    if ($currentMonth !== '') {
+                        echo '</div>'; 
+                    }
+                    ?>
+
                 <?php else: ?>
-                    <div class="col-span-full text-center py-12 glass-container rounded-xl border border-white/10">
+                    <div class="text-center py-12 glass-container rounded-xl border border-white/10 mt-6">
                         <i class="fa-solid fa-inbox text-5xl mb-4 text-slate-500"></i>
                         <p class="text-lg font-medium text-slate-300">No requests found in the system.</p>
                     </div>
                 <?php endif; ?>
             </div>
-        </div>
+            </div>
     </main>
 
     <div id="detailsModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
@@ -235,19 +303,26 @@ $requests = $stmt->fetchAll();
                     </div>
                 </div>
 
-                <div class="flex items-center gap-3 text-slate-300">
-                    <div class="bg-white/10 p-2.5 rounded-lg text-yellow-400">
-                        <i class="fa-solid fa-location-dot"></i>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">Category</p>
+                        <div class="bg-black/20 p-3 rounded-lg border border-white/5 flex items-center gap-3 text-sm text-white font-medium">
+                            <i class="fa-solid fa-tag text-purple-400"></i> 
+                            <span id="modalCategory">Not categorized</span>
+                        </div>
                     </div>
                     <div>
-                        <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Venue</p>
-                        <p class="text-sm font-medium text-white" id="modalVenue">Venue Name</p>
+                        <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">Venue</p>
+                        <div class="bg-black/20 p-3 rounded-lg border border-white/5 flex items-center gap-3 text-sm text-white font-medium">
+                            <i class="fa-solid fa-location-dot text-sky-400"></i> 
+                            <span id="modalVenue">Not specified</span>
+                        </div>
                     </div>
                 </div>
 
                 <div>
                     <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">Description</p>
-                    <div class="bg-black/20 p-4 rounded-lg border border-white/5 text-sm text-slate-300 leading-relaxed" id="modalDesc">
+                    <div class="bg-black/20 p-4 rounded-lg border border-white/5 text-sm text-slate-300 leading-relaxed min-h-[80px]" id="modalDesc">
                         Description goes here.
                     </div>
                 </div>
@@ -262,21 +337,55 @@ $requests = $stmt->fetchAll();
     </div>
 
     <script>
-        function openModal(title, status, venue, startDate, endDate, startTime, endTime, desc) {
-            // Set Text Content
+        // --- SweetAlert Confirm Action ---
+        function confirmAction(url, action) {
+            let titleText, detailText, btnColor, btnText;
+
+            if (action === 'approve') {
+                titleText = 'Approve this event?';
+                detailText = 'It will be officially added to the calendar.';
+                btnColor = '#10b981'; // Emerald
+                btnText = 'Yes, approve it!';
+            } else if (action === 'reject') {
+                titleText = 'Reject this event?';
+                detailText = 'The event will be marked as rejected.';
+                btnColor = '#f59e0b'; // Amber
+                btnText = 'Yes, reject it!';
+            } else if (action === 'delete') {
+                titleText = 'Delete permanently?';
+                detailText = 'It will be removed from the system permanently.';
+                btnColor = '#ef4444'; // Red
+                btnText = 'Yes, delete it!';
+            }
+
+            Swal.fire({
+                title: titleText,
+                text: detailText,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: btnColor,
+                cancelButtonColor: '#64748b', // Slate
+                confirmButtonText: btnText
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = url; // Redirect if confirmed
+                }
+            });
+        }
+
+        // --- Details Modal Logic ---
+        function openModal(title, status, category, venue, startDate, endDate, startTime, endTime, desc) {
             document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalCategory').innerText = category;
             document.getElementById('modalVenue').innerText = venue;
             document.getElementById('modalDesc').innerText = desc;
             
-            // Format Date/Time display
             document.getElementById('modalStart').innerText = `${startDate} at ${startTime}`;
             document.getElementById('modalEnd').innerText = `${endDate} at ${endTime}`;
 
-            // Handle Status Styling
             const statusBadge = document.getElementById('modalStatus');
             statusBadge.innerText = status;
             
-            // Reset classes
             statusBadge.className = 'inline-block px-2 py-1 rounded text-xs font-bold border mb-2'; 
             
             if (status === 'Approved') {
@@ -287,12 +396,10 @@ $requests = $stmt->fetchAll();
                 statusBadge.classList.add('bg-amber-500/20', 'text-amber-400', 'border-amber-500/30');
             }
 
-            // Show Modal
             const modal = document.getElementById('detailsModal');
             const content = document.getElementById('modalContent');
             modal.classList.remove('hidden');
             
-            // Tiny delay for the pop-in animation
             setTimeout(() => {
                 content.classList.remove('scale-95');
                 content.classList.add('scale-100');
@@ -303,17 +410,14 @@ $requests = $stmt->fetchAll();
             const modal = document.getElementById('detailsModal');
             const content = document.getElementById('modalContent');
             
-            // Shrink animation
             content.classList.remove('scale-100');
             content.classList.add('scale-95');
             
-            // Hide modal after animation finishes
             setTimeout(() => {
                 modal.classList.add('hidden');
-            }, 200); // 200ms matches the transition duration
+            }, 200); 
         }
 
-        // Close modal if clicking outside the card
         document.getElementById('detailsModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closeModal();

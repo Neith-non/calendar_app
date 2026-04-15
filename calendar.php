@@ -20,10 +20,15 @@ $nextYear = date('Y', strtotime("+1 month", strtotime($dateString)));
 
 // 3. Fetch Events for THIS specific month
 $stmt = $pdo->prepare("
-    SELECT e.*, c.category_name, p.status 
+    SELECT 
+        e.*, 
+        c.category_name, 
+        p.status,
+        v.venue_name -- Grabbing the actual name of the venue
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
     LEFT JOIN event_publish p ON e.publish_id = p.id
+    LEFT JOIN venues v ON p.venue_id = v.venue_id -- Joining the venues table
     WHERE DATE_FORMAT(e.start_date, '%Y-%m') = ?
     ORDER BY e.start_time ASC
 ");
@@ -146,9 +151,11 @@ function getCategoryColor($categoryName) {
                         <span>Admin Panel</span>
                     </a>
                     <?php endif; ?>
+                    <?php if ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler'): ?>
                     <button onclick="openPdfModal()" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
                         <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
                     </button>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -321,15 +328,19 @@ function getCategoryColor($categoryName) {
                             // NEW: Format the End Date/Time
                             $formattedEndDate = date('F j, Y', strtotime($evt['end_date']));
                             $formattedEndTime = ($evt['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($evt['end_time']));
+                            
                             $safeTitle = htmlspecialchars($evt['title']);
                             $safeDesc = htmlspecialchars($evt['description'] ?? 'No description provided.');
- 
+                            // NEW: Format the Venue
+                            $safeVenue = htmlspecialchars($evt['venue_name'] ?? 'Not specified');
+
                            echo "
                             <div class='calendar-event-item {$color['bg']} {$color['text']} border {$color['border']} {$opacity} px-2 py-1 rounded text-xs font-semibold truncate cursor-pointer hover:bg-white/20 hover:border-yellow-400/50 transition' 
                                 title='{$safeTitle}'
                                 data-title='{$safeTitle}'
                                 data-desc='{$safeDesc}'
                                 data-category='" . htmlspecialchars($evt['category_name']) . "' 
+                                data-venue='{$safeVenue}'
                                 data-date='{$formattedDate}'
                                 data-time='{$formattedTime}'
                                 data-end-date='{$formattedEndDate}'
@@ -394,6 +405,24 @@ function getCategoryColor($categoryName) {
                 </div>
             </div>
 
+            <div class="flex flex-col sm:flex-row gap-4">
+                <div class="flex-1 bg-black/20 p-3 rounded-lg border border-white/10">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Category</h3>
+                    <div class="flex items-center gap-2 text-slate-200">
+                        <i class="fa-solid fa-tag text-sky-400"></i>
+                        <span id="modalCategory" class="font-medium text-sm">Category Name</span>
+                    </div>
+                </div>
+                
+                <div class="flex-1 bg-black/20 p-3 rounded-lg border border-white/10">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Venue</h3>
+                    <div class="flex items-center gap-2 text-slate-200">
+                        <i class="fa-solid fa-location-dot text-rose-400"></i>
+                        <span id="modalVenue" class="font-medium text-sm">Venue Name</span>
+                    </div>
+                </div>
+            </div>
+
             <div>
                 <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Description</h3>
                 <p id="modalDesc" class="text-slate-300 whitespace-pre-line leading-relaxed bg-black/20 p-4 rounded-lg border border-white/10 min-h-[80px]"></p>
@@ -421,6 +450,10 @@ function getCategoryColor($categoryName) {
         document.getElementById('modalTime').innerText = element.dataset.time;
         document.getElementById('modalEndDate').innerText = element.dataset.endDate;
         document.getElementById('modalEndTime').innerText = element.dataset.endTime;
+        
+        // NEW: Populate Category and Venue
+        document.getElementById('modalCategory').innerText = element.dataset.category || 'Not categorized';
+        document.getElementById('modalVenue').innerText = element.dataset.venue || 'Not specified';
 
         // Show modal with transition
         eventModal.classList.remove('hidden');

@@ -42,19 +42,23 @@ function openModal(cardElement) {
     const date = cardElement.getAttribute('data-date');
     const time = cardElement.getAttribute('data-time');
     
-    // NEW: Grab the End Date and End Time
+    // Grab the End Date, End Time, Category, and Venue
     const endDate = cardElement.getAttribute('data-end-date');
     const endTime = cardElement.getAttribute('data-end-time');
+    
+    // CHANGE THESE TWO LINES:
+    const category = cardElement.getAttribute('data-category') || 'Not categorized';
+    const venue = cardElement.getAttribute('data-venue') || 'Not specified';
 
-    // 2. Put the data into the modal
+    // 2. Put the data into the modal elements
     document.getElementById('modalTitle').innerText = title;
-    document.getElementById('modalDesc').innerText = desc;
+    document.getElementById('modalDesc').innerText = desc || 'No description provided.';
     document.getElementById('modalDate').innerText = date;
     document.getElementById('modalTime').innerText = time;
-    
-    // NEW: Put the End Date and End Time into the modal
     document.getElementById('modalEndDate').innerText = endDate;
     document.getElementById('modalEndTime').innerText = endTime;
+    document.getElementById('modalCategory').innerText = category;
+    document.getElementById('modalVenue').innerText = venue;
 
     // 3. Show the modal with a smooth animation
     modal.classList.remove('hidden');
@@ -85,7 +89,6 @@ window.onclick = function(event) {
         closeModal();
     }
 }
-
 
 // --- SweetAlert Confirm Action ---
 function confirmAction(url, action) {
