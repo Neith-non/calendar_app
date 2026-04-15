@@ -1,7 +1,7 @@
 <?php
 // calendar.php
 require_once 'functions/database.php';
-
+require_once 'functions/get_pending_count.php';
 // 1. Get the requested Month and Year (Default to current month)
 $month = isset($_GET['month']) ? str_pad($_GET['month'], 2, '0', STR_PAD_LEFT) : date('m');
 $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
@@ -142,8 +142,15 @@ function getCategoryColor($categoryName) {
                         <span>View Calendar</span>
                     </a>
                     <a href="request_status.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                    <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
-                    <span>Event Status</span>
+                        <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
+                        <span>Event Status</span>
+                        
+                        <?php if (isset($pendingCount) && $pendingCount > 0): ?>
+                            <span class="ml-auto relative flex h-3 w-3" title="<?php echo $pendingCount; ?> Pending Requests">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                            </span>
+                        <?php endif; ?>
                     </a>
                     <?php if ($_SESSION['role_name'] === 'Admin'): ?>
                     <a href="admin/admin_manage.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
