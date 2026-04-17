@@ -1,18 +1,15 @@
 // assets/js/pdf_modal.js
 
 function openPdfModal() {
-    // 1. Check if the modal already exists on the page
     let modal = document.getElementById('pdfModal');
 
-    // 2. If it doesn't exist, we build it dynamically!
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'pdfModal';
         modal.className = 'fixed inset-0 bg-slate-900 bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity';
 
-        // Get the current date to auto-check the current month and set the year
         const currentDate = new Date();
-        const currentMonth = currentDate.getMonth() + 1; // JS months are 0-11, so add 1
+        const currentMonth = currentDate.getMonth() + 1; 
         const currentYear = currentDate.getFullYear();
 
         const monthsList = {
@@ -20,7 +17,6 @@ function openPdfModal() {
             7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
         };
 
-        // Build the checkboxes
         let checkboxesHtml = '';
         for (let num = 1; num <= 12; num++) {
             const isChecked = (num === currentMonth) ? 'checked' : '';
@@ -32,7 +28,12 @@ function openPdfModal() {
             `;
         }
 
-        // Build the full modal HTML
+        // --- NEW LOGIC: Check if we are inside the admin folder ---
+        let actionUrl = 'generate_pdf.php';
+        if (window.location.pathname.includes('/admin/')) {
+            actionUrl = '../generate_pdf.php'; // Go up one folder level
+        }
+
         modal.innerHTML = `
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
                 <div class="bg-slate-800 p-4 flex justify-between items-center text-white">
@@ -42,7 +43,7 @@ function openPdfModal() {
                     </button>
                 </div>
 
-                <form action="generate_pdf.php" method="GET" class="p-6">
+                <form action="${actionUrl}" method="GET" class="p-6">
                     <p class="text-sm text-slate-600 font-medium mb-4">Select the months you want to include in the document:</p>
                     
                     <div class="grid grid-cols-3 gap-3 mb-6">
@@ -61,11 +62,9 @@ function openPdfModal() {
             </div>
         `;
         
-        // Inject it into the bottom of the body tag
         document.body.appendChild(modal);
     }
 
-    // 3. Show the modal
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 }
