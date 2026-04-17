@@ -219,7 +219,8 @@ $requests = $stmt->fetchAll();
 
                             <div class="flex justify-between items-start mb-3">
                                 <h3 class="text-lg font-bold text-white leading-tight truncate pr-2">
-                                    <?php echo htmlspecialchars($req['title']); ?></h3>
+                                    <?php echo htmlspecialchars($req['title']); ?>
+                                </h3>
                                 <span
                                     class="px-2.5 py-1 rounded text-xs font-bold border flex items-center gap-1.5 whitespace-nowrap <?php echo $statusStyle; ?>">
                                     <i class="fa-solid <?php echo $icon; ?>"></i>

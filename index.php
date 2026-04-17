@@ -293,7 +293,8 @@ function getCategoryColor($categoryName)
 
                                     <div>
                                         <h3 class="text-lg font-bold text-white group-hover:text-amber-400 transition">
-                                            <?php echo htmlspecialchars($event['title']); ?></h3>
+                                            <?php echo htmlspecialchars($event['title']); ?>
+                                        </h3>
                                         <div class="flex items-center gap-3 mt-1 text-sm text-slate-400">
                                             <span><i class="fa-regular fa-clock mr-1.5"></i> <?php echo $formattedTime; ?></span>
                                             <span class="text-slate-300">|</span>
@@ -365,7 +366,8 @@ function getCategoryColor($categoryName)
 
                                     <div>
                                         <h3 class="text-lg font-bold text-white group-hover:text-yellow-400 transition">
-                                            <?php echo htmlspecialchars($event['title']); ?></h3>
+                                            <?php echo htmlspecialchars($event['title']); ?>
+                                        </h3>
                                         <div class="flex items-center gap-3 mt-1 text-sm text-slate-400">
                                             <span><i class="fa-regular fa-clock mr-1.5 text-yellow-400/70"></i>
                                                 <?php echo $formattedTime; ?></span>
@@ -422,7 +424,8 @@ function getCategoryColor($categoryName)
 
                                     <div>
                                         <h3 class="text-lg font-bold text-white group-hover:text-emerald-400 transition">
-                                            <?php echo htmlspecialchars($event['title']); ?></h3>
+                                            <?php echo htmlspecialchars($event['title']); ?>
+                                        </h3>
                                         <div class="flex items-center gap-3 mt-1 text-sm text-slate-400">
                                             <span><i class="fa-regular fa-clock mr-1.5"></i> <?php echo $formattedTime; ?></span>
                                             <span class="text-slate-300">|</span>

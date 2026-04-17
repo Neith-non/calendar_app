@@ -173,7 +173,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <option value="">-- Select Category --</option>
                             <?php foreach ($categories as $cat): ?>
                                 <option value="<?php echo $cat['category_id']; ?>" <?php echo (isset($_POST['category_id']) && $_POST['category_id'] == $cat['category_id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($cat['category_name']); ?></option>
+
+
+                                    <?php echo htmlspecialchars($cat['category_name']); ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -185,7 +188,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             class="form-input-glass w-full px-4 py-2.5 rounded-lg appearance-none bg-no-repeat bg-right-4"
                             style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%239ca3af\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
                             <option value="">-- Select Venue --</option>
-                            <?php foreach ($venues as $venue): ?>
+                                <?php foreach ($venues as $venue): ?>
+
                                 <option value="<?php echo $venue['venue_id']; ?>" <?php echo (isset($_POST['venue_id']) && $_POST['venue_id'] == $venue['venue_id']) ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($venue['venue_name']); ?>
                                     <?php if ($venue['is_off_campus']): ?> (Off-Campus)<?php endif; ?>
@@ -203,9 +207,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                     <!-- "Starts" Column -->
                     <div class="space-y-4">
-                        <h3
-                            class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2">
-                            <i class="fa-solid fa-play text-emerald-400 mr-2"></i> Starts</h3>
+                        <h3 class="font-bold text-slate-400 uppercase tracking-wider text
+                        -xs border-b border-white/10 pb-2">
+                            <i class="fa-solid fa-play text-emerald-400 mr-2"></i> Starts
+                        </h3>
                         <div>
                             <label class="block text-sm font-semibold text-slate-300 mb-2">Start Date</label>
                             <!-- Frontend Change: Applied 'form-input-glass' class -->
@@ -224,9 +229,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                     <!-- "Ends" Column -->
                     <div class="space-y-4">
-                        <h3
-                            class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2">
-                            <i class="fa-solid fa-stop text-red-400 mr-2"></i> Ends</h3>
+                        <h3 class="font-bold text-slate-400 uppercase tracking-wide
+                        r text-xs border-b border-white/10 pb-2">
+                            <i class="fa-solid fa-stop text-red-400 mr-2"></i> Ends
+                        </h3>
                         <div>
                             <label class="block text-sm font-semibold text-slate-300 mb-2">End Date</label>
                             <!-- Frontend Change: Applied 'form-input-glass' class -->

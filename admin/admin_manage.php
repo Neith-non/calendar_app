@@ -244,7 +244,8 @@ $categories = $pdo->query("SELECT category_id, category_name, category_type FROM
                                 <option value="" disabled selected class="text-black">Select Role...</option>
                                 <?php foreach ($roles_list as $role): ?>
                                     <option value="<?php echo $role['role_id']; ?>" class="text-black">
-                                        <?php echo htmlspecialchars($role['role_name']); ?></option>
+                                        <?php echo htmlspecialchars($role['role_name']); ?>
+                                    </option>
                                 <?php endforeach; ?>
                             </select>
                             <button type="submit"
@@ -262,7 +263,8 @@ $categories = $pdo->query("SELECT category_id, category_name, category_type FROM
                                             class="text-xs text-slate-500">(@<?php echo htmlspecialchars($u['username']); ?>)</span>
                                     </p>
                                     <p class="text-xs text-purple-400 font-medium">
-                                        <?php echo htmlspecialchars($u['role_name']); ?></p>
+                                        <?php echo htmlspecialchars($u['role_name']); ?>
+                                    </p>
                                 </div>
                                 <?php if ($u['user_id'] !== $_SESSION['user_id']): // Don't let admin delete themselves ?>
                                     <a href="?delete_user=<?php echo $u['user_id']; ?>"
