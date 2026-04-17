@@ -34,7 +34,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } 
     else {
         // RULE 2: Conflict Detection (The Overlap Formula)
-        // Two events overlap if: (Existing Start < New End) AND (Existing End > New Start)
         $conflictStmt = $pdo->prepare("
             SELECT e.title, p.status 
             FROM events e
@@ -58,12 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             try {
                 $pdo->beginTransaction();
 
-                // Step A: Create Request (Now with description!)
+                // Step A: Create Request 
                 $stmt_pub = $pdo->prepare("INSERT INTO event_publish (venue_id, title, description, status) VALUES (?, ?, ?, 'Pending')");
                 $stmt_pub->execute([$venue_id, $title, $description]);
                 $publish_id = $pdo->lastInsertId();
 
-                // Step B: Create Calendar Block (Now with description!)
+                // Step B: Create Calendar Block 
                 $stmt_event = $pdo->prepare("INSERT INTO events (publish_id, category_id, title, description, start_date, start_time, end_date, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt_event->execute([$publish_id, $category_id, $title, $description, $start_date, $start_time, $end_date, $end_time]);
 
@@ -88,80 +87,78 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Event - St. Joseph School</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Frontend Change: Added Google Font for a more modern typeface -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Frontend Change: Linked our new global stylesheet -->
-    <link rel="stylesheet" href="styles.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Poppins', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
 </head>
-<!-- Frontend Change: Added 'dashboard-body' class for the new background and centered layout -->
-<body class="dashboard-body flex justify-center items-center min-h-screen p-4 sm:p-6 md:p-8">
+<body class="bg-zinc-950 text-zinc-200 font-sans min-h-screen flex justify-center items-center p-4 sm:p-6 md:p-8 relative">
 
-    <!-- Frontend Change: Main form container with the glassmorphism effect -->
-    <div class="glass-container rounded-2xl shadow-lg w-full max-w-3xl overflow-hidden">
+    <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500 rounded-full mix-blend-screen filter blur-[120px] opacity-10 pointer-events-none z-0"></div>
+
+    <div class="bg-zinc-900/80 backdrop-blur-xl border border-zinc-700 rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden relative z-10">
         
-        <!-- Form Header -->
-        <div class="bg-black/20 p-6 border-b border-white/10 flex justify-between items-center">
+        <div class="bg-zinc-950/60 p-8 sm:px-10 border-b border-zinc-700 flex justify-between items-center">
             <div>
-                <h2 class="text-2xl font-bold text-white"><i class="fa-solid fa-calendar-plus mr-3 text-yellow-400"></i> Request New Event</h2>
-                <p class="text-slate-300 text-sm mt-1">Submit a schedule for admin approval.</p>
+                <h2 class="text-3xl font-extrabold text-zinc-100 tracking-tight">
+                    <i class="fa-solid fa-calendar-plus mr-3 text-emerald-500"></i>Request New Event
+                </h2>
+                <p class="text-zinc-400 text-lg mt-2 font-medium">Submit a schedule block for admin approval.</p>
             </div>
-            <i class="fa-solid fa-clock text-4xl text-white/20"></i>
+            <i class="fa-solid fa-clock text-5xl text-zinc-800 hidden sm:block"></i>
         </div>
 
-        <!-- Form Body -->
-        <div class="p-6 sm:p-8 max-h-[80vh] overflow-y-auto">
-            <!-- Backend Note: This PHP block displays an error message. We only styled the container. -->
+        <div class="p-8 sm:p-10 max-h-[80vh] overflow-y-auto no-scrollbar">
+            
             <?php if ($message): ?>
-                <!-- Frontend Change: Styled error message container -->
-                <div class="mb-6 px-4 py-3 rounded-lg border bg-red-500/20 border-red-500/50 text-red-300 flex items-center gap-3">
-                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
-                    <p class="font-medium text-sm"><?php echo htmlspecialchars($message); ?></p>
+                <div class="mb-8 px-6 py-4 rounded-xl border bg-red-500/10 border-red-500/30 text-red-400 flex items-start gap-4 shadow-inner">
+                    <i class="fa-solid fa-triangle-exclamation text-2xl mt-0.5"></i>
+                    <p class="font-bold text-lg"><?php echo htmlspecialchars($message); ?></p>
                 </div>
             <?php endif; ?>
 
-            <!-- Backend Note: This is the main form. We only styled the inputs and buttons. -->
-            <form action="add_event.php" method="POST" class="space-y-7">
+            <form action="add_event.php" method="POST" class="space-y-8">
                 
-                <!-- Event Title Input Container -->
                 <div>
-                    <label class="block text-sm font-semibold text-slate-300 mb-2">Event Title</label>
-                    <!-- Frontend Change: Applied 'form-input-glass' class -->
+                    <label class="block text-sm font-extrabold text-zinc-400 uppercase tracking-widest mb-3">Event Title</label>
                     <input type="text" name="title" required placeholder="e.g., Grade 10 Math Olympiad" 
                         value="<?php echo htmlspecialchars($_POST['title'] ?? ''); ?>"
-                        class="form-input-glass w-full px-4 py-2.5 rounded-lg">
+                        class="w-full px-5 py-4 bg-zinc-950/80 border-2 border-zinc-700 text-zinc-100 text-lg font-medium rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all placeholder-zinc-600 shadow-inner">
                 </div>
 
-                <!-- Event Description Input Container -->
                 <div>
-                    <label class="block text-sm font-semibold text-slate-300 mb-2">Event Description</label>
-                    <!-- Frontend Change: Applied 'form-input-glass' class -->
+                    <label class="block text-sm font-extrabold text-zinc-400 uppercase tracking-widest mb-3">Event Description</label>
                     <textarea name="description" rows="3" placeholder="Optional details, instructions, or agenda..." 
-                            class="form-input-glass w-full px-4 py-2.5 rounded-lg resize-none"><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
+                            class="w-full px-5 py-4 bg-zinc-950/80 border-2 border-zinc-700 text-zinc-100 text-lg font-medium rounded-xl resize-none focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all placeholder-zinc-600 shadow-inner"><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
                 </div>
 
-                <!-- Category & Venue Selection Container -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 p-4 bg-black/20 rounded-lg border border-white/10">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-zinc-950/40 p-6 rounded-2xl border border-zinc-700">
                     <div>
-                        <label class="block text-sm font-semibold text-slate-300 mb-2">Category</label>
-                        <!-- Frontend Change: Applied 'form-input-glass' and custom dropdown arrow -->
-                        <select name="category_id" required class="form-input-glass w-full px-4 py-2.5 rounded-lg appearance-none bg-no-repeat bg-right-4" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%239ca3af\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
-                            <option value="">-- Select Category --</option>
+                        <label class="block text-sm font-extrabold text-zinc-400 uppercase tracking-widest mb-3">Category</label>
+                        <select name="category_id" required class="w-full px-5 py-4 bg-zinc-950/80 border-2 border-zinc-700 text-zinc-100 text-lg font-medium rounded-xl appearance-none focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-inner bg-no-repeat cursor-pointer" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%23a1a1aa\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 1rem center; background-size: 1.5em;">
+                            <option value="" class="text-zinc-500">-- Select Category --</option>
                             <?php foreach ($categories as $cat): ?>
-                                <option value="<?php echo $cat['category_id']; ?>" <?php echo (isset($_POST['category_id']) && $_POST['category_id'] == $cat['category_id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($cat['category_name']); ?></option>
+                                <option value="<?php echo $cat['category_id']; ?>" <?php echo (isset($_POST['category_id']) && $_POST['category_id'] == $cat['category_id']) ? 'selected' : ''; ?> class="text-zinc-100 bg-zinc-900"><?php echo htmlspecialchars($cat['category_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-300 mb-2">Venue Location</label>
-                        <!-- Frontend Change: Applied 'form-input-glass' and custom dropdown arrow -->
-                        <select name="venue_id" required class="form-input-glass w-full px-4 py-2.5 rounded-lg appearance-none bg-no-repeat bg-right-4" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%239ca3af\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
-                            <option value="">-- Select Venue --</option>
+                        <label class="block text-sm font-extrabold text-zinc-400 uppercase tracking-widest mb-3">Venue Location</label>
+                        <select name="venue_id" required class="w-full px-5 py-4 bg-zinc-950/80 border-2 border-zinc-700 text-zinc-100 text-lg font-medium rounded-xl appearance-none focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-inner bg-no-repeat cursor-pointer" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%23a1a1aa\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 1rem center; background-size: 1.5em;">
+                            <option value="" class="text-zinc-500">-- Select Venue --</option>
                             <?php foreach ($venues as $venue): ?>
-                                <option value="<?php echo $venue['venue_id']; ?>" <?php echo (isset($_POST['venue_id']) && $_POST['venue_id'] == $venue['venue_id']) ? 'selected' : ''; ?>>
+                                <option value="<?php echo $venue['venue_id']; ?>" <?php echo (isset($_POST['venue_id']) && $_POST['venue_id'] == $venue['venue_id']) ? 'selected' : ''; ?> class="text-zinc-100 bg-zinc-900">
                                     <?php echo htmlspecialchars($venue['venue_name']); ?> 
                                     <?php if ($venue['is_off_campus']): ?> (Off-Campus)<?php endif; ?>
                                 </option>
@@ -170,51 +167,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
                 </div>
 
-                <!-- Date & Time Inputs Container -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
-                    <!-- "Starts" Column -->
-                    <div class="space-y-4">
-                        <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2"><i class="fa-solid fa-play text-emerald-400 mr-2"></i> Starts</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <div class="bg-zinc-950/50 p-6 rounded-2xl border border-zinc-700 space-y-6 shadow-sm">
+                        <h3 class="font-extrabold text-zinc-300 uppercase tracking-widest text-base border-b border-zinc-800 pb-3 flex items-center">
+                            <i class="fa-solid fa-play text-emerald-400 mr-3 text-lg"></i> Starts
+                        </h3>
+                        
                         <div>
-                            <label class="block text-sm font-semibold text-slate-300 mb-2">Start Date</label>
-                            <!-- Frontend Change: Applied 'form-input-glass' class -->
+                            <label class="block text-sm font-extrabold text-zinc-400 uppercase tracking-widest mb-3">Start Date</label>
                             <input type="date" name="start_date" required value="<?php echo $_POST['start_date'] ?? $_GET['date'] ?? ''; ?>"
-                                   class="form-input-glass w-full px-4 py-2.5 rounded-lg">
+                                   class="w-full px-5 py-4 bg-zinc-900 border-2 border-zinc-700 text-zinc-100 text-lg font-bold rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100">
                         </div>
+                        
                         <div>
-                            <label class="block text-sm font-semibold text-slate-300 mb-2">Start Time</label>
-                            <!-- Frontend Change: Applied 'form-input-glass' class -->
+                            <label class="block text-sm font-extrabold text-zinc-400 uppercase tracking-widest mb-3">Start Time</label>
                             <input type="time" name="start_time" required value="<?php echo $_POST['start_time'] ?? ''; ?>"
-                                   class="form-input-glass w-full px-4 py-2.5 rounded-lg">
+                                   class="w-full px-5 py-4 bg-zinc-900 border-2 border-zinc-700 text-zinc-100 text-lg font-bold rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100">
                         </div>
                     </div>
 
-                    <!-- "Ends" Column -->
-                    <div class="space-y-4">
-                        <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2"><i class="fa-solid fa-stop text-red-400 mr-2"></i> Ends</h3>
+                    <div class="bg-zinc-950/50 p-6 rounded-2xl border border-zinc-700 space-y-6 shadow-sm">
+                        <h3 class="font-extrabold text-zinc-300 uppercase tracking-widest text-base border-b border-zinc-800 pb-3 flex items-center">
+                            <i class="fa-solid fa-stop text-red-400 mr-3 text-lg"></i> Ends
+                        </h3>
+                        
                         <div>
-                            <label class="block text-sm font-semibold text-slate-300 mb-2">End Date</label>
-                            <!-- Frontend Change: Applied 'form-input-glass' class -->
+                            <label class="block text-sm font-extrabold text-zinc-400 uppercase tracking-widest mb-3">End Date</label>
                             <input type="date" name="end_date" required value="<?php echo $_POST['end_date'] ?? $_GET['date'] ?? ''; ?>"
-                                   class="form-input-glass w-full px-4 py-2.5 rounded-lg">
+                                   class="w-full px-5 py-4 bg-zinc-900 border-2 border-zinc-700 text-zinc-100 text-lg font-bold rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100">
                         </div>
+                        
                         <div>
-                            <label class="block text-sm font-semibold text-slate-300 mb-2">End Time</label>
-                            <!-- Frontend Change: Applied 'form-input-glass' class -->
+                            <label class="block text-sm font-extrabold text-zinc-400 uppercase tracking-widest mb-3">End Time</label>
                             <input type="time" name="end_time" required value="<?php echo $_POST['end_time'] ?? ''; ?>"
-                                   class="form-input-glass w-full px-4 py-2.5 rounded-lg">
+                                   class="w-full px-5 py-4 bg-zinc-900 border-2 border-zinc-700 text-zinc-100 text-lg font-bold rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100">
                         </div>
                     </div>
+
                 </div>
 
-                <!-- Form Actions/Buttons Container -->
-                <div class="pt-6 mt-4 border-t border-white/10 flex flex-col-reverse sm:flex-row gap-4">
-                    <!-- Frontend Change: Styled "Cancel" button -->
-                    <a href="index.php" class="text-center bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-lg transition-colors border border-white/20">
+                <div class="pt-8 mt-4 border-t border-zinc-700 flex flex-col-reverse md:flex-row gap-4">
+                    <a href="index.php" class="w-full md:w-1/3 text-center bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-bold py-4 rounded-xl transition-colors border-2 border-zinc-700 text-lg shadow-sm">
                         Cancel
                     </a>
-                    <!-- Frontend Change: Styled "Submit" button -->
-                    <button type="submit" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-3 rounded-lg transition-colors shadow-lg flex justify-center items-center gap-2">
+                    <button type="submit" class="w-full md:w-2/3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-4 px-6 rounded-xl transition-all shadow-lg shadow-emerald-900/30 text-xl flex justify-center items-center gap-3 hover:-translate-y-0.5 active:translate-y-0">
                         <i class="fa-solid fa-paper-plane"></i> Submit Request
                     </button>
                 </div>

@@ -7,7 +7,6 @@ if (isset($_SESSION['user_id'])) {
     exit;
 }
 
-
 $error = '';
 
 // 3. Process the form when they click "Sign In"
@@ -60,85 +59,70 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Event Calendar</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Frontend Change: Added Google Font for a more modern typeface -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Frontend Change: Linked our new global stylesheet -->
-    <link rel="stylesheet" href="styles.css">
-    <style>
-        /* Frontend Change: Component-specific styles for the primary login button */
-        .btn-primary-glass {
-            background-color: #ffbb00; /* var(--yellow) */
-            color: #004731; /* var(--dark-green) */
-            font-weight: 700;
-            transition: background-color 0.3s, transform 0.2s;
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Poppins', 'sans-serif'],
+                    }
+                }
+            }
         }
-        .btn-primary-glass:hover {
-            background-color: #ffca2a; /* A slightly lighter yellow for hover */
-            transform: translateY(-2px);
-        }
-    </style>
+    </script>
 </head>
-<!-- Frontend Change: Added 'login-body' class for the new background and centered layout -->
-<body class="login-body flex items-center justify-center min-h-screen p-4">
+<body class="bg-zinc-950 flex items-center justify-center min-h-screen p-4 font-sans text-slate-300">
 
-    <!-- Frontend Change: Main login form container with the glassmorphism effect -->
-    <div class="glass-container p-8 sm:p-10 rounded-2xl shadow-lg max-w-sm w-full">
+    <div class="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800 p-8 sm:p-10 rounded-2xl shadow-2xl max-w-sm w-full relative overflow-hidden">
         
-        <!-- Frontend Change: Header section of the login form -->
-        <div class="text-center mb-8">
-            <!-- Icon Container -->
-            <div class="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-full mb-4 border border-white/20">
-                <i class="fa-solid fa-calendar-days text-yellow-400 text-2xl"></i>
+        <div class="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500 rounded-full mix-blend-screen filter blur-[60px] opacity-20 pointer-events-none"></div>
+
+        <div class="text-center mb-8 relative z-10">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-zinc-800/50 rounded-full mb-4 border border-zinc-700 shadow-inner">
+                <i class="fa-solid fa-calendar-days text-emerald-400 text-2xl"></i>
             </div>
-            <!-- Title and Subtitle -->
-            <h2 class="text-3xl font-bold text-white">Welcome Back</h2>
-            <p class="text-slate-300 text-sm mt-2">Sign in to access the event calendar</p>
+            <h2 class="text-3xl font-bold text-white tracking-tight">Welcome Back</h2>
+            <p class="text-zinc-400 text-sm mt-2">Sign in to access the event calendar</p>
         </div>
 
-        <!-- Backend Note: This PHP block displays an error message. We only styled the container. -->
         <?php if ($error): ?>
-            <!-- Frontend Change: Styled error message container -->
-            <div class="bg-red-500/20 border border-red-500/50 text-red-300 p-3 rounded-lg mb-6 text-sm font-medium flex items-center gap-3">
+            <div class="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg mb-6 text-sm font-medium flex items-center gap-3 backdrop-blur-sm">
                 <i class="fa-solid fa-circle-exclamation"></i>
                 <?php echo $error; ?>
             </div>
         <?php endif; ?>
 
-        <!-- Backend Note: This is the main login form. We only styled the inputs and button. -->
-        <form method="POST" action="">
-            <!-- Username Input Container -->
+        <form method="POST" action="" class="relative z-10">
             <div class="mb-5">
-                <label class="block text-slate-300 text-sm font-semibold mb-2">Username</label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fa-solid fa-user text-slate-400"></i>
+                <label class="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">Username</label>
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors group-focus-within:text-emerald-400 text-zinc-500">
+                        <i class="fa-solid fa-user"></i>
                     </div>
-                    <!-- Frontend Change: Applied the 'form-input-glass' class to the username input -->
                     <input type="text" name="username" required 
-                           class="form-input-glass w-full pl-10 pr-3 py-2.5 rounded-lg" 
+                           class="w-full pl-10 pr-3 py-3 bg-zinc-950/50 border border-zinc-800 text-zinc-100 rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-zinc-600" 
                            placeholder="Enter username">
                 </div>
             </div>
 
-            <!-- Password Input Container -->
             <div class="mb-6">
-                <label class="block text-slate-300 text-sm font-semibold mb-2">Password</label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fa-solid fa-lock text-slate-400"></i>
+                <label class="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">Password</label>
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors group-focus-within:text-emerald-400 text-zinc-500">
+                        <i class="fa-solid fa-lock"></i>
                     </div>
-                    <!-- Frontend Change: Applied the 'form-input-glass' class to the password input -->
                     <input type="password" name="password" required 
-                           class="form-input-glass w-full pl-10 pr-3 py-2.5 rounded-lg" 
+                           class="w-full pl-10 pr-3 py-3 bg-zinc-950/50 border border-zinc-800 text-zinc-100 rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-zinc-600" 
                            placeholder="Enter password">
                 </div>
             </div>
 
-            <!-- Frontend Change: Applied our custom 'btn-primary-glass' class to the submit button -->
-            <button type="submit" class="btn-primary-glass w-full py-3 px-4 rounded-lg flex justify-center items-center gap-2 shadow-lg">
+            <button type="submit" class="w-full py-3 px-4 rounded-lg flex justify-center items-center gap-2 shadow-lg shadow-emerald-900/50 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0">
                 <span>Sign In</span>
                 <i class="fa-solid fa-arrow-right-to-bracket"></i>
             </button>
