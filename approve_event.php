@@ -18,7 +18,7 @@ if (!isset($_GET['id']) || !isset($_GET['action'])) {
     exit();
 }
 
-$publish_id = (int)$_GET['id'];
+$publish_id = (int) $_GET['id'];
 $action = $_GET['action'];
 
 $previousPage = $_SERVER['HTTP_REFERER'] ?? 'index.php';
@@ -30,26 +30,26 @@ try {
         // Update the status to 'Approved'
         $stmt = $pdo->prepare("UPDATE event_publish SET status = 'Approved' WHERE id = ?");
         $stmt->execute([$publish_id]);
-        
+
         $msg = "Event successfully approved!";
-        
+
     } elseif ($action === 'reject') {
         // If rejected, we must remove it from the calendar queue (events table) 
         // and mark it as Rejected in the publish table.
         $pdo->beginTransaction();
-        
+
         // Remove from the calendar
         $stmt_delete = $pdo->prepare("DELETE FROM events WHERE publish_id = ?");
         $stmt_delete->execute([$publish_id]);
-        
+
         // Mark as rejected
         $stmt_update = $pdo->prepare("UPDATE event_publish SET status = 'Rejected' WHERE id = ?");
         $stmt_update->execute([$publish_id]);
-        
+
         $pdo->commit();
-        
+
         $msg = "Event request rejected and removed from the calendar.";
-        
+
     } else {
         header("Location: index.php?sync_status=error&sync_msg=" . urlencode("Error: Invalid action."));
         exit();
@@ -62,7 +62,7 @@ try {
 
     header("Location: " . $previousPage . $separator . "sync_status=success&sync_msg=" . urlencode($msg));
     exit();
-    
+
 
 } catch (PDOException $e) {
     // If something goes wrong, rollback and show error

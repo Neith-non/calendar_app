@@ -34,9 +34,9 @@ $venues = $stmt_venues->fetchAll();
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title = trim($_POST['title']);
     $description = trim($_POST['description']);
-    $category_id = (int)$_POST['category_id'];
-    $venue_id = (int)$_POST['venue_id'];
-    
+    $category_id = (int) $_POST['category_id'];
+    $venue_id = (int) $_POST['venue_id'];
+
     $start_date = $_POST['start_date'];
     $start_time = $_POST['start_time'];
     $end_date = $_POST['end_date'];
@@ -49,8 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // RULE 1: End Time must be AFTER Start Time
     if (strtotime($end_datetime) <= strtotime($start_datetime)) {
         $message = "Oops! The End Date/Time must be after the Start Date/Time.";
-    } 
-    else {
+    } else {
         // RULE 2: Conflict Detection (The Overlap Formula)
         // Two events overlap if: (Existing Start < New End) AND (Existing End > New Start)
         $conflictStmt = $pdo->prepare("
@@ -63,15 +62,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             AND CONCAT(e.end_date, ' ', e.end_time) > ?
             LIMIT 1
         ");
-        
+
         $conflictStmt->execute([$venue_id, $end_datetime, $start_datetime]);
         $conflict = $conflictStmt->fetch();
 
         if ($conflict) {
             $statusText = $conflict['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
             $message = "Venue Conflict! '{$conflict['title']}' {$statusText} at this venue during your selected time.";
-        } 
-        else {
+        } else {
             // ALL CLEAR! Insert the data.
             try {
                 $pdo->beginTransaction();
@@ -86,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_event->execute([$publish_id, $category_id, $title, $description, $start_date, $start_time, $end_date, $end_time]);
 
                 $pdo->commit();
-                
+
                 header("Location: index.php?sync_status=success&sync_msg=" . urlencode("Event '$title' successfully submitted for approval!"));
                 exit();
 
@@ -101,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -115,15 +114,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <!-- Frontend Change: Added 'dashboard-body' class for the new background and centered layout -->
+
 <body class="dashboard-body flex justify-center items-center min-h-screen p-4 sm:p-6 md:p-8">
 
     <!-- Frontend Change: Main form container with the glassmorphism effect -->
     <div class="glass-container rounded-2xl shadow-lg w-full max-w-3xl overflow-hidden">
-        
+
         <!-- Form Header -->
         <div class="bg-black/20 p-6 border-b border-white/10 flex justify-between items-center">
             <div>
-                <h2 class="text-2xl font-bold text-white"><i class="fa-solid fa-calendar-plus mr-3 text-yellow-400"></i> Request New Event</h2>
+                <h2 class="text-2xl font-bold text-white"><i class="fa-solid fa-calendar-plus mr-3 text-yellow-400"></i>
+                    Request New Event</h2>
                 <p class="text-slate-300 text-sm mt-1">Submit a schedule for admin approval.</p>
             </div>
             <i class="fa-solid fa-clock text-4xl text-white/20"></i>
@@ -134,7 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <!-- Backend Note: This PHP block displays an error message. We only styled the container. -->
             <?php if ($message): ?>
                 <!-- Frontend Change: Styled error message container -->
-                <div class="mb-6 px-4 py-3 rounded-lg border bg-red-500/20 border-red-500/50 text-red-300 flex items-center gap-3">
+                <div
+                    class="mb-6 px-4 py-3 rounded-lg border bg-red-500/20 border-red-500/50 text-red-300 flex items-center gap-3">
                     <i class="fa-solid fa-triangle-exclamation text-xl"></i>
                     <p class="font-medium text-sm"><?php echo htmlspecialchars($message); ?></p>
                 </div>
@@ -142,12 +144,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             <!-- Backend Note: This is the main form. We only styled the inputs and buttons. -->
             <form action="add_event.php" method="POST" class="space-y-7">
-                
+
                 <!-- Event Title Input Container -->
                 <div>
                     <label class="block text-sm font-semibold text-slate-300 mb-2">Event Title</label>
                     <!-- Frontend Change: Applied 'form-input-glass' class -->
-                    <input type="text" name="title" required placeholder="e.g., Grade 10 Math Olympiad" 
+                    <input type="text" name="title" required placeholder="e.g., Grade 10 Math Olympiad"
                         value="<?php echo htmlspecialchars($_POST['title'] ?? ''); ?>"
                         class="form-input-glass w-full px-4 py-2.5 rounded-lg">
                 </div>
@@ -156,8 +158,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div>
                     <label class="block text-sm font-semibold text-slate-300 mb-2">Event Description</label>
                     <!-- Frontend Change: Applied 'form-input-glass' class -->
-                    <textarea name="description" rows="3" placeholder="Optional details, instructions, or agenda..." 
-                            class="form-input-glass w-full px-4 py-2.5 rounded-lg resize-none"><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
+                    <textarea name="description" rows="3" placeholder="Optional details, instructions, or agenda..."
+                        class="form-input-glass w-full px-4 py-2.5 rounded-lg resize-none"><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
                 </div>
 
                 <!-- Category & Venue Selection Container -->
@@ -165,10 +167,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div>
                         <label class="block text-sm font-semibold text-slate-300 mb-2">Category</label>
                         <!-- Frontend Change: Applied 'form-input-glass' and custom dropdown arrow -->
-                        <select name="category_id" required class="form-input-glass w-full px-4 py-2.5 rounded-lg appearance-none bg-no-repeat bg-right-4" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%239ca3af\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
+                        <select name="category_id" required
+                            class="form-input-glass w-full px-4 py-2.5 rounded-lg appearance-none bg-no-repeat bg-right-4"
+                            style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%239ca3af\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
                             <option value="">-- Select Category --</option>
                             <?php foreach ($categories as $cat): ?>
-                                <option value="<?php echo $cat['category_id']; ?>" <?php echo (isset($_POST['category_id']) && $_POST['category_id'] == $cat['category_id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($cat['category_name']); ?></option>
+                                <option value="<?php echo $cat['category_id']; ?>" <?php echo (isset($_POST['category_id']) && $_POST['category_id'] == $cat['category_id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($cat['category_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -176,11 +181,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div>
                         <label class="block text-sm font-semibold text-slate-300 mb-2">Venue Location</label>
                         <!-- Frontend Change: Applied 'form-input-glass' and custom dropdown arrow -->
-                        <select name="venue_id" required class="form-input-glass w-full px-4 py-2.5 rounded-lg appearance-none bg-no-repeat bg-right-4" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%239ca3af\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
+                        <select name="venue_id" required
+                            class="form-input-glass w-full px-4 py-2.5 rounded-lg appearance-none bg-no-repeat bg-right-4"
+                            style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%239ca3af\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
                             <option value="">-- Select Venue --</option>
                             <?php foreach ($venues as $venue): ?>
                                 <option value="<?php echo $venue['venue_id']; ?>" <?php echo (isset($_POST['venue_id']) && $_POST['venue_id'] == $venue['venue_id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($venue['venue_name']); ?> 
+                                    <?php echo htmlspecialchars($venue['venue_name']); ?>
                                     <?php if ($venue['is_off_campus']): ?> (Off-Campus)<?php endif; ?>
                                 </option>
                             <?php endforeach; ?>
@@ -188,42 +195,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
                 </div>
                 <p id="holiday-warning" class="hidden text-red-500 text-sm mt-1.5 font-medium animate-pulse">
-                        <i class="fa-solid fa-triangle-exclamation"></i> Warning: This date falls on <strong id="holiday-name"></strong>.
-                    </p>
+                    <i class="fa-solid fa-triangle-exclamation"></i> Warning: This date falls on <strong
+                        id="holiday-name"></strong>.
+                </p>
                 <!-- Date & Time Inputs Container -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
-                    
+
                     <!-- "Starts" Column -->
                     <div class="space-y-4">
-                        <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2"><i class="fa-solid fa-play text-emerald-400 mr-2"></i> Starts</h3>
+                        <h3
+                            class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2">
+                            <i class="fa-solid fa-play text-emerald-400 mr-2"></i> Starts</h3>
                         <div>
                             <label class="block text-sm font-semibold text-slate-300 mb-2">Start Date</label>
                             <!-- Frontend Change: Applied 'form-input-glass' class -->
-                            <input type="date" name="start_date" required value="<?php echo $_POST['start_date'] ?? $_GET['date'] ?? ''; ?>"
-                                   class="form-input-glass w-full px-4 py-2.5 rounded-lg">
+                            <input type="date" name="start_date" required
+                                value="<?php echo $_POST['start_date'] ?? $_GET['date'] ?? ''; ?>"
+                                class="form-input-glass w-full px-4 py-2.5 rounded-lg">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-slate-300 mb-2">Start Time</label>
                             <!-- Frontend Change: Applied 'form-input-glass' class -->
-                            <input type="time" name="start_time" required value="<?php echo $_POST['start_time'] ?? ''; ?>"
-                                   class="form-input-glass w-full px-4 py-2.5 rounded-lg">
+                            <input type="time" name="start_time" required
+                                value="<?php echo $_POST['start_time'] ?? ''; ?>"
+                                class="form-input-glass w-full px-4 py-2.5 rounded-lg">
                         </div>
                     </div>
 
                     <!-- "Ends" Column -->
                     <div class="space-y-4">
-                        <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2"><i class="fa-solid fa-stop text-red-400 mr-2"></i> Ends</h3>
+                        <h3
+                            class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2">
+                            <i class="fa-solid fa-stop text-red-400 mr-2"></i> Ends</h3>
                         <div>
                             <label class="block text-sm font-semibold text-slate-300 mb-2">End Date</label>
                             <!-- Frontend Change: Applied 'form-input-glass' class -->
-                            <input type="date" name="end_date" required value="<?php echo $_POST['end_date'] ?? $_GET['date'] ?? ''; ?>"
-                                   class="form-input-glass w-full px-4 py-2.5 rounded-lg">
+                            <input type="date" name="end_date" required
+                                value="<?php echo $_POST['end_date'] ?? $_GET['date'] ?? ''; ?>"
+                                class="form-input-glass w-full px-4 py-2.5 rounded-lg">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-slate-300 mb-2">End Time</label>
                             <!-- Frontend Change: Applied 'form-input-glass' class -->
                             <input type="time" name="end_time" required value="<?php echo $_POST['end_time'] ?? ''; ?>"
-                                   class="form-input-glass w-full px-4 py-2.5 rounded-lg">
+                                class="form-input-glass w-full px-4 py-2.5 rounded-lg">
                         </div>
                     </div>
                 </div>
@@ -231,11 +246,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <!-- Form Actions/Buttons Container -->
                 <div class="pt-6 mt-4 border-t border-white/10 flex flex-col-reverse sm:flex-row gap-4">
                     <!-- Frontend Change: Styled "Cancel" button -->
-                    <a href="javascript:history.back()" class="text-center bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-lg transition-colors border border-white/20">
+                    <a href="javascript:history.back()"
+                        class="text-center bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-lg transition-colors border border-white/20">
                         Cancel
                     </a>
                     <!-- Frontend Change: Styled "Submit" button -->
-                    <button type="submit" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-3 rounded-lg transition-colors shadow-lg flex justify-center items-center gap-2">
+                    <button type="submit"
+                        class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-3 rounded-lg transition-colors shadow-lg flex justify-center items-center gap-2">
                         <i class="fa-solid fa-paper-plane"></i> Submit Request
                     </button>
                 </div>
@@ -244,47 +261,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
     </div>
 
-    <div id="holidayConfirmModal" class="fixed inset-0 bg-slate-900 bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center">
-        
-        <div class="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
-            <i class="fa-solid fa-calendar-xmark text-3xl text-red-500"></i>
-        </div>
-        
-        <h2 class="text-xl font-bold text-slate-800 mb-2">Holiday Conflict</h2>
-        <p class="text-slate-600 mb-6">
-            You are trying to schedule an event on <strong id="modalHolidayName" class="text-red-500"></strong>. Are you sure you want to proceed?
-        </p>
-        
-        <div class="flex justify-center gap-3">
-            <button type="button" onclick="closeHolidayModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition">
-                Cancel
-            </button>
-            <button type="button" onclick="submitFormForce()" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition shadow-md">
-                Yes, Add Event
-            </button>
+    <div id="holidayConfirmModal"
+        class="fixed inset-0 bg-slate-900 bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center">
+
+            <div class="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <i class="fa-solid fa-calendar-xmark text-3xl text-red-500"></i>
+            </div>
+
+            <h2 class="text-xl font-bold text-slate-800 mb-2">Holiday Conflict</h2>
+            <p class="text-slate-600 mb-6">
+                You are trying to schedule an event on <strong id="modalHolidayName" class="text-red-500"></strong>. Are
+                you sure you want to proceed?
+            </p>
+
+            <div class="flex justify-center gap-3">
+                <button type="button" onclick="closeHolidayModal()"
+                    class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition">
+                    Cancel
+                </button>
+                <button type="button" onclick="submitFormForce()"
+                    class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition shadow-md">
+                    Yes, Add Event
+                </button>
+            </div>
         </div>
     </div>
-</div>
 </body>
 
 <script>
     // Load the holidays from PHP into a Javascript Object
     const holidays = <?php echo $holidaysJson; ?>;
-    
+
     const dateInput = document.querySelector('input[name="start_date"]');
     const warningText = document.getElementById('holiday-warning');
     const holidayNameSpan = document.getElementById('holiday-name');
-    
+
     const eventForm = document.querySelector('form'); // Grabs your main form
     const modal = document.getElementById('holidayConfirmModal');
     const modalNameSpan = document.getElementById('modalHolidayName');
-    
+
     let isHolidayBypassed = false; // Prevents the modal from showing twice
 
     // 1. Listen for date changes
     if (dateInput) {
-        dateInput.addEventListener('change', function() {
+        dateInput.addEventListener('change', function () {
             const selectedDate = this.value;
             // If the selected date exists in our holiday list...
             if (holidays[selectedDate]) {
@@ -297,13 +318,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // 2. Intercept the form submission
-    eventForm.addEventListener('submit', function(e) {
+    eventForm.addEventListener('submit', function (e) {
         const selectedDate = dateInput.value;
-        
+
         // If it's a holiday and they haven't explicitly clicked "Yes" yet...
         if (holidays[selectedDate] && !isHolidayBypassed) {
             e.preventDefault(); // Stop the form from submitting
-            
+
             // Show the modal
             modalNameSpan.textContent = holidays[selectedDate];
             modal.classList.remove('hidden');
@@ -322,4 +343,5 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         eventForm.submit(); // Actually submit the form
     }
 </script>
+
 </html>
