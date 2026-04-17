@@ -15,6 +15,14 @@ require_once 'functions/database.php';
 $message = '';
 $msgType = 'error'; // Can be 'error' or 'success'
 
+// Fetch all holidays to pass to Javascript
+$holidayStmt = $pdo->query("SELECT start_date, title FROM events WHERE category_id = 5");
+$holidays = [];
+while ($row = $holidayStmt->fetch(PDO::FETCH_ASSOC)) {
+    $holidays[$row['start_date']] = $row['title'];
+}
+$holidaysJson = json_encode($holidays);
+
 // 1. Fetch Categories and Venues
 $stmt_cats = $pdo->query("SELECT * FROM event_categories WHERE category_name != 'Holidays' ORDER BY category_name ASC");
 $categories = $stmt_cats->fetchAll();
@@ -179,9 +187,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </select>
                     </div>
                 </div>
-
+                <p id="holiday-warning" class="hidden text-red-500 text-sm mt-1.5 font-medium animate-pulse">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Warning: This date falls on <strong id="holiday-name"></strong>.
+                    </p>
                 <!-- Date & Time Inputs Container -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                    
                     <!-- "Starts" Column -->
                     <div class="space-y-4">
                         <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2"><i class="fa-solid fa-play text-emerald-400 mr-2"></i> Starts</h3>
@@ -233,5 +244,82 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
     </div>
 
+    <div id="holidayConfirmModal" class="fixed inset-0 bg-slate-900 bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center">
+        
+        <div class="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
+            <i class="fa-solid fa-calendar-xmark text-3xl text-red-500"></i>
+        </div>
+        
+        <h2 class="text-xl font-bold text-slate-800 mb-2">Holiday Conflict</h2>
+        <p class="text-slate-600 mb-6">
+            You are trying to schedule an event on <strong id="modalHolidayName" class="text-red-500"></strong>. Are you sure you want to proceed?
+        </p>
+        
+        <div class="flex justify-center gap-3">
+            <button type="button" onclick="closeHolidayModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition">
+                Cancel
+            </button>
+            <button type="button" onclick="submitFormForce()" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition shadow-md">
+                Yes, Add Event
+            </button>
+        </div>
+    </div>
+</div>
 </body>
+
+<script>
+    // Load the holidays from PHP into a Javascript Object
+    const holidays = <?php echo $holidaysJson; ?>;
+    
+    const dateInput = document.querySelector('input[name="start_date"]');
+    const warningText = document.getElementById('holiday-warning');
+    const holidayNameSpan = document.getElementById('holiday-name');
+    
+    const eventForm = document.querySelector('form'); // Grabs your main form
+    const modal = document.getElementById('holidayConfirmModal');
+    const modalNameSpan = document.getElementById('modalHolidayName');
+    
+    let isHolidayBypassed = false; // Prevents the modal from showing twice
+
+    // 1. Listen for date changes
+    if (dateInput) {
+        dateInput.addEventListener('change', function() {
+            const selectedDate = this.value;
+            // If the selected date exists in our holiday list...
+            if (holidays[selectedDate]) {
+                holidayNameSpan.textContent = holidays[selectedDate];
+                warningText.classList.remove('hidden');
+            } else {
+                warningText.classList.add('hidden');
+            }
+        });
+    }
+
+    // 2. Intercept the form submission
+    eventForm.addEventListener('submit', function(e) {
+        const selectedDate = dateInput.value;
+        
+        // If it's a holiday and they haven't explicitly clicked "Yes" yet...
+        if (holidays[selectedDate] && !isHolidayBypassed) {
+            e.preventDefault(); // Stop the form from submitting
+            
+            // Show the modal
+            modalNameSpan.textContent = holidays[selectedDate];
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+    });
+
+    // 3. Modal Control Functions
+    function closeHolidayModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function submitFormForce() {
+        isHolidayBypassed = true; // Tell the script we are forcing it
+        eventForm.submit(); // Actually submit the form
+    }
+</script>
 </html>
