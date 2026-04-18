@@ -9,7 +9,6 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_r
     exit;
 }
 
-// add_event.php
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php'; 
 
@@ -32,10 +31,17 @@ $stmt_venues = $pdo->query("SELECT * FROM venues ORDER BY venue_name ASC");
 $venues = $stmt_venues->fetchAll();
 
 // Fetch Participants and group them by department
-$stmt_parts = $pdo->query("SELECT * FROM participants ORDER BY department ASC, participant_id ASC");
+$stmt_parts = $pdo->query("SELECT * FROM participants ORDER BY department ASC, name ASC, strand ASC");
 $all_participants = $stmt_parts->fetchAll();
 $grouped_participants = [];
 foreach ($all_participants as $p) {
+    // Generate the display name with the green strand tag
+    $displayName = htmlspecialchars($p['name']);
+    if (!empty($p['strand'])) {
+        $displayName .= ' <span class="text-green-400 font-bold">(' . htmlspecialchars($p['strand']) . ')</span>';
+    }
+    $p['display_name'] = $displayName;
+    
     $grouped_participants[$p['department']][] = $p;
 }
 
@@ -48,9 +54,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $participant_ids = $_POST['participants'] ?? []; // Array of selected participants
 
     $start_date = $_POST['start_date'];
-    $start_time = $_POST['start_time'];
     $end_date = $_POST['end_date'];
-    $end_time = $_POST['end_time'];
+
+    // NEW: Handle All-Day Events
+    $is_all_day = isset($_POST['is_all_day']);
+    
+    if ($is_all_day) {
+        $start_time = '00:00:00';
+        $end_time = '23:59:59';
+        // If they didn't pick an end date, make it the same as start date
+        if (empty($end_date)) {
+            $end_date = $start_date;
+        }
+    } else {
+        $start_time = $_POST['start_time'];
+        $end_time = $_POST['end_time'];
+    }
 
     $start_datetime = $start_date . ' ' . $start_time;
     $end_datetime = $end_date . ' ' . $end_time;
@@ -62,8 +81,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $message = "Oops! The End Date/Time must be after the Start Date/Time.";
     } else {
         
+        // NEW: Check if the requested venue is "Off-Campus"
+        $is_off_campus = false;
+        foreach ($venues as $v) {
+            if ($v['venue_id'] == $venue_id && $v['is_off_campus']) {
+                $is_off_campus = true;
+                break;
+            }
+        }
+
         // RULE 2: Conflict Detection V2 (Venue & Participants)
-        // First, get ALL events that overlap with this timeframe
         $conflictStmt = $pdo->prepare("
             SELECT e.title, p.status, p.venue_id, p.id as publish_id
             FROM events e
@@ -78,8 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $hasConflict = false;
 
         foreach ($overlappingEvents as $oe) {
-            // Check A: Venue Conflict
-            if ($oe['venue_id'] == $venue_id) {
+            
+            // Check A: Venue Conflict (ONLY if it is NOT an off-campus venue!)
+            if (!$is_off_campus && $oe['venue_id'] == $venue_id) {
                 $statusText = $oe['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
                 $message = "Venue Conflict! '{$oe['title']}' {$statusText} at this venue during your selected time.";
                 $hasConflict = true;
@@ -315,7 +343,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                             <label class="flex items-center space-x-2 cursor-pointer group">
                                                 <input type="checkbox" name="participants[]" value="<?php echo $p['participant_id']; ?>" <?php echo $isChecked; ?>
                                                     class="w-4 h-4 rounded border-gray-400 text-yellow-500 focus:ring-yellow-500 bg-white/10 group-hover:border-yellow-400 transition-colors">
-                                                <span class="text-sm text-slate-200 group-hover:text-white transition-colors"><?php echo htmlspecialchars($p['name']); ?></span>
+                                                <span class="text-sm text-slate-200 group-hover:text-white transition-colors"><?php echo $p['display_name']; ?></span>
                                             </label>
                                         <?php endforeach; ?>
                                     </div>
@@ -329,6 +357,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             id="holiday-name"></strong>.
                     </p>
                     
+                    <div class="p-4 bg-black/20 rounded-lg border border-white/10 flex items-center justify-between">
+                        <div>
+                            <h3 class="text-sm font-semibold text-slate-300"><i class="fa-solid fa-calendar-day text-blue-400 mr-2"></i>All-Day Event</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Toggle this if the event spans the entire day.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="is_all_day" id="is_all_day" class="sr-only peer" <?php echo isset($_POST['is_all_day']) ? 'checked' : ''; ?>>
+                            <div class="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                        </label>
+                    </div>
+                    
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
                         <div class="space-y-4">
                             <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs border-b border-white/10 pb-2">
@@ -340,11 +379,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     value="<?php echo $_POST['start_date'] ?? $_GET['date'] ?? ''; ?>"
                                     class="form-input-glass w-full px-4 py-2.5 rounded-lg text-white">
                             </div>
-                            <div>
+                            <div class="time-input-container transition-opacity duration-300">
                                 <label class="block text-sm font-semibold text-slate-300 mb-2">Start Time</label>
-                                <input type="time" name="start_time" required
+                                <input type="time" name="start_time" 
                                     value="<?php echo $_POST['start_time'] ?? ''; ?>"
-                                    class="form-input-glass w-full px-4 py-2.5 rounded-lg text-white">
+                                    class="form-input-glass w-full px-4 py-2.5 rounded-lg text-white time-input">
                             </div>
                         </div>
 
@@ -358,10 +397,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     value="<?php echo $_POST['end_date'] ?? $_GET['date'] ?? ''; ?>"
                                     class="form-input-glass w-full px-4 py-2.5 rounded-lg text-white">
                             </div>
-                            <div>
+                            <div class="time-input-container transition-opacity duration-300">
                                 <label class="block text-sm font-semibold text-slate-300 mb-2">End Time</label>
-                                <input type="time" name="end_time" required value="<?php echo $_POST['end_time'] ?? ''; ?>"
-                                    class="form-input-glass w-full px-4 py-2.5 rounded-lg text-white">
+                                <input type="time" name="end_time" value="<?php echo $_POST['end_time'] ?? ''; ?>"
+                                    class="form-input-glass w-full px-4 py-2.5 rounded-lg text-white time-input">
                             </div>
                         </div>
                     </div>
@@ -422,6 +461,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     let isHolidayBypassed = false; 
 
+    // NEW: All-Day Toggle Javascript
+    const allDayToggle = document.getElementById('is_all_day');
+    const timeInputs = document.querySelectorAll('.time-input');
+    const timeContainers = document.querySelectorAll('.time-input-container');
+
+    function updateTimeFields() {
+        if (allDayToggle.checked) {
+            timeInputs.forEach(input => {
+                input.disabled = true;
+                input.required = false;
+            });
+            timeContainers.forEach(container => container.classList.add('opacity-40', 'pointer-events-none'));
+        } else {
+            timeInputs.forEach(input => {
+                input.disabled = false;
+                input.required = true;
+            });
+            timeContainers.forEach(container => container.classList.remove('opacity-40', 'pointer-events-none'));
+        }
+    }
+
+    if (allDayToggle) {
+        allDayToggle.addEventListener('change', updateTimeFields);
+        updateTimeFields(); // Run on page load just in case it was already checked
+    }
+
     if (dateInput) {
         dateInput.addEventListener('change', function () {
             const selectedDate = this.value;
@@ -434,7 +499,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         });
     }
 
-    // Select All functionality
     document.querySelectorAll('.select-all-dept').forEach(selectAllCheckbox => {
         selectAllCheckbox.addEventListener('change', function() {
             const targetId = this.getAttribute('data-target');
@@ -449,7 +513,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         });
     });
 
-    // Optional: If all individual boxes are checked manually, check the "Select All" box automatically
     document.querySelectorAll('.dept-group').forEach(group => {
         const checkboxes = group.querySelectorAll('input[type="checkbox"]');
         const selectAllCheckbox = group.previousElementSibling.querySelector('.select-all-dept');
@@ -466,7 +529,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         const selectedDate = dateInput.value;
         const checkboxes = document.querySelectorAll('input[name="participants[]"]:checked');
 
-        // Check if no participants are selected via JS just as a backup
         if (checkboxes.length === 0) {
             e.preventDefault();
             alert("Please select at least one participant group.");

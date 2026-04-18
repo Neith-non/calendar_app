@@ -18,15 +18,22 @@ $stmt = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmt->fetchAll();
 
 // NEW: Fetch all participants linked to events so we can group them
+// NEW: Fetch all participants linked to events so we can group them
 $part_stmt = $pdo->query("
-    SELECT ep.publish_id, p.name, p.department 
+    SELECT ep.publish_id, p.name, p.department, p.strand 
     FROM event_participants ep
     JOIN participants p ON ep.participant_id = p.participant_id
 ");
 $event_participants_map = [];
 while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
+    // Automatically append the strand so the modals don't need JS updates!
+    $displayName = $row['name'];
+    if (!empty($row['strand'])) {
+        $displayName .= ' (' . $row['strand'] . ')';
+    }
+    
     $event_participants_map[$row['publish_id']][] = [
-        'name' => $row['name'],
+        'name' => $displayName,
         'department' => $row['department']
     ];
 }
