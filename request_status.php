@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_r
 
 require_once 'functions/database.php';
 
-// --- NEW: Handle Deletion of Rejected Requests ---
+// --- Handle Deletion of Rejected Requests ---
 if (isset($_GET['delete_id'])) {
     $delete_id = (int) $_GET['delete_id'];
 
@@ -23,11 +23,32 @@ if (isset($_GET['delete_id'])) {
     $stmt_del_pub = $pdo->prepare("DELETE FROM event_publish WHERE id = ? AND status = 'Rejected'");
     $stmt_del_pub->execute([$delete_id]);
 
-    // Refresh the page to clear the URL parameters
-    header("Location: request_status.php");
+    // Refresh the page and show a success message!
+    header("Location: request_status.php?sync_status=success&sync_msg=" . urlencode("Event permanently deleted."));
     exit();
 }
 // -------------------------------------------------
+
+// Fetch all participants linked to events so we can group them
+// NEW: Fetch all participants linked to events so we can group them
+$part_stmt = $pdo->query("
+    SELECT ep.publish_id, p.name, p.department, p.strand 
+    FROM event_participants ep
+    JOIN participants p ON ep.participant_id = p.participant_id
+");
+$event_participants_map = [];
+while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
+    // Automatically append the strand so the modals don't need JS updates!
+    $displayName = $row['name'];
+    if (!empty($row['strand'])) {
+        $displayName .= ' (' . $row['strand'] . ')';
+    }
+    
+    $event_participants_map[$row['publish_id']][] = [
+        'name' => $displayName,
+        'department' => $row['department']
+    ];
+}
 
 // Fetch requests and JOIN with events and categories to get all needed data
 $stmt = $pdo->query("
@@ -55,10 +76,14 @@ $requests = $stmt->fetchAll();
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
     <link rel="stylesheet" href="assets/css/styles.css">
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+    </style>
 </head>
 
 <body class="dashboard-body h-screen flex overflow-hidden">
@@ -141,6 +166,24 @@ $requests = $stmt->fetchAll();
     <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8">
         <div class="w-full max-w-6xl mx-auto flex flex-col gap-6">
 
+            <?php 
+            // This catches both ?sync_msg=... and ?msg=... depending on what approve_event.php sends
+            $displayMsg = $_GET['sync_msg'] ?? $_GET['msg'] ?? null;
+            if ($displayMsg): 
+                $isSuccess = (!isset($_GET['sync_status']) || $_GET['sync_status'] === 'success' || $_GET['msg'] === 'approved' || $_GET['msg'] === 'rejected');
+                $bgColor = $isSuccess ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'bg-red-500/20 border-red-500/50 text-red-300';
+                $icon = $isSuccess ? 'fa-circle-check' : 'fa-triangle-exclamation';
+                
+                // Format simple msg parameters to readable text just in case
+                if ($displayMsg === 'approved') $displayMsg = 'Event successfully approved and added to the calendar!';
+                if ($displayMsg === 'rejected') $displayMsg = 'Event has been rejected.';
+            ?>
+                <div class="px-4 py-3 rounded-lg border <?php echo $bgColor; ?> flex items-center gap-3 shadow-lg">
+                    <i class="fa-solid <?php echo $icon; ?> text-xl"></i>
+                    <p class="font-medium text-sm"><?php echo htmlspecialchars($displayMsg); ?></p>
+                </div>
+            <?php endif; ?>
+
             <div class="flex items-center justify-between glass-container p-6 rounded-xl border border-white/10">
                 <div>
                     <h1 class="text-3xl font-bold text-white"><i
@@ -212,9 +255,13 @@ $requests = $stmt->fetchAll();
                         $jsCategory = htmlspecialchars($req['category_name'] ?: 'Not categorized', ENT_QUOTES);
                         $jsVenue = htmlspecialchars($req['venue_name'] ?: 'Unknown Venue', ENT_QUOTES);
                         $jsStatus = $req['status'];
+                        
+                        // Retrieve and encode the participants for this specific event
+                        $participants_array = $event_participants_map[$req['id']] ?? [];
+                        $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
                         ?>
 
-                        <div onclick="openModal('<?php echo $jsTitle; ?>', '<?php echo $jsStatus; ?>', '<?php echo $jsCategory; ?>', '<?php echo $jsVenue; ?>', '<?php echo $startDate; ?>', '<?php echo $endDate; ?>', '<?php echo $startTime; ?>', '<?php echo $endTime; ?>', '<?php echo $jsDesc; ?>')"
+                        <div onclick="openModal('<?php echo $jsTitle; ?>', '<?php echo $jsStatus; ?>', '<?php echo $jsCategory; ?>', '<?php echo $jsVenue; ?>', '<?php echo $startDate; ?>', '<?php echo $endDate; ?>', '<?php echo $startTime; ?>', '<?php echo $endTime; ?>', '<?php echo $jsDesc; ?>', '<?php echo $jsParticipants; ?>')"
                             class="glass-container p-5 rounded-xl border border-white/10 flex flex-col hover:bg-white/10 transition duration-300 cursor-pointer shadow-md hover:shadow-lg">
 
                             <div class="flex justify-between items-start mb-3">
@@ -297,10 +344,10 @@ $requests = $stmt->fetchAll();
 
     <div id="detailsModal"
         class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
-        <div class="glass-container w-full max-w-lg rounded-2xl border border-white/20 shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300"
+        <div class="glass-container w-full max-w-lg rounded-2xl border border-white/20 shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]"
             id="modalContent">
 
-            <div class="bg-black/30 p-5 flex justify-between items-start border-b border-white/10">
+            <div class="bg-black/30 p-5 flex justify-between items-start border-b border-white/10 flex-shrink-0">
                 <div class="pr-4">
                     <div id="modalStatus" class="inline-block px-2 py-1 rounded text-xs font-bold border mb-2"></div>
                     <h2 id="modalTitle" class="text-2xl font-bold text-white">Event Title</h2>
@@ -311,7 +358,7 @@ $requests = $stmt->fetchAll();
                 </button>
             </div>
 
-            <div class="p-6 space-y-5">
+            <div class="p-6 space-y-5 overflow-y-auto custom-scrollbar">
 
                 <div class="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-lg border border-white/5">
                     <div>
@@ -344,6 +391,12 @@ $requests = $stmt->fetchAll();
                 </div>
 
                 <div>
+                    <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">Participants</p>
+                    <div class="bg-black/20 p-4 rounded-lg border border-white/5 min-h-[60px]" id="modalParticipants">
+                        </div>
+                </div>
+
+                <div>
                     <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">Description</p>
                     <div class="bg-black/20 p-4 rounded-lg border border-white/5 text-sm text-slate-300 leading-relaxed min-h-[80px]"
                         id="modalDesc">
@@ -352,7 +405,7 @@ $requests = $stmt->fetchAll();
                 </div>
             </div>
 
-            <div class="p-4 bg-black/30 border-t border-white/10 flex justify-end">
+            <div class="p-4 bg-black/30 border-t border-white/10 flex justify-end flex-shrink-0">
                 <button onclick="closeModal()"
                     class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-6 rounded-lg transition-colors border border-white/20">
                     Close
@@ -399,7 +452,7 @@ $requests = $stmt->fetchAll();
         }
 
         // --- Details Modal Logic ---
-        function openModal(title, status, category, venue, startDate, endDate, startTime, endTime, desc) {
+        function openModal(title, status, category, venue, startDate, endDate, startTime, endTime, desc, partsJson) {
             document.getElementById('modalTitle').innerText = title;
             document.getElementById('modalCategory').innerText = category;
             document.getElementById('modalVenue').innerText = venue;
@@ -407,6 +460,38 @@ $requests = $stmt->fetchAll();
 
             document.getElementById('modalStart').innerText = `${startDate} at ${startTime}`;
             document.getElementById('modalEnd').innerText = `${endDate} at ${endTime}`;
+
+            // Parse and render Participants
+            const partsDiv = document.getElementById('modalParticipants');
+            partsDiv.innerHTML = ''; // Clear out old data
+            
+            let participants = [];
+            try {
+                if(partsJson) {
+                    participants = JSON.parse(partsJson);
+                }
+            } catch (e) {
+                console.error("Error parsing participants json", e);
+            }
+
+            if (participants && participants.length > 0) {
+                // Group by department
+                const grouped = {};
+                participants.forEach(p => {
+                    if (!grouped[p.department]) grouped[p.department] = [];
+                    grouped[p.department].push(p.name);
+                });
+
+                // Generate badges
+                for (const [dept, names] of Object.entries(grouped)) {
+                    const badge = document.createElement('div');
+                    badge.className = "bg-white/10 border border-white/20 rounded px-3 py-1.5 text-sm mb-2 mr-2 inline-block";
+                    badge.innerHTML = `<span class="text-yellow-400 font-bold mr-2">${dept}:</span><span class="text-slate-200">${names.join(', ')}</span>`;
+                    partsDiv.appendChild(badge);
+                }
+            } else {
+                partsDiv.innerHTML = '<span class="text-white/50 italic text-sm">No participants specified.</span>';
+            }
 
             const statusBadge = document.getElementById('modalStatus');
             statusBadge.innerText = status;

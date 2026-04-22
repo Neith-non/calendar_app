@@ -99,3 +99,65 @@ VALUES (2, 'scheduler', 'password123', 'Mr. Head Scheduler');
 -- 3. Create a test user for the Principal / Viewer (Linked to role_id 3)
 INSERT IGNORE INTO users (role_id, username, password, full_name) 
 VALUES (3, 'principal', 'password123', 'Principal Viewer');
+
+
+-- 1. Create the participants table
+CREATE TABLE participants (
+    participant_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    department VARCHAR(100) NOT NULL
+);
+
+-- 2. Insert the default participant categories based on your beta feedback
+INSERT INTO participants (name, department) VALUES 
+('Kinder 1', 'Preschool'), ('Kinder 2', 'Preschool'),
+('Grade 1', 'Elementary'), ('Grade 2', 'Elementary'), ('Grade 3', 'Elementary'), 
+('Grade 4', 'Elementary'), ('Grade 5', 'Elementary'), ('Grade 6', 'Elementary'),
+('Grade 7', 'Junior High School'), ('Grade 8', 'Junior High School'), 
+('Grade 9', 'Junior High School'), ('Grade 10', 'Junior High School'),
+('Grade 11', 'Senior High School'), ('Grade 12', 'Senior High School'),
+('Faculty & Staff', 'Institutional'), ('Everyone / School-Wide', 'Institutional');
+
+-- 3. Create the bridge table to link publish requests to participants
+CREATE TABLE event_participants (
+    publish_id INT NOT NULL,
+    participant_id INT NOT NULL,
+    FOREIGN KEY (publish_id) REFERENCES event_publish(id) ON DELETE CASCADE,
+    FOREIGN KEY (participant_id) REFERENCES participants(participant_id) ON DELETE CASCADE,
+    PRIMARY KEY (publish_id, participant_id)
+);
+
+
+-- 1. Remove the old generic Grade 11 and 12
+DELETE FROM participants 
+WHERE name IN ('Grade 11', 'Grade 12') AND department = 'Senior High School';
+
+-- 2. Add the specific Strands for Senior High
+INSERT INTO participants (name, department) VALUES 
+('Grade 11 (STEM)', 'Senior High School'),
+('Grade 11 (HUMSS)', 'Senior High School'),
+('Grade 11 (Sports)', 'Senior High School'),
+('Grade 11 (ABM)', 'Senior High School'),
+('Grade 12 (STEM)', 'Senior High School'),
+('Grade 12 (HUMSS)', 'Senior High School'),
+('Grade 12 (Sports)', 'Senior High School'),
+('Grade 12 (ABM)', 'Senior High School');
+
+
+-- 1. Remove the old Senior High generic items
+DELETE FROM participants 
+WHERE name LIKE 'Grade 11%' OR name LIKE 'Grade 12%';
+
+-- 2. Add the Strands grouped by Grade Level!
+INSERT INTO participants (department, name) VALUES 
+('Grade 11', 'STEM'),
+('Grade 11', 'HUMSS'),
+('Grade 11', 'ABM'),
+('Grade 11', 'Sports'),
+('Grade 12', 'STEM'),
+('Grade 12', 'HUMSS'),
+('Grade 12', 'ABM'),
+('Grade 12', 'Sports');
+
+
+ALTER TABLE participants ADD COLUMN strand VARCHAR(100) NULL AFTER name;

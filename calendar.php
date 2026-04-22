@@ -2,6 +2,7 @@
 // calendar.php
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php';
+
 // 1. Get the requested Month and Year (Default to current month)
 $month = isset($_GET['month']) ? str_pad($_GET['month'], 2, '0', STR_PAD_LEFT) : date('m');
 $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
@@ -38,6 +39,27 @@ $rawEvents = $stmt->fetchAll();
 $stmtCats = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmtCats->fetchAll();
 
+// NEW: Fetch all participants linked to events so we can group them
+// NEW: Fetch all participants linked to events so we can group them
+$part_stmt = $pdo->query("
+    SELECT ep.publish_id, p.name, p.department, p.strand 
+    FROM event_participants ep
+    JOIN participants p ON ep.participant_id = p.participant_id
+");
+$event_participants_map = [];
+while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
+    // Automatically append the strand so the modals don't need JS updates!
+    $displayName = $row['name'];
+    if (!empty($row['strand'])) {
+        $displayName .= ' (' . $row['strand'] . ')';
+    }
+    
+    $event_participants_map[$row['publish_id']][] = [
+        'name' => $displayName,
+        'department' => $row['department']
+    ];
+}
+
 // Group events by their exact date so we can easily put them in the right box
 $eventsByDate = [];
 foreach ($rawEvents as $event) {
@@ -48,7 +70,6 @@ foreach ($rawEvents as $event) {
 function getCategoryColor($categoryName)
 {
     $name = strtolower($categoryName);
-    // Returns an array of Tailwind classes optimized for a dark theme
     if (strpos($name, 'curricular') !== false && strpos($name, 'extra') === false)
         return ['text' => 'text-sky-300', 'bg' => 'bg-sky-500/20', 'border' => 'border-sky-500/30', 'ring' => 'focus:ring-sky-500', 'checkbox' => 'text-sky-500'];
     if (strpos($name, 'extra-curricular') !== false || strpos($name, 'sports') !== false)
@@ -59,7 +80,6 @@ function getCategoryColor($categoryName)
         return ['text' => 'text-orange-300', 'bg' => 'bg-orange-500/20', 'border' => 'border-orange-500/30', 'ring' => 'focus:ring-orange-500', 'checkbox' => 'text-orange-500'];
     if (strpos($name, 'holiday') !== false)
         return ['text' => 'text-yellow-300', 'bg' => 'bg-yellow-500/20', 'border' => 'border-yellow-500/30', 'ring' => 'focus:ring-yellow-500', 'checkbox' => 'text-yellow-500'];
-    // Default fallback (Slate)
     return ['text' => 'text-slate-300', 'bg' => 'bg-slate-500/20', 'border' => 'border-slate-500/30', 'ring' => 'focus:ring-slate-500', 'checkbox' => 'text-slate-500'];
 }
 ?>
@@ -80,40 +100,24 @@ function getCategoryColor($categoryName)
     <link rel="stylesheet" href="assets/css/styles.css">
 
     <style>
-        /* 1. Hide the sidebar completely */
-        body.presentation-mode aside {
-            display: none !important;
+        body.presentation-mode aside { display: none !important; }
+        body.presentation-mode a, body.presentation-mode button, body.presentation-mode input, body.presentation-mode .calendar-event-item {
+            pointer-events: none !important; cursor: default !important;
         }
+        body.presentation-mode .action-btn { opacity: 0 !important; }
+        body.presentation-mode #presentationToggle { pointer-events: auto !important; cursor: pointer !important; }
 
-        /* 2. Lock down ALL links, buttons, inputs, and calendar events */
-        body.presentation-mode a,
-        body.presentation-mode button,
-        body.presentation-mode input,
-        body.presentation-mode .calendar-event-item {
-            pointer-events: none !important;
-            /* Stops all clicks */
-            cursor: default !important;
-            /* Removes the hand pointer */
-        }
-
-        /* 3. Hide the little "+" add buttons completely for a cleaner screen */
-        body.presentation-mode .action-btn {
-            opacity: 0 !important;
-        }
-
-        /* 4. The ONLY thing that stays clickable is the Presentation Toggle button */
-        body.presentation-mode #presentationToggle {
-            pointer-events: auto !important;
-            cursor: pointer !important;
-        }
+        /* Custom scrollbar for modal */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
     </style>
 </head>
 
 <body class="dashboard-body h-screen flex overflow-hidden">
 
     <?php
-    // We need session data for the sidebar, so let's start it
-    // And also check if the user is logged in.
     session_start();
     if (!isset($_SESSION['user_id'])) {
         header("Location: login.php");
@@ -123,67 +127,44 @@ function getCategoryColor($categoryName)
 
     <aside class="w-72 glass-container flex flex-col flex-shrink-0 z-10 transition-all duration-300">
         <div class="p-8 text-center border-b border-white/10">
-            <div
-                class="w-20 h-20 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4 overflow-hidden border-4 border-white/20">
+            <div class="w-20 h-20 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4 overflow-hidden border-4 border-white/20">
                 <i class="fa-solid fa-user text-3xl text-white/50"></i>
             </div>
-            <h2 class="text-xl font-bold text-white">
-                <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Ma\'am Reyes'); ?>
-            </h2>
-            <p class="text-sm text-yellow-400 capitalize">
-                <?php echo htmlspecialchars($_SESSION['role_name'] ?? ''); ?>
-            </p>
+            <h2 class="text-xl font-bold text-white"><?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Ma\'am Reyes'); ?></h2>
+            <p class="text-sm text-yellow-400 capitalize"><?php echo htmlspecialchars($_SESSION['role_name'] ?? ''); ?></p>
         </div>
 
         <div class="flex-1 overflow-y-auto">
             <div class="p-6 border-b border-white/10">
                 <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Traversal</h3>
                 <div class="space-y-2">
-
-                    <a href="index.php"
-                        class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                        <i class="fa-solid fa-list w-5 text-center"></i>
-                        <span>All Schedule Events</span>
+                    <a href="index.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                        <i class="fa-solid fa-list w-5 text-center"></i> <span>All Schedule Events</span>
                     </a>
-
-                    <a href="calendar.php"
-                        class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
-                        <i class="fa-regular fa-calendar-days w-5 text-center"></i>
-                        <span>View Calendar</span>
+                    <a href="calendar.php" class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
+                        <i class="fa-regular fa-calendar-days w-5 text-center"></i> <span>View Calendar</span>
                     </a>
-
                     <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler')): ?>
-                        <a href="request_status.php"
-                            class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                            <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
-                            <span>Event Status</span>
-
+                        <a href="request_status.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                            <i class="fa-solid fa-clipboard-list w-5 text-center"></i> <span>Event Status</span>
                             <?php if (isset($pendingCount) && $pendingCount > 0): ?>
-                                <span class="ml-auto relative flex h-3 w-3"
-                                    title="<?php echo $pendingCount; ?> Pending Requests">
-                                    <span
-                                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span class="ml-auto relative flex h-3 w-3" title="<?php echo $pendingCount; ?> Pending Requests">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                                     <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                                 </span>
                             <?php endif; ?>
                         </a>
                     <?php endif; ?>
-
                     <?php if (isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'Admin'): ?>
-                        <a href="admin/admin_manage.php"
-                            class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                            <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
-                            <span>Admin Panel</span>
+                        <a href="admin/admin_manage.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                            <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i> <span>Admin Panel</span>
                         </a>
                     <?php endif; ?>
-
                     <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')): ?>
-                        <button onclick="openPdfModal()"
-                            class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
+                        <button onclick="openPdfModal()" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
                             <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
                         </button>
                     <?php endif; ?>
-
                 </div>
             </div>
 
@@ -191,12 +172,10 @@ function getCategoryColor($categoryName)
                 <div class="p-6 border-b border-white/10">
                     <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
                     <div class="space-y-3">
-                        <a href="add_event.php"
-                            class="w-full bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
+                        <a href="add_event.php" class="w-full bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
                             <i class="fa-solid fa-plus"></i> Add New Event
                         </a>
-                        <a href="functions/sync_holidays.php"
-                            class="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-white/20">
+                        <a href="functions/sync_holidays.php" class="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-white/20">
                             <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
                         </a>
                     </div>
@@ -205,51 +184,33 @@ function getCategoryColor($categoryName)
         </div>
 
         <div class="p-6 mt-auto border-t border-white/10">
-            <a href="logout.php"
-                class="flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors font-medium">
-                <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                <span>Logout</span>
+            <a href="logout.php" class="flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors font-medium">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> <span>Logout</span>
             </a>
         </div>
     </aside>
 
     <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8">
-
         <div class="flex items-center justify-between mb-6">
-
             <h1 class="text-3xl font-bold text-white">Monthly Calendar</h1>
-
             <div class="flex items-center gap-4">
-                <a href="?month=<?php echo $prevMonth; ?>&year=<?php echo $prevYear; ?>"
-                    class="p-2 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition">
+                <a href="?month=<?php echo $prevMonth; ?>&year=<?php echo $prevYear; ?>" class="p-2 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition">
                     <i class="fa-solid fa-chevron-left"></i>
                 </a>
-
-                <h2 class="text-xl font-bold w-48 text-center text-white">
-                    <?php echo "$monthName $year"; ?>
-                </h2>
-
-                <a href="?month=<?php echo $nextMonth; ?>&year=<?php echo $nextYear; ?>"
-                    class="p-2 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition">
+                <h2 class="text-xl font-bold w-48 text-center text-white"><?php echo "$monthName $year"; ?></h2>
+                <a href="?month=<?php echo $nextMonth; ?>&year=<?php echo $nextYear; ?>" class="p-2 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition">
                     <i class="fa-solid fa-chevron-right"></i>
                 </a>
-
-                <a href="calendar.php"
-                    class="ml-2 bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded-lg text-sm font-semibold border border-white/20 transition">
-                    Today
-                </a>
-
+                <a href="calendar.php" class="ml-2 bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded-lg text-sm font-semibold border border-white/20 transition">Today</a>
                 <?php if (isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin'])): ?>
-                    <button id="presentationToggle" onclick="togglePresentationMode()"
-                        class="bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 px-4 py-1.5 rounded-lg text-sm font-semibold border border-blue-500/30 transition flex items-center gap-2">
+                    <button id="presentationToggle" onclick="togglePresentationMode()" class="bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 px-4 py-1.5 rounded-lg text-sm font-semibold border border-blue-500/30 transition flex items-center gap-2">
                         <i class="fa-solid fa-desktop"></i> <span>Present</span>
                     </button>
                 <?php endif; ?>
             </div>
         </div>
 
-        <div id="empty-state-message"
-            class="hidden glass-container rounded-xl p-8 mb-6 flex-col items-center justify-center text-center border border-yellow-500/30 bg-yellow-500/10">
+        <div id="empty-state-message" class="hidden glass-container rounded-xl p-8 mb-6 flex-col items-center justify-center text-center border border-yellow-500/30 bg-yellow-500/10">
             <div class="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
                 <i class="fa-solid fa-calendar-xmark text-3xl text-yellow-400"></i>
             </div>
@@ -262,32 +223,24 @@ function getCategoryColor($categoryName)
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <i class="fa-solid fa-search text-slate-400"></i>
                 </div>
-                <input type="text" id="search-bar" placeholder="Search events..."
-                    class="form-input-glass w-full pl-11 pr-4 py-2.5 rounded-lg">
+                <input type="text" id="search-bar" placeholder="Search events..." class="form-input-glass w-full pl-11 pr-4 py-2.5 rounded-lg">
             </div>
 
             <div x-data="{ open: false }" class="relative w-full sm:w-auto">
-                <button @click="open = !open"
-                    class="form-input-glass w-full sm:w-56 flex items-center justify-between gap-2 font-semibold py-2.5 px-4 rounded-lg transition">
+                <button @click="open = !open" class="form-input-glass w-full sm:w-56 flex items-center justify-between gap-2 font-semibold py-2.5 px-4 rounded-lg transition">
                     <i class="fa-solid fa-filter text-slate-400"></i>
                     <span id="filter-button-text">All Categories</span>
-                    <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform"
-                        :class="{ 'rotate-180': open }"></i>
+                    <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform" :class="{ 'rotate-180': open }"></i>
                 </button>
 
-                <div x-show="open" @click.away="open = false" x-transition
-                    class="absolute right-0 mt-2 w-full sm:w-72 bg-[#002a1d] border border-white/20 rounded-xl shadow-lg z-20 p-4"
-                    style="display: none;">
+                <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-full sm:w-72 bg-[#002a1d] border border-white/20 rounded-xl shadow-lg z-20 p-4" style="display: none;">
                     <h4 class="text-sm font-bold text-slate-300 mb-3">Filter by Category</h4>
                     <div class="space-y-3">
                         <?php foreach ($categories as $cat): ?>
                             <?php $color = getCategoryColor($cat['category_name']); ?>
                             <label class="flex items-center space-x-3 cursor-pointer group">
-                                <input type="checkbox" checked
-                                    value="<?php echo htmlspecialchars($cat['category_name']); ?>"
-                                    class="category-filter w-5 h-5 rounded <?php echo $color['checkbox']; ?> bg-transparent border-slate-500 focus:ring-offset-0 focus:ring-offset-transparent <?php echo $color['ring']; ?>">
-                                <span
-                                    class="group-hover:text-yellow-400 transition-colors text-slate-200 font-medium"><?php echo htmlspecialchars($cat['category_name']); ?></span>
+                                <input type="checkbox" checked value="<?php echo htmlspecialchars($cat['category_name']); ?>" class="category-filter w-5 h-5 rounded <?php echo $color['checkbox']; ?> bg-transparent border-slate-500 focus:ring-offset-0 focus:ring-offset-transparent <?php echo $color['ring']; ?>">
+                                <span class="group-hover:text-yellow-400 transition-colors text-slate-200 font-medium"><?php echo htmlspecialchars($cat['category_name']); ?></span>
                             </label>
                         <?php endforeach; ?>
                     </div>
@@ -296,7 +249,6 @@ function getCategoryColor($categoryName)
         </div>
 
         <div class="glass-container rounded-xl overflow-hidden flex flex-col flex-1 min-h-[600px]">
-
             <div class="grid grid-cols-7 border-b border-white/10 bg-black/20">
                 <?php
                 $days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -309,74 +261,52 @@ function getCategoryColor($categoryName)
             </div>
 
             <div class="grid grid-cols-7 flex-1 bg-white/10 gap-px">
-
                 <?php
-                // 1. Draw blank boxes for days before the 1st of the month
                 for ($i = 0; $i < $firstDayOfWeek; $i++) {
                     echo '<div class="bg-black/10 min-h-[120px]"></div>';
                 }
 
-                // 2. Draw the actual days (1 to $daysInMonth)
                 for ($day = 1; $day <= $daysInMonth; $day++) {
-                    // Create the date string for this specific box (e.g., "2026-03-05")
                     $currentDate = sprintf('%04d-%02d-%02d', $year, $month, $day);
-
-                    // Highlight today's date if we are currently looking at today
                     $isToday = ($currentDate === date('Y-m-d'));
                     $dayClass = $isToday ? "bg-black/20" : "bg-black/10";
                     $numberClass = $isToday ? "bg-yellow-500 text-dark-green rounded-full w-7 h-7 flex items-center justify-center font-bold" : "text-slate-300 font-semibold p-1";
 
                     echo "<div class='{$dayClass} min-h-[120px] p-2 hover:bg-black/20 transition relative group'>";
-
-                    // The Date Number (Now a Clickable Link!)
-                    // Add a hover effect so the user knows they can click the number
                     $hoverClass = $isToday ? "hover:bg-yellow-600" : "hover:bg-white/10 hover:text-white cursor-pointer rounded-full transition";
 
-                    // The Date Number Header
                     echo "<div class='flex justify-between items-start mb-1'>";
 
-                    // Check role (Added parentheses around the OR statement for safety)
                     if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')) {
-                        // HEAD SCHEDULER: Gets the clickable link and the '+' icon. ADDED 'action-btn' HERE.
                         echo "<a href='add_event.php?date={$currentDate}' class='action-btn text-sm {$numberClass} {$hoverClass} inline-flex items-center justify-center w-7 h-7' title='Add event on " . date('F j, Y', strtotime($currentDate)) . "'>{$day}</a>";
                         echo "<a href='add_event.php?date={$currentDate}' class='action-btn opacity-0 group-hover:opacity-100 text-slate-400 hover:text-yellow-400 transition p-1'><i class='fa-solid fa-plus text-xs'></i></a>";
                     } else {
-                        // ADMIN / VIEWER: Just sees the number as plain text, no links, no '+'
-                        // We remove the $hoverClass so it doesn't look clickable
                         $plainNumberClass = $isToday ? "bg-yellow-500 text-dark-green rounded-full w-7 h-7 flex items-center justify-center font-bold" : "text-slate-300 font-semibold p-1 inline-flex items-center justify-center w-7 h-7";
                         echo "<span class='text-sm {$plainNumberClass}'>{$day}</span>";
                     }
 
                     echo "</div>";
 
-                    // Display Events for this Day
                     if (isset($eventsByDate[$currentDate])) {
-
-
                         echo "<div class='flex flex-col gap-1 mt-2'>";
                         foreach ($eventsByDate[$currentDate] as $evt) {
                             $color = getCategoryColor($evt['category_name']);
-
-                            // Visual cue if it's pending
                             $opacity = ($evt['status'] === 'Pending') ? 'opacity-60 border-dashed' : '';
                             $pendingIcon = ($evt['status'] === 'Pending') ? '<i class="fa-solid fa-clock mr-1"></i>' : '';
-
-                            // Shorten the title so it fits in the box
                             $shortTitle = strlen($evt['title']) > 12 ? substr($evt['title'], 0, 12) . '...' : $evt['title'];
 
-                            // Format Data for the Modal
-                
                             $formattedDate = date('F j, Y', strtotime($evt['start_date']));
                             $formattedTime = ($evt['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($evt['start_time']));
-
-                            // NEW: Format the End Date/Time
                             $formattedEndDate = date('F j, Y', strtotime($evt['end_date']));
                             $formattedEndTime = ($evt['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($evt['end_time']));
 
                             $safeTitle = htmlspecialchars($evt['title']);
                             $safeDesc = htmlspecialchars($evt['description'] ?? 'No description provided.');
-                            // NEW: Format the Venue
                             $safeVenue = htmlspecialchars($evt['venue_name'] ?? 'Not specified');
+
+                            // Fetch Participants
+                            $participants_array = $evt['publish_id'] ? ($event_participants_map[$evt['publish_id']] ?? []) : [];
+                            $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
 
                             echo "
                             <div class='calendar-event-item {$color['bg']} {$color['text']} border {$color['border']} {$opacity} px-2 py-1 rounded text-xs font-semibold truncate cursor-pointer hover:bg-white/20 hover:border-yellow-400/50 transition' 
@@ -389,6 +319,7 @@ function getCategoryColor($categoryName)
                                 data-time='{$formattedTime}'
                                 data-end-date='{$formattedEndDate}'
                                 data-end-time='{$formattedEndTime}'
+                                data-participants='{$jsParticipants}'
                                 onclick='openModal(this)'>
                                 {$pendingIcon}{$shortTitle}
                             </div>
@@ -397,40 +328,34 @@ function getCategoryColor($categoryName)
                         echo "</div>";
                     }
 
-                    echo "</div>"; // End Day Box
+                    echo "</div>"; 
                 }
 
-                // 3. Fill in the remaining blank boxes at the end of the grid
                 $totalBoxes = $firstDayOfWeek + $daysInMonth;
-                $remainingBoxes = 42 - $totalBoxes; // 42 is a standard 6-row calendar grid
+                $remainingBoxes = 42 - $totalBoxes;
                 if ($remainingBoxes < 7) {
                     for ($i = 0; $i < $remainingBoxes; $i++) {
                         echo '<div class="bg-black/10 min-h-[120px]"></div>';
                     }
                 }
                 ?>
-
             </div>
         </div>
     </main>
 
-    <div id="eventModal"
-        class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity p-4">
-        <div class="glass-container rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-95 opacity-0"
-            id="modalContent">
-
-            <div class="bg-black/20 p-4 flex justify-between items-center border-b border-white/10">
+    <div id="eventModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity p-4">
+        <div class="glass-container rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-95 opacity-0 flex flex-col max-h-[90vh]" id="modalContent">
+            
+            <div class="bg-black/20 p-4 flex justify-between items-center border-b border-white/10 flex-shrink-0">
                 <h2 id="modalTitle" class="text-xl font-bold truncate text-yellow-400">Event Title</h2>
-                <button onclick="closeModal()"
-                    class="text-white/70 hover:text-white transition bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+                <button onclick="closeModal()" class="text-white/70 hover:text-white transition bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
-            <div class="p-6 space-y-4">
-
+            <div class="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+                
                 <div class="bg-black/20 p-4 rounded-lg border border-white/10 space-y-3">
-
                     <div class="flex items-center gap-3 text-slate-200 font-medium">
                         <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">Start</span>
                         <i class="fa-regular fa-calendar text-emerald-500 text-lg"></i>
@@ -439,9 +364,7 @@ function getCategoryColor($categoryName)
                         <i class="fa-regular fa-clock text-emerald-500 text-lg"></i>
                         <span id="modalTime">Time</span>
                     </div>
-
                     <div class="h-px bg-white/10 w-full ml-12"></div>
-
                     <div class="flex items-center gap-3 text-slate-200 font-medium">
                         <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">End</span>
                         <i class="fa-regular fa-calendar-check text-red-400 text-lg"></i>
@@ -452,35 +375,41 @@ function getCategoryColor($categoryName)
                     </div>
                 </div>
 
-                <div class="flex flex-col sm:flex-row gap-4">
-                    <div class="flex-1 bg-black/20 p-3 rounded-lg border border-white/10">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Category</h3>
-                        <div class="flex items-center gap-2 text-slate-200">
-                            <i class="fa-solid fa-tag text-sky-400"></i>
-                            <span id="modalCategory" class="font-medium text-sm">Category Name</span>
-                        </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Category</h3>
+                        <p class="text-slate-200 text-sm font-medium bg-black/20 p-3 rounded-lg border border-white/10 flex items-center gap-3">
+                            <i class="fa-solid fa-tag text-purple-400"></i>
+                            <span id="modalCategory" class="truncate">Not categorized</span>
+                        </p>
                     </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Venue</h3>
+                        <p class="text-slate-200 text-sm font-medium bg-black/20 p-3 rounded-lg border border-white/10 flex items-center gap-3">
+                            <i class="fa-solid fa-location-dot text-sky-400"></i>
+                            <span id="modalVenue" class="truncate">Not specified</span>
+                        </p>
+                    </div>
+                </div>
 
-                    <div class="flex-1 bg-black/20 p-3 rounded-lg border border-white/10">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Venue</h3>
-                        <div class="flex items-center gap-2 text-slate-200">
-                            <i class="fa-solid fa-location-dot text-rose-400"></i>
-                            <span id="modalVenue" class="font-medium text-sm">Venue Name</span>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Participants</h3>
+                    <div class="bg-black/20 p-4 rounded-lg border border-white/10 min-h-[60px]">
+                        <div id="modalParticipants" class="flex flex-wrap gap-2">
+                            <span class="text-white/50 italic text-sm">Loading participants...</span>
                         </div>
                     </div>
                 </div>
 
                 <div>
                     <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Description</h3>
-                    <p id="modalDesc"
-                        class="text-slate-300 whitespace-pre-line leading-relaxed bg-black/20 p-4 rounded-lg border border-white/10 min-h-[80px]">
+                    <p id="modalDesc" class="text-slate-300 text-sm whitespace-pre-line leading-relaxed bg-black/20 p-4 rounded-lg border border-white/10 min-h-[80px]">
                     </p>
                 </div>
             </div>
 
-            <div class="bg-black/20 px-6 py-4 border-t border-white/10 flex justify-end">
-                <button onclick="closeModal()"
-                    class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-4 rounded-lg transition">Close</button>
+            <div class="bg-black/20 px-6 py-4 border-t border-white/10 flex justify-end flex-shrink-0">
+                <button onclick="closeModal()" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-4 rounded-lg transition">Close</button>
             </div>
         </div>
     </div>
@@ -488,24 +417,49 @@ function getCategoryColor($categoryName)
 </body>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
-    // Basic modal functionality for demonstration
     const eventModal = document.getElementById('eventModal');
     const modalContent = document.getElementById('modalContent');
 
     function openModal(element) {
-        // Populate modal with data attributes from the clicked event
         document.getElementById('modalTitle').innerText = element.dataset.title;
         document.getElementById('modalDesc').innerText = element.dataset.desc;
         document.getElementById('modalDate').innerText = element.dataset.date;
         document.getElementById('modalTime').innerText = element.dataset.time;
         document.getElementById('modalEndDate').innerText = element.dataset.endDate;
         document.getElementById('modalEndTime').innerText = element.dataset.endTime;
-
-        // NEW: Populate Category and Venue
         document.getElementById('modalCategory').innerText = element.dataset.category || 'Not categorized';
         document.getElementById('modalVenue').innerText = element.dataset.venue || 'Not specified';
 
-        // Show modal with transition
+        // Parse and render Participants
+        const partsDiv = document.getElementById('modalParticipants');
+        partsDiv.innerHTML = ''; 
+        
+        let participants = [];
+        try {
+            if (element.dataset.participants) {
+                participants = JSON.parse(element.dataset.participants);
+            }
+        } catch (e) {
+            console.error("Error parsing participants json", e);
+        }
+
+        if (participants && participants.length > 0) {
+            const grouped = {};
+            participants.forEach(p => {
+                if (!grouped[p.department]) grouped[p.department] = [];
+                grouped[p.department].push(p.name);
+            });
+
+            for (const [dept, names] of Object.entries(grouped)) {
+                const badge = document.createElement('div');
+                badge.className = "bg-white/10 border border-white/20 rounded px-3 py-1.5 text-sm mb-2 mr-2 inline-block";
+                badge.innerHTML = `<span class="text-yellow-400 font-bold mr-2">${dept}:</span><span class="text-slate-200">${names.join(', ')}</span>`;
+                partsDiv.appendChild(badge);
+            }
+        } else {
+            partsDiv.innerHTML = '<span class="text-white/50 italic text-sm">No participants specified.</span>';
+        }
+
         eventModal.classList.remove('hidden');
         eventModal.classList.add('flex');
         setTimeout(() => {
@@ -515,7 +469,6 @@ function getCategoryColor($categoryName)
     }
 
     function closeModal() {
-        // Hide modal with transition
         eventModal.classList.add('opacity-0');
         modalContent.classList.add('scale-95', 'opacity-0');
         setTimeout(() => {
@@ -524,14 +477,12 @@ function getCategoryColor($categoryName)
         }, 200);
     }
 
-    // Close modal if backdrop is clicked
     eventModal.addEventListener('click', (e) => {
         if (e.target === eventModal) {
             closeModal();
         }
     });
 
-    // PRESENTATION MODE LOGIC
     function togglePresentationMode() {
         const body = document.body;
         const btn = document.getElementById('presentationToggle');

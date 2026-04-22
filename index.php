@@ -1,29 +1,44 @@
 <?php
 // index.php
 
-// Start the session at the VERY TOP
 session_start();
-
-// 1. Tell the browser NEVER to cache this page
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
 
-// Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
 
-// 1. Include database connection from the functions folder
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php';
-// 2. Fetch Categories for the Sidebar
+
 $stmt = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmt->fetchAll();
 
-// 3. Fetch ONLY This Year's Events (With Publish Status and Venue Name)
-$currentYear = date('Y'); // Get the current year dynamically
+// NEW: Fetch all participants linked to events so we can group them
+// NEW: Fetch all participants linked to events so we can group them
+$part_stmt = $pdo->query("
+    SELECT ep.publish_id, p.name, p.department, p.strand 
+    FROM event_participants ep
+    JOIN participants p ON ep.participant_id = p.participant_id
+");
+$event_participants_map = [];
+while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
+    // Automatically append the strand so the modals don't need JS updates!
+    $displayName = $row['name'];
+    if (!empty($row['strand'])) {
+        $displayName .= ' (' . $row['strand'] . ')';
+    }
+    
+    $event_participants_map[$row['publish_id']][] = [
+        'name' => $displayName,
+        'department' => $row['department']
+    ];
+}
+
+$currentYear = date('Y');
 
 $stmt = $pdo->prepare("
     SELECT e.*, c.category_name, p.status, v.venue_name 
@@ -35,11 +50,9 @@ $stmt = $pdo->prepare("
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
 
-// Execute the prepared statement securely
 $stmt->execute([':current_year' => $currentYear]);
 $events = $stmt->fetchAll();
 
-// --- Separate Pending, Holidays, and Regular Scheduled Events ---
 $pendingEvents = [];
 $holidayEvents = [];
 $scheduledEvents = [];
@@ -53,9 +66,7 @@ foreach ($events as $event) {
         $scheduledEvents[] = $event;
     }
 }
-// ------------------------------------------------------------------------
 
-// Helper function to map Category Names to FULL Tailwind Classes
 function getCategoryColor($categoryName)
 {
     $name = strtolower($categoryName);
@@ -92,100 +103,77 @@ function getCategoryColor($categoryName)
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="assets/css/styles.css">
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+    </style>
 </head>
 
 <body class="dashboard-body h-screen flex overflow-hidden">
 
     <aside class="w-72 glass-container flex flex-col flex-shrink-0 z-10">
         <div class="p-8 text-center border-b border-white/10">
-            <div
-                class="w-20 h-20 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4 overflow-hidden border-4 border-white/20">
+            <div class="w-20 h-20 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4 overflow-hidden border-4 border-white/20">
                 <i class="fa-solid fa-user text-3xl text-white/50"></i>
             </div>
-            <h2 class="text-xl font-bold text-white">
-                <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Guest'); ?>
-            </h2>
-            <p class="text-sm text-yellow-400 capitalize">
-                <?php echo htmlspecialchars($_SESSION['role_name'] ?? ''); ?>
-            </p>
+            <h2 class="text-xl font-bold text-white"><?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Guest'); ?></h2>
+            <p class="text-sm text-yellow-400 capitalize"><?php echo htmlspecialchars($_SESSION['role_name'] ?? ''); ?></p>
         </div>
 
         <div class="flex-1 overflow-y-auto">
             <div class="p-6 border-b border-white/10">
                 <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Traversal</h3>
                 <div class="space-y-2">
-
-                    <a href="index.php"
-                        class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
-                        <i class="fa-solid fa-list w-5 text-center"></i>
-                        <span>All Schedule Events</span>
+                    <a href="index.php" class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
+                        <i class="fa-solid fa-list w-5 text-center"></i> <span>All Schedule Events</span>
                     </a>
-
-                    <a href="calendar.php"
-                        class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                        <i class="fa-regular fa-calendar-days w-5 text-center"></i>
-                        <span>View Calendar</span>
+                    <a href="calendar.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                        <i class="fa-regular fa-calendar-days w-5 text-center"></i> <span>View Calendar</span>
                     </a>
-
                     <?php if ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler'): ?>
-                        <a href="request_status.php"
-                            class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                            <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
-                            <span>Event Status</span>
-
+                        <a href="request_status.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                            <i class="fa-solid fa-clipboard-list w-5 text-center"></i> <span>Event Status</span>
                             <?php if (isset($pendingCount) && $pendingCount > 0): ?>
-                                <span class="ml-auto relative flex h-3 w-3"
-                                    title="<?php echo $pendingCount; ?> Pending Requests">
-                                    <span
-                                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span class="ml-auto relative flex h-3 w-3" title="<?php echo $pendingCount; ?> Pending Requests">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                                     <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                                 </span>
                             <?php endif; ?>
                         </a>
                     <?php endif; ?>
-
                     <?php if ($_SESSION['role_name'] === 'Admin'): ?>
-                        <a href="admin/admin_manage.php"
-                            class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                            <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
-                            <span>Admin Panel</span>
+                        <a href="admin/admin_manage.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                            <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i> <span>Admin Panel</span>
                         </a>
                     <?php endif; ?>
-
                     <?php if ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin'): ?>
-                        <button onclick="openPdfModal()"
-                            class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
+                        <button onclick="openPdfModal()" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
                             <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
                         </button>
                     <?php endif; ?>
+                </div>
+            </div>
 
+            <div class="p-6">
+                <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
+                <div class="space-y-3">
+                    <?php if (isset($_SESSION['role_name']) && $_SESSION['role_name'] !== 'Viewer'): ?>
+                        <a href="add_event.php" class="w-full bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
+                            <i class="fa-solid fa-plus"></i> Add New Event
+                        </a>
+                    <?php endif; ?>
+                    <a href="functions/sync_holidays.php" class="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-white/20">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
+                    </a>
                 </div>
             </div>
         </div>
 
-        <div class="p-6">
-            <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
-            <div class="space-y-3">
-                <?php if (isset($_SESSION['role_name']) && $_SESSION['role_name'] !== 'Viewer'): ?>
-                    <a href="add_event.php"
-                        class="w-full bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
-                        <i class="fa-solid fa-plus"></i> Add New Event
-                    </a>
-                <?php endif; ?>
-
-                <a href="functions/sync_holidays.php"
-                    class="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-white/20">
-                    <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
-                </a>
-            </div>
-        </div>
-        </div>
-
         <div class="p-6 mt-auto border-t border-white/10">
-            <a href="logout.php"
-                class="flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors font-medium">
-                <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                <span>Logout</span>
+            <a href="logout.php" class="flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors font-medium">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> <span>Logout</span>
             </a>
         </div>
     </aside>
@@ -213,32 +201,24 @@ function getCategoryColor($categoryName)
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <i class="fa-solid fa-search text-slate-400"></i>
                 </div>
-                <input type="text" id="search-bar" placeholder="Search events..."
-                    class="form-input-glass w-full pl-11 pr-4 py-2.5 rounded-lg">
+                <input type="text" id="search-bar" placeholder="Search events..." class="form-input-glass w-full pl-11 pr-4 py-2.5 rounded-lg">
             </div>
 
             <div x-data="{ open: false }" class="relative w-full sm:w-auto">
-                <button @click="open = !open"
-                    class="form-input-glass w-full sm:w-56 flex items-center justify-between gap-2 font-semibold py-2.5 px-4 rounded-lg transition">
+                <button @click="open = !open" class="form-input-glass w-full sm:w-56 flex items-center justify-between gap-2 font-semibold py-2.5 px-4 rounded-lg transition">
                     <i class="fa-solid fa-filter text-slate-400"></i>
                     <span id="filter-button-text">All Categories</span>
-                    <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform"
-                        :class="{ 'rotate-180': open }"></i>
+                    <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform" :class="{ 'rotate-180': open }"></i>
                 </button>
 
-                <div x-show="open" @click.away="open = false" x-transition
-                    class="absolute right-0 mt-2 w-full sm:w-72 bg-[#002a1d] border border-white/20 rounded-xl shadow-lg z-20 p-4"
-                    style="display: none;">
+                <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-full sm:w-72 bg-[#002a1d] border border-white/20 rounded-xl shadow-lg z-20 p-4" style="display: none;">
                     <h4 class="text-sm font-bold text-slate-300 mb-3">Filter by Category</h4>
                     <div class="space-y-3">
                         <?php foreach ($categories as $cat): ?>
                             <?php $color = getCategoryColor($cat['category_name']); ?>
                             <label class="flex items-center space-x-3 cursor-pointer group">
-                                <input type="checkbox" checked
-                                    value="<?php echo htmlspecialchars($cat['category_name']); ?>"
-                                    class="category-filter w-5 h-5 rounded <?php echo $color['checkbox']; ?> bg-transparent border-slate-500 focus:ring-offset-0 focus:ring-offset-transparent <?php echo $color['ring']; ?>">
-                                <span
-                                    class="group-hover:text-yellow-400 transition-colors text-slate-200 font-medium"><?php echo htmlspecialchars($cat['category_name']); ?></span>
+                                <input type="checkbox" checked value="<?php echo htmlspecialchars($cat['category_name']); ?>" class="category-filter w-5 h-5 rounded <?php echo $color['checkbox']; ?> bg-transparent border-slate-500 focus:ring-offset-0 focus:ring-offset-transparent <?php echo $color['ring']; ?>">
+                                <span class="group-hover:text-yellow-400 transition-colors text-slate-200 font-medium"><?php echo htmlspecialchars($cat['category_name']); ?></span>
                             </label>
                         <?php endforeach; ?>
                     </div>
@@ -249,16 +229,14 @@ function getCategoryColor($categoryName)
         <div class="glass-container rounded-xl p-4 sm:p-6 flex-1 overflow-y-auto">
             <div class="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
                 <h2 class="text-xl font-bold text-white">Event Queue</h2>
-                <span id="event-counter"
-                    class="bg-black/20 text-slate-300 py-1 px-3 rounded-full text-sm font-semibold">
+                <span id="event-counter" class="bg-black/20 text-slate-300 py-1 px-3 rounded-full text-sm font-semibold">
                     Total: <?php echo count($events); ?>
                 </span>
             </div>
 
             <div class="space-y-3 event-list-container">
 
-                <div id="empty-state-message"
-                    class="hidden glass-container rounded-xl p-8 mb-6 flex-col items-center justify-center text-center border border-yellow-500/30 bg-yellow-500/10">
+                <div id="empty-state-message" class="hidden glass-container rounded-xl p-8 mb-6 flex-col items-center justify-center text-center border border-yellow-500/30 bg-yellow-500/10">
                     <div class="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
                         <i class="fa-solid fa-calendar-xmark text-3xl text-yellow-400"></i>
                     </div>
@@ -281,25 +259,28 @@ function getCategoryColor($categoryName)
                             $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
                             $formattedEndDate = date('F j, Y', strtotime($event['end_date']));
                             $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
+                            
+                            $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
+                            $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
                             ?>
 
                             <div class="event-card cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition-all duration-300 group"
                                 data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                                 data-title="<?php echo htmlspecialchars($event['title']); ?>"
                                 data-desc="<?php echo htmlspecialchars($event['description'] ?? 'No description provided.'); ?>"
-                                data-date="<?php echo $formattedDate; ?>" data-time="<?php echo $formattedTime; ?>"
-                                data-end-date="<?php echo $formattedEndDate; ?>" data-end-time="<?php echo $formattedEndTime; ?>"
+                                data-date="<?php echo $formattedDate; ?>"
+                                data-time="<?php echo $formattedTime; ?>"
+                                data-end-date="<?php echo $formattedEndDate; ?>"
+                                data-end-time="<?php echo $formattedEndTime; ?>"
                                 data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
+                                data-participants="<?php echo $jsParticipants; ?>"
                                 onclick="openModal(this)">
 
                                 <div class="flex items-center gap-4">
                                     <div class="bg-black/30 border border-amber-500/20 rounded-md text-center p-2 min-w-[70px]">
-                                        <span
-                                            class="block text-xs font-bold text-amber-400 uppercase"><?php echo date('M', strtotime($event['start_date'])); ?></span>
-                                        <span
-                                            class="block text-2xl font-black text-white leading-none"><?php echo date('d', strtotime($event['start_date'])); ?></span>
+                                        <span class="block text-xs font-bold text-amber-400 uppercase"><?php echo date('M', strtotime($event['start_date'])); ?></span>
+                                        <span class="block text-2xl font-black text-white leading-none"><?php echo date('d', strtotime($event['start_date'])); ?></span>
                                     </div>
-
                                     <div>
                                         <h3 class="text-lg font-bold text-white group-hover:text-amber-400 transition">
                                             <?php echo htmlspecialchars($event['title']); ?>
@@ -307,8 +288,7 @@ function getCategoryColor($categoryName)
                                         <div class="flex items-center gap-3 mt-1 text-sm text-slate-400">
                                             <span><i class="fa-regular fa-clock mr-1.5"></i> <?php echo $formattedTime; ?></span>
                                             <span class="text-slate-300">|</span>
-                                            <span
-                                                class="<?php echo $color['bg']; ?> <?php echo $color['text']; ?> px-2 py-0.5 rounded text-xs font-semibold">
+                                            <span class="<?php echo $color['bg']; ?> <?php echo $color['text']; ?> px-2 py-0.5 rounded text-xs font-semibold">
                                                 <?php echo htmlspecialchars($event['category_name']); ?>
                                             </span>
                                         </div>
@@ -316,22 +296,15 @@ function getCategoryColor($categoryName)
                                 </div>
 
                                 <div class="text-right flex flex-col items-end gap-2 mt-3 sm:mt-0 w-full sm:w-auto">
-                                    <span
-                                        class="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 mb-1 animate-pulse">
+                                    <span class="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 mb-1 animate-pulse">
                                         <i class="fa-solid fa-clock mr-1"></i> Pending Approval
                                     </span>
-
                                     <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler')): ?>
                                         <div class="flex gap-2">
-                                            <button
-                                                onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=approve', 'approve')"
-                                                class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition">
+                                            <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=approve', 'approve')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition">
                                                 <i class="fa-solid fa-check"></i>
                                             </button>
-
-                                            <button
-                                                onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=reject', 'reject')"
-                                                class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition">
+                                            <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=reject', 'reject')" class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1 px-3 rounded shadow-sm transition">
                                                 <i class="fa-solid fa-xmark"></i>
                                             </button>
                                         </div>
@@ -343,56 +316,51 @@ function getCategoryColor($categoryName)
 
                     <?php if (count($holidayEvents) > 0): ?>
                         <div class="section-header mt-8 mb-4 border-b border-yellow-500/30 pb-2 flex items-center gap-3">
-                            <i class="fa-solid fa-plane-departure text-yellow-400 text-xl"></i>
-                            <h2 class="text-lg font-bold text-yellow-400 tracking-widest">HOLIDAYS</h2>
+                            <i class="fa-solid fa-star text-yellow-400 text-xl"></i>
+                            <h2 class="text-lg font-bold text-yellow-400 tracking-widest">SCHOOL HOLIDAYS</h2>
                         </div>
 
                         <?php foreach ($holidayEvents as $event): ?>
                             <?php
                             $color = getCategoryColor($event['category_name']);
                             $formattedDate = date('F j, Y', strtotime($event['start_date']));
-                            $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
                             $formattedEndDate = date('F j, Y', strtotime($event['end_date']));
-                            $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
+                            
+                            $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
+                            $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
                             ?>
-
-                            <div class="event-card cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/10 transition-all duration-300 group"
+                            <div class="event-card cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border <?php echo $color['border']; ?> <?php echo $color['bg']; ?> hover:bg-white/10 transition-all duration-300 group"
                                 data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                                 data-title="<?php echo htmlspecialchars($event['title']); ?>"
                                 data-desc="<?php echo htmlspecialchars($event['description'] ?? 'No description provided.'); ?>"
-                                data-date="<?php echo $formattedDate; ?>" data-time="<?php echo $formattedTime; ?>"
-                                data-end-date="<?php echo $formattedEndDate; ?>" data-end-time="<?php echo $formattedEndTime; ?>"
-                                data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
+                                data-date="<?php echo $formattedDate; ?>"
+                                data-time="All Day"
+                                data-end-date="<?php echo $formattedEndDate; ?>"
+                                data-end-time="All Day"
+                                data-venue="Not specified"
+                                data-participants="<?php echo $jsParticipants; ?>"
                                 onclick="openModal(this)">
 
                                 <div class="flex items-center gap-4">
-                                    <div class="bg-black/20 border border-yellow-500/30 rounded-md text-center p-2 min-w-[70px]">
-                                        <span
-                                            class="block text-xs font-bold text-yellow-400 uppercase"><?php echo date('M', strtotime($event['start_date'])); ?></span>
-                                        <span
-                                            class="block text-2xl font-black text-white leading-none"><?php echo date('d', strtotime($event['start_date'])); ?></span>
+                                    <div class="bg-black/30 border <?php echo $color['border']; ?> rounded-md text-center p-2 min-w-[70px]">
+                                        <span class="block text-xs font-bold <?php echo $color['text']; ?> uppercase"><?php echo date('M', strtotime($event['start_date'])); ?></span>
+                                        <span class="block text-2xl font-black text-white leading-none"><?php echo date('d', strtotime($event['start_date'])); ?></span>
                                     </div>
-
                                     <div>
-                                        <h3 class="text-lg font-bold text-white group-hover:text-yellow-400 transition">
+                                        <h3 class="text-lg font-bold text-white group-hover:<?php echo $color['text']; ?> transition">
                                             <?php echo htmlspecialchars($event['title']); ?>
                                         </h3>
                                         <div class="flex items-center gap-3 mt-1 text-sm text-slate-400">
-                                            <span><i class="fa-regular fa-clock mr-1.5 text-yellow-400/70"></i>
-                                                <?php echo $formattedTime; ?></span>
-                                            <span class="text-slate-300">|</span>
-                                            <span
-                                                class="<?php echo $color['bg']; ?> <?php echo $color['text']; ?> px-2 py-0.5 rounded text-xs font-semibold">
-                                                <?php echo htmlspecialchars($event['category_name']); ?>
+                                            <span class="<?php echo $color['bg']; ?> <?php echo $color['text']; ?> px-2 py-0.5 rounded text-xs font-semibold">
+                                                <i class="fa-solid fa-umbrella-beach mr-1"></i> Holiday
                                             </span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="text-right flex flex-col items-end gap-2 mt-3 sm:mt-0 w-full sm:w-auto">
-                                    <span
-                                        class="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2 py-1 rounded border border-yellow-200">
-                                        <i class="fa-solid fa-umbrella-beach mr-1"></i> School Holiday
+                                <div class="mt-3 sm:mt-0 w-full sm:w-auto text-right">
+                                    <span class="text-xs font-semibold text-slate-300 bg-black/40 px-3 py-1.5 rounded-full border border-white/10">
+                                        <i class="fa-regular fa-calendar-check mr-1 text-emerald-400"></i> Holiday
                                     </span>
                                 </div>
                             </div>
@@ -400,9 +368,9 @@ function getCategoryColor($categoryName)
                     <?php endif; ?>
 
                     <?php if (count($scheduledEvents) > 0): ?>
-                        <div class="section-header mt-8 mb-4 border-b border-white/10 pb-2 flex items-center gap-3">
+                        <div class="section-header mt-8 mb-4 border-b border-emerald-500/30 pb-2 flex items-center gap-3">
                             <i class="fa-regular fa-calendar-check text-emerald-400 text-xl"></i>
-                            <h2 class="text-lg font-bold text-white tracking-widest">SCHEDULED EVENTS</h2>
+                            <h2 class="text-lg font-bold text-emerald-400 tracking-widest">UPCOMING SCHEDULE</h2>
                         </div>
 
                         <?php foreach ($scheduledEvents as $event): ?>
@@ -412,88 +380,68 @@ function getCategoryColor($categoryName)
                             $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
                             $formattedEndDate = date('F j, Y', strtotime($event['end_date']));
                             $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
+                            
+                            $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
+                            $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
                             ?>
 
-                            <div class="event-card cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border border-white/10 hover:border-emerald-400/50 hover:bg-white/10 transition-all duration-300 group"
+                            <div class="event-card cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border border-white/10 bg-black/20 hover:bg-white/10 hover:border-white/20 transition-all duration-300 group shadow-sm hover:shadow-md"
                                 data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                                 data-title="<?php echo htmlspecialchars($event['title']); ?>"
                                 data-desc="<?php echo htmlspecialchars($event['description'] ?? 'No description provided.'); ?>"
-                                data-date="<?php echo $formattedDate; ?>" data-time="<?php echo $formattedTime; ?>"
-                                data-end-date="<?php echo $formattedEndDate; ?>" data-end-time="<?php echo $formattedEndTime; ?>"
+                                data-date="<?php echo $formattedDate; ?>"
+                                data-time="<?php echo $formattedTime; ?>"
+                                data-end-date="<?php echo $formattedEndDate; ?>"
+                                data-end-time="<?php echo $formattedEndTime; ?>"
                                 data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
+                                data-participants="<?php echo $jsParticipants; ?>"
                                 onclick="openModal(this)">
 
                                 <div class="flex items-center gap-4">
-                                    <div class="bg-black/20 border border-white/10 rounded-md text-center p-2 min-w-[70px]">
-                                        <span
-                                            class="block text-xs font-bold text-emerald-400 uppercase"><?php echo date('M', strtotime($event['start_date'])); ?></span>
-                                        <span
-                                            class="block text-2xl font-black text-white leading-none"><?php echo date('d', strtotime($event['start_date'])); ?></span>
+                                    <div class="bg-white/5 border border-white/10 rounded-md text-center p-2 min-w-[70px] shadow-inner group-hover:bg-white/10 transition">
+                                        <span class="block text-xs font-bold text-slate-400 uppercase"><?php echo date('M', strtotime($event['start_date'])); ?></span>
+                                        <span class="block text-2xl font-black text-white leading-none"><?php echo date('d', strtotime($event['start_date'])); ?></span>
                                     </div>
-
                                     <div>
-                                        <h3 class="text-lg font-bold text-white group-hover:text-emerald-400 transition">
+                                        <h3 class="text-lg font-bold text-white group-hover:text-yellow-400 transition">
                                             <?php echo htmlspecialchars($event['title']); ?>
                                         </h3>
-                                        <div class="flex items-center gap-3 mt-1 text-sm text-slate-400">
-                                            <span><i class="fa-regular fa-clock mr-1.5"></i> <?php echo $formattedTime; ?></span>
-                                            <span class="text-slate-300">|</span>
-                                            <span
-                                                class="<?php echo $color['bg']; ?> <?php echo $color['text']; ?> px-2 py-0.5 rounded text-xs font-semibold">
-                                                <?php echo htmlspecialchars($event['category_name']); ?>
-                                            </span>
+                                        <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-slate-400">
+                                            <span class="flex items-center text-slate-300"><i class="fa-regular fa-clock mr-1.5 text-slate-500"></i> <?php echo $formattedTime; ?></span>
+                                            <span class="hidden sm:inline text-white/20">|</span>
+                                            <span class="flex items-center text-slate-300"><i class="fa-solid fa-location-dot mr-1.5 text-slate-500"></i> <?php echo htmlspecialchars($event['venue_name'] ?? 'Unknown Venue'); ?></span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="text-right flex flex-col items-end gap-2 mt-3 sm:mt-0 w-full sm:w-auto">
-                                    <?php if ($event['publish_id'] === null): ?>
-                                        <span
-                                            class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                                            <i class="fa-solid fa-check-circle mr-1"></i> Auto-Approved
-                                        </span>
-                                    <?php elseif ($event['status'] === 'Approved'): ?>
-                                        <span
-                                            class="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
-                                            <i class="fa-solid fa-check-double mr-1"></i> Approved (ID:
-                                            <?php echo $event['publish_id']; ?>)
-                                        </span>
-                                    <?php endif; ?>
+                                <div class="mt-3 sm:mt-0 w-full sm:w-auto text-right">
+                                    <span class="<?php echo $color['bg']; ?> <?php echo $color['text']; ?> <?php echo $color['border']; ?> border px-3 py-1 rounded text-xs font-semibold shadow-sm inline-block">
+                                        <?php echo htmlspecialchars($event['category_name']); ?>
+                                    </span>
                                 </div>
                             </div>
-
                         <?php endforeach; ?>
                     <?php endif; ?>
 
-                <?php else: ?>
-                    <div class="text-center py-12 text-slate-400">
-                        <i class="fa-regular fa-calendar-xmark text-5xl mb-4 text-slate-500"></i>
-                        <p class="text-lg font-medium text-slate-300">No events found.</p>
-                        <p class="text-sm">Click "Add New Event" to get started.</p>
-                    </div>
                 <?php endif; ?>
+
             </div>
         </div>
-
     </main>
 
-    <div id="eventModal"
-        class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity p-4">
-        <div class="glass-container rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-95 opacity-0"
-            id="modalContent">
-
-            <div class="bg-black/20 p-4 flex justify-between items-center border-b border-white/10">
+    <div id="eventModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity p-4">
+        <div class="glass-container rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-95 opacity-0 flex flex-col max-h-[90vh]" id="modalContent">
+            
+            <div class="bg-black/20 p-4 flex justify-between items-center border-b border-white/10 flex-shrink-0">
                 <h2 id="modalTitle" class="text-xl font-bold truncate text-yellow-400">Event Title</h2>
-                <button onclick="closeModal()"
-                    class="text-white/70 hover:text-white transition bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+                <button onclick="closeModal()" class="text-white/70 hover:text-white transition bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
-            <div class="p-6 space-y-4">
-
+            <div class="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+                
                 <div class="bg-black/20 p-4 rounded-lg border border-white/10 space-y-3">
-
                     <div class="flex items-center gap-3 text-slate-200 font-medium">
                         <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">Start</span>
                         <i class="fa-regular fa-calendar text-emerald-500 text-lg"></i>
@@ -502,9 +450,7 @@ function getCategoryColor($categoryName)
                         <i class="fa-regular fa-clock text-emerald-500 text-lg"></i>
                         <span id="modalTime">Time</span>
                     </div>
-
                     <div class="h-px bg-white/10 w-full ml-12"></div>
-
                     <div class="flex items-center gap-3 text-slate-200 font-medium">
                         <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">End</span>
                         <i class="fa-regular fa-calendar-check text-red-400 text-lg"></i>
@@ -518,52 +464,152 @@ function getCategoryColor($categoryName)
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Category</h3>
-                        <p
-                            class="text-slate-200 font-medium bg-black/20 p-3 rounded-lg border border-white/10 flex items-center gap-3">
+                        <p class="text-slate-200 text-sm font-medium bg-black/20 p-3 rounded-lg border border-white/10 flex items-center gap-3">
                             <i class="fa-solid fa-tag text-purple-400"></i>
-                            <span id="modalCategory">Not categorized</span>
+                            <span id="modalCategory" class="truncate">Not categorized</span>
                         </p>
                     </div>
                     <div>
                         <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Venue</h3>
-                        <p
-                            class="text-slate-200 font-medium bg-black/20 p-3 rounded-lg border border-white/10 flex items-center gap-3">
+                        <p class="text-slate-200 text-sm font-medium bg-black/20 p-3 rounded-lg border border-white/10 flex items-center gap-3">
                             <i class="fa-solid fa-location-dot text-sky-400"></i>
-                            <span id="modalVenue">Not specified</span>
+                            <span id="modalVenue" class="truncate">Not specified</span>
                         </p>
                     </div>
                 </div>
 
                 <div>
+                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Participants</h3>
+                    <div class="bg-black/20 p-4 rounded-lg border border-white/10 min-h-[60px]">
+                        <div id="modalParticipants" class="flex flex-wrap gap-2">
+                            <span class="text-white/50 italic text-sm">Loading participants...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
                     <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Description</h3>
-                    <p id="modalDesc"
-                        class="text-slate-300 whitespace-pre-line leading-relaxed bg-black/20 p-4 rounded-lg border border-white/10 min-h-[80px]">
+                    <p id="modalDesc" class="text-slate-300 text-sm whitespace-pre-line leading-relaxed bg-black/20 p-4 rounded-lg border border-white/10 min-h-[80px]">
                     </p>
                 </div>
             </div>
 
-            <div class="bg-black/20 px-6 py-4 border-t border-white/10 flex justify-end">
-                <button onclick="closeModal()"
-                    class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-4 rounded-lg transition">Close</button>
+            <div class="bg-black/20 px-6 py-4 border-t border-white/10 flex justify-end flex-shrink-0">
+                <button onclick="closeModal()" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-4 rounded-lg transition">Close</button>
             </div>
         </div>
     </div>
+
 </body>
-
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<script src="assets/js/filter.js"></script>
-<script src="assets/js/pdf_modal.js"></script>
 <script>
+    const eventModal = document.getElementById('eventModal');
+    const modalContent = document.getElementById('modalContent');
+
+    function openModal(element) {
+        document.getElementById('modalTitle').innerText = element.dataset.title;
+        document.getElementById('modalDesc').innerText = element.dataset.desc;
+        document.getElementById('modalDate').innerText = element.dataset.date;
+        document.getElementById('modalTime').innerText = element.dataset.time;
+        document.getElementById('modalEndDate').innerText = element.dataset.endDate;
+        document.getElementById('modalEndTime').innerText = element.dataset.endTime;
+        document.getElementById('modalCategory').innerText = element.dataset.category || 'Not categorized';
+        document.getElementById('modalVenue').innerText = element.dataset.venue || 'Not specified';
+
+        // Parse and render Participants
+        const partsDiv = document.getElementById('modalParticipants');
+        partsDiv.innerHTML = ''; 
+        
+        let participants = [];
+        try {
+            if (element.dataset.participants) {
+                participants = JSON.parse(element.dataset.participants);
+            }
+        } catch (e) {
+            console.error("Error parsing participants json", e);
+        }
+
+        if (participants && participants.length > 0) {
+            const grouped = {};
+            participants.forEach(p => {
+                if (!grouped[p.department]) grouped[p.department] = [];
+                grouped[p.department].push(p.name);
+            });
+
+            for (const [dept, names] of Object.entries(grouped)) {
+                const badge = document.createElement('div');
+                badge.className = "bg-white/10 border border-white/20 rounded px-3 py-1.5 text-sm mb-2 mr-2 inline-block";
+                badge.innerHTML = `<span class="text-yellow-400 font-bold mr-2">${dept}:</span><span class="text-slate-200">${names.join(', ')}</span>`;
+                partsDiv.appendChild(badge);
+            }
+        } else {
+            partsDiv.innerHTML = '<span class="text-white/50 italic text-sm">No participants specified.</span>';
+        }
+
+        eventModal.classList.remove('hidden');
+        eventModal.classList.add('flex');
+        setTimeout(() => {
+            eventModal.classList.remove('opacity-0');
+            modalContent.classList.remove('scale-95', 'opacity-0');
+        }, 10);
+    }
+
+    function closeModal() {
+        eventModal.classList.add('opacity-0');
+        modalContent.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            eventModal.classList.add('hidden');
+            eventModal.classList.remove('flex');
+        }, 200);
+    }
+
+    eventModal.addEventListener('click', (e) => {
+        if (e.target === eventModal) {
+            closeModal();
+        }
+    });
+
+    // Confirmation Logic
+    function confirmAction(url, action) {
+        let titleText, detailText, btnColor, btnText;
+
+        if (action === 'approve') {
+            titleText = 'Approve this event?';
+            detailText = 'It will be officially added to the calendar.';
+            btnColor = '#10b981';
+            btnText = 'Yes, approve it!';
+        } else if (action === 'reject') {
+            titleText = 'Reject this event?';
+            detailText = 'The event will be marked as rejected.';
+            btnColor = '#ef4444'; 
+            btnText = 'Yes, reject it!';
+        }
+
+        Swal.fire({
+            title: titleText,
+            text: detailText,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: btnColor,
+            cancelButtonColor: '#64748b',
+            confirmButtonText: btnText
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = url;
+            }
+        });
+    }
+
+    // Search functionality
     const searchBar = document.getElementById('search-bar');
-    const eventCards = document.querySelectorAll('.event-card');
-    const eventCounter = document.getElementById('event-counter');
-    const sectionHeaders = document.querySelectorAll('.section-header');
-
-    const emptyStateMessage = document.getElementById('empty-state-message');
-
     if (searchBar) {
         searchBar.addEventListener('input', function (e) {
-            const searchTerm = e.target.value.toLowerCase().trim();
+            const searchTerm = e.target.value.toLowerCase();
+            const eventCards = document.querySelectorAll('.event-card');
+            const eventCounter = document.getElementById('event-counter');
+            const emptyStateMessage = document.getElementById('empty-state-message');
+            const sectionHeaders = document.querySelectorAll('.section-header');
+
             let visibleCount = 0;
 
             eventCards.forEach(card => {
@@ -592,17 +638,72 @@ function getCategoryColor($categoryName)
                 if (visibleCount === 0) {
                     emptyStateMessage.classList.remove('hidden');
                     emptyStateMessage.classList.add('flex');
-
                     sectionHeaders.forEach(header => header.style.display = 'none');
                 } else {
                     emptyStateMessage.classList.add('hidden');
                     emptyStateMessage.classList.remove('flex');
-
                     sectionHeaders.forEach(header => header.style.display = 'flex');
                 }
             }
         });
     }
+
+    const checkboxes = document.querySelectorAll('.category-filter');
+    const filterButtonText = document.getElementById('filter-button-text');
+
+    if (checkboxes.length > 0) {
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function () {
+                const checkedCategories = Array.from(checkboxes)
+                    .filter(c => c.checked)
+                    .map(c => c.value.toLowerCase());
+
+                const eventCards = document.querySelectorAll('.event-card');
+                let visibleCount = 0;
+
+                eventCards.forEach(card => {
+                    const category = (card.getAttribute('data-category') || '').toLowerCase();
+                    if (checkedCategories.includes(category)) {
+                        card.style.display = '';
+                        visibleCount++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                if (checkedCategories.length === checkboxes.length) {
+                    filterButtonText.innerText = 'All Categories';
+                } else if (checkedCategories.length === 0) {
+                    filterButtonText.innerText = 'None';
+                } else if (checkedCategories.length === 1) {
+                    filterButtonText.innerText = '1 Category';
+                } else {
+                    filterButtonText.innerText = `${checkedCategories.length} Categories`;
+                }
+
+                const eventCounter = document.getElementById('event-counter');
+                if (eventCounter) {
+                    eventCounter.innerHTML = `Total: ${visibleCount}`;
+                }
+
+                const emptyStateMessage = document.getElementById('empty-state-message');
+                const sectionHeaders = document.querySelectorAll('.section-header');
+
+                if (emptyStateMessage) {
+                    if (visibleCount === 0) {
+                        emptyStateMessage.classList.remove('hidden');
+                        emptyStateMessage.classList.add('flex');
+                        sectionHeaders.forEach(header => header.style.display = 'none');
+                    } else {
+                        emptyStateMessage.classList.add('hidden');
+                        emptyStateMessage.classList.remove('flex');
+                        sectionHeaders.forEach(header => header.style.display = 'flex');
+                    }
+                }
+            });
+        });
+    }
 </script>
+<script src="assets/js/pdf_modal.js"></script>
 
 </html>
