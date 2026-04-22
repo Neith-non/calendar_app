@@ -13,16 +13,16 @@ require_once 'functions/database.php';
 
 // --- NEW: Handle Deletion of Rejected Requests ---
 if (isset($_GET['delete_id'])) {
-    $delete_id = (int)$_GET['delete_id'];
-    
+    $delete_id = (int) $_GET['delete_id'];
+
     // Delete from events table first
     $stmt_del_event = $pdo->prepare("DELETE FROM events WHERE publish_id = ?");
     $stmt_del_event->execute([$delete_id]);
-    
+
     // Delete from publish table (only if it's actually rejected, as a safety measure)
     $stmt_del_pub = $pdo->prepare("DELETE FROM event_publish WHERE id = ? AND status = 'Rejected'");
     $stmt_del_pub->execute([$delete_id]);
-    
+
     // Refresh the page to clear the URL parameters
     header("Location: request_status.php");
     exit();
@@ -47,6 +47,7 @@ $requests = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -54,16 +55,18 @@ $requests = $stmt->fetchAll();
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
+
     <link rel="stylesheet" href="assets/css/styles.css">
 </head>
+
 <body class="dashboard-body h-screen flex overflow-hidden">
 
     <aside class="w-72 glass-container flex flex-col flex-shrink-0 z-10">
         <div class="p-8 text-center border-b border-white/10">
-            <div class="w-20 h-20 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4 overflow-hidden border-4 border-white/20">
+            <div
+                class="w-20 h-20 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4 overflow-hidden border-4 border-white/20">
                 <i class="fa-solid fa-user text-3xl text-white/50"></i>
             </div>
             <h2 class="text-xl font-bold text-white">
@@ -78,49 +81,57 @@ $requests = $stmt->fetchAll();
             <div class="p-6 border-b border-white/10">
                 <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Traversal</h3>
                 <div class="space-y-2">
-                    <a href="index.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                    <a href="index.php"
+                        class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
                         <i class="fa-solid fa-list w-5 text-center"></i>
                         <span>All Schedule Events</span>
                     </a>
-                    <a href="calendar.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                    <a href="calendar.php"
+                        class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
                         <i class="fa-regular fa-calendar-days w-5 text-center"></i>
                         <span>View Calendar</span>
                     </a>
                     <?php if ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler'): ?>
-                    <a href="request_status.php" class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
-                        <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
-                        <span>Event Status</span>
-                    </a>
+                        <a href="request_status.php"
+                            class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
+                            <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
+                            <span>Event Status</span>
+                        </a>
                     <?php endif; ?>
                     <?php if ($_SESSION['role_name'] === 'Admin'): ?>
-                    <a href="admin/admin_manage.php" class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                        <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
-                        <span>Admin Panel</span>
-                    </a>
+                        <a href="admin/admin_manage.php"
+                            class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
+                            <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
+                            <span>Admin Panel</span>
+                        </a>
                     <?php endif; ?>
-                    <button onclick="openPdfModal()" class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
+                    <button onclick="openPdfModal()"
+                        class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
                         <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
                     </button>
                 </div>
             </div>
 
             <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')): ?>
-            <div class="p-6 border-b border-white/10">
-                <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
-                <div class="space-y-3">
-                    <a href="add_event.php" class="w-full bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
-                        <i class="fa-solid fa-plus"></i> Add New Event
-                    </a>
-                    <a href="functions/sync_holidays.php" class="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-white/20">
-                        <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
-                    </a>
+                <div class="p-6 border-b border-white/10">
+                    <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
+                    <div class="space-y-3">
+                        <a href="add_event.php"
+                            class="w-full bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
+                            <i class="fa-solid fa-plus"></i> Add New Event
+                        </a>
+                        <a href="functions/sync_holidays.php"
+                            class="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-white/20">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
+                        </a>
+                    </div>
                 </div>
-            </div>
             <?php endif; ?>
         </div>
-        
+
         <div class="p-6 mt-auto border-t border-white/10">
-            <a href="logout.php" class="flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors font-medium">
+            <a href="logout.php"
+                class="flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors font-medium">
                 <i class="fa-solid fa-arrow-right-from-bracket"></i>
                 <span>Logout</span>
             </a>
@@ -129,23 +140,25 @@ $requests = $stmt->fetchAll();
 
     <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8">
         <div class="w-full max-w-6xl mx-auto flex flex-col gap-6">
-            
+
             <div class="flex items-center justify-between glass-container p-6 rounded-xl border border-white/10">
                 <div>
-                    <h1 class="text-3xl font-bold text-white"><i class="fa-solid fa-clipboard-list text-yellow-400 mr-3"></i> Event Status History</h1>
+                    <h1 class="text-3xl font-bold text-white"><i
+                            class="fa-solid fa-clipboard-list text-yellow-400 mr-3"></i> Event Status History</h1>
                     <p class="text-slate-300 text-sm mt-1">Track the status and details of all event submissions.</p>
                 </div>
-                <a href="javascript:history.back()" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors border border-white/20 flex items-center gap-2">
+                <a href="javascript:history.back()"
+                    class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors border border-white/20 flex items-center gap-2">
                     <i class="fa-solid fa-arrow-left"></i> Back
                 </a>
             </div>
 
             <div>
                 <?php if (count($requests) > 0): ?>
-                    <?php 
+                    <?php
                     $currentMonth = ''; // Track the month we are currently displaying
-                    
-                    foreach ($requests as $req): 
+                
+                    foreach ($requests as $req):
                         // Determine the month text for the current event
                         if (empty($req['start_date'])) {
                             $eventMonth = 'UNSCHEDULED / NO DATE';
@@ -167,14 +180,14 @@ $requests = $stmt->fetchAll();
                                 <i class="fa-regular fa-calendar-check text-yellow-400 text-xl"></i>
                                 <h2 class="text-xl font-bold text-white tracking-widest">' . htmlspecialchars($eventMonth) . '</h2>
                             </div>';
-                            
+
                             // Open a new grid for this month's events
                             echo '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
-                            
+
                             // Update our tracker
                             $currentMonth = $eventMonth;
                         }
-                        
+
                         // Prepare Card Data (Colors, Icons, Statuses)
                         if ($req['status'] === 'Approved') {
                             $statusStyle = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
@@ -192,78 +205,83 @@ $requests = $stmt->fetchAll();
                         $endDate = $req['end_date'] ? date('M j, Y', strtotime($req['end_date'])) : 'N/A';
                         $startTime = $req['start_time'] ? date('g:i A', strtotime($req['start_time'])) : 'N/A';
                         $endTime = $req['end_time'] ? date('g:i A', strtotime($req['end_time'])) : 'N/A';
-                        
+
                         // Sanitize data for passing into Javascript
                         $jsTitle = htmlspecialchars($req['title'], ENT_QUOTES);
                         $jsDesc = htmlspecialchars($req['description'] ?: 'No description provided.', ENT_QUOTES);
                         $jsCategory = htmlspecialchars($req['category_name'] ?: 'Not categorized', ENT_QUOTES);
                         $jsVenue = htmlspecialchars($req['venue_name'] ?: 'Unknown Venue', ENT_QUOTES);
                         $jsStatus = $req['status'];
-                    ?>
-                    
-                    <div onclick="openModal('<?php echo $jsTitle; ?>', '<?php echo $jsStatus; ?>', '<?php echo $jsCategory; ?>', '<?php echo $jsVenue; ?>', '<?php echo $startDate; ?>', '<?php echo $endDate; ?>', '<?php echo $startTime; ?>', '<?php echo $endTime; ?>', '<?php echo $jsDesc; ?>')" 
-                         class="glass-container p-5 rounded-xl border border-white/10 flex flex-col hover:bg-white/10 transition duration-300 cursor-pointer shadow-md hover:shadow-lg">
-                        
-                        <div class="flex justify-between items-start mb-3">
-                            <h3 class="text-lg font-bold text-white leading-tight truncate pr-2"><?php echo htmlspecialchars($req['title']); ?></h3>
-                            <span class="px-2.5 py-1 rounded text-xs font-bold border flex items-center gap-1.5 whitespace-nowrap <?php echo $statusStyle; ?>">
-                                <i class="fa-solid <?php echo $icon; ?>"></i> <?php echo htmlspecialchars($req['status']); ?>
-                            </span>
-                        </div>
-                        
-                        <div class="space-y-2 mb-4 flex-1">
-                            <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
-                                <i class="fa-solid fa-tag text-slate-500 w-4 text-center"></i> 
-                                <?php echo htmlspecialchars($req['category_name'] ?? 'Not categorized'); ?>
-                            </p>
-                            <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
-                                <i class="fa-solid fa-location-dot text-slate-500 w-4 text-center"></i> 
-                                <?php echo htmlspecialchars($req['venue_name'] ?? 'Unknown Venue'); ?>
-                            </p>
-                            <?php if ($req['start_date']): ?>
-                            <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
-                                <i class="fa-regular fa-calendar text-slate-500 w-4 text-center"></i> 
-                                <?php echo $startDate; ?>
-                            </p>
-                            <?php endif; ?>
-                        </div>
-                        
-                        <div class="text-xs font-semibold border-t border-white/10 pt-3 flex justify-between items-center w-full">
-                            <div class="text-blue-400 flex items-center gap-1">
-                                Click for details <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
-                            </div>
-                            
-                            <div class="flex gap-2">
-                                <?php if ($req['status'] === 'Pending'): ?>
-                                    <a href="javascript:void(0);" 
-                                       onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $req['id']; ?>&action=approve', 'approve');" 
-                                       class="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/30 px-2.5 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
-                                        <i class="fa-solid fa-check"></i> Approve
-                                    </a>
-                                    <a href="javascript:void(0);" 
-                                       onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $req['id']; ?>&action=reject', 'reject');" 
-                                       class="text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/30 px-2.5 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
-                                        <i class="fa-solid fa-xmark"></i> Reject
-                                    </a>
-                                <?php endif; ?>
+                        ?>
 
-                                <?php if ($req['status'] === 'Rejected'): ?>
-                                    <a href="javascript:void(0);" 
-                                       onclick="event.stopPropagation(); confirmAction('request_status.php?delete_id=<?php echo $req['id']; ?>', 'delete');" 
-                                       class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/30 px-2.5 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
-                                        <i class="fa-solid fa-trash"></i> Delete
-                                    </a>
+                        <div onclick="openModal('<?php echo $jsTitle; ?>', '<?php echo $jsStatus; ?>', '<?php echo $jsCategory; ?>', '<?php echo $jsVenue; ?>', '<?php echo $startDate; ?>', '<?php echo $endDate; ?>', '<?php echo $startTime; ?>', '<?php echo $endTime; ?>', '<?php echo $jsDesc; ?>')"
+                            class="glass-container p-5 rounded-xl border border-white/10 flex flex-col hover:bg-white/10 transition duration-300 cursor-pointer shadow-md hover:shadow-lg">
+
+                            <div class="flex justify-between items-start mb-3">
+                                <h3 class="text-lg font-bold text-white leading-tight truncate pr-2">
+                                    <?php echo htmlspecialchars($req['title']); ?>
+                                </h3>
+                                <span
+                                    class="px-2.5 py-1 rounded text-xs font-bold border flex items-center gap-1.5 whitespace-nowrap <?php echo $statusStyle; ?>">
+                                    <i class="fa-solid <?php echo $icon; ?>"></i>
+                                    <?php echo htmlspecialchars($req['status']); ?>
+                                </span>
+                            </div>
+
+                            <div class="space-y-2 mb-4 flex-1">
+                                <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
+                                    <i class="fa-solid fa-tag text-slate-500 w-4 text-center"></i>
+                                    <?php echo htmlspecialchars($req['category_name'] ?? 'Not categorized'); ?>
+                                </p>
+                                <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
+                                    <i class="fa-solid fa-location-dot text-slate-500 w-4 text-center"></i>
+                                    <?php echo htmlspecialchars($req['venue_name'] ?? 'Unknown Venue'); ?>
+                                </p>
+                                <?php if ($req['start_date']): ?>
+                                    <p class="text-sm text-slate-300 flex items-center gap-2 truncate">
+                                        <i class="fa-regular fa-calendar text-slate-500 w-4 text-center"></i>
+                                        <?php echo $startDate; ?>
+                                    </p>
                                 <?php endif; ?>
                             </div>
-                        </div>
 
-                    </div>
+                            <div
+                                class="text-xs font-semibold border-t border-white/10 pt-3 flex justify-between items-center w-full">
+                                <div class="text-blue-400 flex items-center gap-1">
+                                    Click for details <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
+                                </div>
+
+                                <div class="flex gap-2">
+                                    <?php if ($req['status'] === 'Pending'): ?>
+                                        <a href="javascript:void(0);"
+                                            onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $req['id']; ?>&action=approve', 'approve');"
+                                            class="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/30 px-2.5 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
+                                            <i class="fa-solid fa-check"></i> Approve
+                                        </a>
+                                        <a href="javascript:void(0);"
+                                            onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $req['id']; ?>&action=reject', 'reject');"
+                                            class="text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/30 px-2.5 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
+                                            <i class="fa-solid fa-xmark"></i> Reject
+                                        </a>
+                                    <?php endif; ?>
+
+                                    <?php if ($req['status'] === 'Rejected'): ?>
+                                        <a href="javascript:void(0);"
+                                            onclick="event.stopPropagation(); confirmAction('request_status.php?delete_id=<?php echo $req['id']; ?>', 'delete');"
+                                            class="text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/30 px-2.5 py-1.5 rounded transition-colors flex items-center gap-1 z-10 relative">
+                                            <i class="fa-solid fa-trash"></i> Delete
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                        </div>
                     <?php endforeach; ?>
-                    
-                    <?php 
+
+                    <?php
                     // Close the very last grid tag if there were events
                     if ($currentMonth !== '') {
-                        echo '</div>'; 
+                        echo '</div>';
                     }
                     ?>
 
@@ -274,24 +292,27 @@ $requests = $stmt->fetchAll();
                     </div>
                 <?php endif; ?>
             </div>
-            </div>
+        </div>
     </main>
 
-    <div id="detailsModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
-        <div class="glass-container w-full max-w-lg rounded-2xl border border-white/20 shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300" id="modalContent">
-            
+    <div id="detailsModal"
+        class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+        <div class="glass-container w-full max-w-lg rounded-2xl border border-white/20 shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300"
+            id="modalContent">
+
             <div class="bg-black/30 p-5 flex justify-between items-start border-b border-white/10">
                 <div class="pr-4">
                     <div id="modalStatus" class="inline-block px-2 py-1 rounded text-xs font-bold border mb-2"></div>
                     <h2 id="modalTitle" class="text-2xl font-bold text-white">Event Title</h2>
                 </div>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-lg p-2">
+                <button onclick="closeModal()"
+                    class="text-slate-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-lg p-2">
                     <i class="fa-solid fa-xmark text-xl"></i>
                 </button>
             </div>
 
             <div class="p-6 space-y-5">
-                
+
                 <div class="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-lg border border-white/5">
                     <div>
                         <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-1">Starts</p>
@@ -306,15 +327,17 @@ $requests = $stmt->fetchAll();
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">Category</p>
-                        <div class="bg-black/20 p-3 rounded-lg border border-white/5 flex items-center gap-3 text-sm text-white font-medium">
-                            <i class="fa-solid fa-tag text-purple-400"></i> 
+                        <div
+                            class="bg-black/20 p-3 rounded-lg border border-white/5 flex items-center gap-3 text-sm text-white font-medium">
+                            <i class="fa-solid fa-tag text-purple-400"></i>
                             <span id="modalCategory">Not categorized</span>
                         </div>
                     </div>
                     <div>
                         <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">Venue</p>
-                        <div class="bg-black/20 p-3 rounded-lg border border-white/5 flex items-center gap-3 text-sm text-white font-medium">
-                            <i class="fa-solid fa-location-dot text-sky-400"></i> 
+                        <div
+                            class="bg-black/20 p-3 rounded-lg border border-white/5 flex items-center gap-3 text-sm text-white font-medium">
+                            <i class="fa-solid fa-location-dot text-sky-400"></i>
                             <span id="modalVenue">Not specified</span>
                         </div>
                     </div>
@@ -322,14 +345,16 @@ $requests = $stmt->fetchAll();
 
                 <div>
                     <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">Description</p>
-                    <div class="bg-black/20 p-4 rounded-lg border border-white/5 text-sm text-slate-300 leading-relaxed min-h-[80px]" id="modalDesc">
+                    <div class="bg-black/20 p-4 rounded-lg border border-white/5 text-sm text-slate-300 leading-relaxed min-h-[80px]"
+                        id="modalDesc">
                         Description goes here.
                     </div>
                 </div>
             </div>
-            
+
             <div class="p-4 bg-black/30 border-t border-white/10 flex justify-end">
-                <button onclick="closeModal()" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-6 rounded-lg transition-colors border border-white/20">
+                <button onclick="closeModal()"
+                    class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-6 rounded-lg transition-colors border border-white/20">
                     Close
                 </button>
             </div>
@@ -379,15 +404,15 @@ $requests = $stmt->fetchAll();
             document.getElementById('modalCategory').innerText = category;
             document.getElementById('modalVenue').innerText = venue;
             document.getElementById('modalDesc').innerText = desc;
-            
+
             document.getElementById('modalStart').innerText = `${startDate} at ${startTime}`;
             document.getElementById('modalEnd').innerText = `${endDate} at ${endTime}`;
 
             const statusBadge = document.getElementById('modalStatus');
             statusBadge.innerText = status;
-            
-            statusBadge.className = 'inline-block px-2 py-1 rounded text-xs font-bold border mb-2'; 
-            
+
+            statusBadge.className = 'inline-block px-2 py-1 rounded text-xs font-bold border mb-2';
+
             if (status === 'Approved') {
                 statusBadge.classList.add('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30');
             } else if (status === 'Rejected') {
@@ -399,7 +424,7 @@ $requests = $stmt->fetchAll();
             const modal = document.getElementById('detailsModal');
             const content = document.getElementById('modalContent');
             modal.classList.remove('hidden');
-            
+
             setTimeout(() => {
                 content.classList.remove('scale-95');
                 content.classList.add('scale-100');
@@ -409,16 +434,16 @@ $requests = $stmt->fetchAll();
         function closeModal() {
             const modal = document.getElementById('detailsModal');
             const content = document.getElementById('modalContent');
-            
+
             content.classList.remove('scale-100');
             content.classList.add('scale-95');
-            
+
             setTimeout(() => {
                 modal.classList.add('hidden');
-            }, 200); 
+            }, 200);
         }
 
-        document.getElementById('detailsModal').addEventListener('click', function(e) {
+        document.getElementById('detailsModal').addEventListener('click', function (e) {
             if (e.target === this) {
                 closeModal();
             }
@@ -426,4 +451,5 @@ $requests = $stmt->fetchAll();
     </script>
     <script src="assets/js/pdf_modal.js"></script>
 </body>
+
 </html>

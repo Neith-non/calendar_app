@@ -10,7 +10,7 @@ use Dompdf\Options;
 
 // 1. Get the array of months selected from the modal
 $selectedMonths = $_GET['months'] ?? [];
-$year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+$year = isset($_GET['year']) ? (int) $_GET['year'] : date('Y');
 
 // Safety Check
 if (empty($selectedMonths)) {
@@ -24,7 +24,7 @@ sort($selectedMonths);
 $imagePath = 'assets/img/sjsf_header.png';
 $base64Image = '';
 if (file_exists($imagePath)) {
-    $type = pathinfo($imagePath, PATHINFO_EXTENSION); 
+    $type = pathinfo($imagePath, PATHINFO_EXTENSION);
     $imageData = base64_encode(file_get_contents($imagePath));
     $base64Image = 'data:image/' . $type . ';base64,' . $imageData;
 }
@@ -90,7 +90,7 @@ $stmt = $pdo->prepare("
 // 4. Loop through each selected month and build its page
 foreach ($selectedMonths as $month) {
     $monthName = date('F', mktime(0, 0, 0, $month, 10));
-    
+
     $stmt->execute([':month' => $month, ':year' => $year, ':exlude' => $exludedCategories]);
     $events = $stmt->fetchAll();
 
@@ -102,13 +102,13 @@ foreach ($selectedMonths as $month) {
         $html .= '<h1>St. Joseph School Foundation</h1>';
     }
     $html .= '</div>';
-    
+
     // Add the Main Document Title ONLY on the very first page
     if ($currentIndex === 0) {
         $nextYear = $year + 1;
         $html .= '<div class="yearly-title">Monthly School Calendar of Activities for School Year ' . $year . '-' . $nextYear . '</div>';
     }
-    
+
     // Month Title 
     $html .= '<div class="month-title">' . $monthName . ' ' . $year . '</div>';
 
@@ -122,20 +122,20 @@ foreach ($selectedMonths as $month) {
                         </tr>
                     </thead>
                     <tbody>';
-                    
+
         foreach ($events as $event) {
             $dayNum = date('j', strtotime($event['start_date']));
             $descText = !empty($event['description']) ? nl2br(htmlspecialchars($event['description'])) : '';
-            
+
             $html .= '<tr>
                         <td class="date-col">' . $dayNum . '</td>
                         <td class="activity-col">
                             <div class="ev-title">' . htmlspecialchars($event['title']) . '</div>';
-            
+
             if ($descText !== '') {
                 $html .= '<div class="ev-desc">' . $descText . '</div>';
             }
-            
+
             $html .= '  </td>
                       </tr>';
         }
@@ -166,7 +166,7 @@ $dompdf->setPaper('letter', 'portrait');
 
 $dompdf->render();
 
-$fileName = ($totalMonths > 1) ? "Events_Multiple_Months_{$year}.pdf" : "Events_" . date('F', mktime(0,0,0,$selectedMonths[0],10)) . "_{$year}.pdf";
+$fileName = ($totalMonths > 1) ? "Events_Multiple_Months_{$year}.pdf" : "Events_" . date('F', mktime(0, 0, 0, $selectedMonths[0], 10)) . "_{$year}.pdf";
 
 $dompdf->stream($fileName, ["Attachment" => true]);
 exit();

@@ -1,5 +1,5 @@
 <?php
-require 'functions/database.php'; 
+require 'functions/database.php';
 // 1. Start the Session (Give out the VIP wristbands)
 session_start();
 // 1. Tell the browser NEVER to cache this page
@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'];
 
     if (!empty($username) && !empty($password)) {
-        
+
         // 1. We JOIN the users and roles tables together to get the role_name!
         $stmt = $pdo->prepare("
             SELECT u.user_id, u.role_id, u.username, u.password, u.full_name, r.role_name 
@@ -35,15 +35,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         // 2. Check if the user exists AND the password matches
         if ($user && $password === $user['password']) {
-            
+
             // 3. Success! Give them their Session Wristband with all the correct info
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['role_id'] = $user['role_id'];
             $_SESSION['full_name'] = $user['full_name'];
-            
+
             // --> THE MAGIC LINE: Grab the word 'Admin' from the database!
-            $_SESSION['role_name'] = $user['role_name']; 
-            
+            $_SESSION['role_name'] = $user['role_name'];
+
             // Send them to the dashboard
             header("Location: index.php");
             exit;
@@ -57,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -72,27 +73,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <style>
         /* Frontend Change: Component-specific styles for the primary login button */
         .btn-primary-glass {
-            background-color: #ffbb00; /* var(--yellow) */
-            color: #004731; /* var(--dark-green) */
+            background-color: #ffbb00;
+            /* var(--yellow) */
+            color: #004731;
+            /* var(--dark-green) */
             font-weight: 700;
             transition: background-color 0.3s, transform 0.2s;
         }
+
         .btn-primary-glass:hover {
-            background-color: #ffca2a; /* A slightly lighter yellow for hover */
+            background-color: #ffca2a;
+            /* A slightly lighter yellow for hover */
             transform: translateY(-2px);
         }
     </style>
 </head>
 <!-- Frontend Change: Added 'login-body' class for the new background and centered layout -->
+
 <body class="login-body flex items-center justify-center min-h-screen p-4">
 
     <!-- Frontend Change: Main login form container with the glassmorphism effect -->
     <div class="glass-container p-8 sm:p-10 rounded-2xl shadow-lg max-w-sm w-full">
-        
+
         <!-- Frontend Change: Header section of the login form -->
         <div class="text-center mb-8">
             <!-- Icon Container -->
-            <div class="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-full mb-4 border border-white/20">
+            <div
+                class="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-full mb-4 border border-white/20">
                 <i class="fa-solid fa-calendar-days text-yellow-400 text-2xl"></i>
             </div>
             <!-- Title and Subtitle -->
@@ -103,7 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <!-- Backend Note: This PHP block displays an error message. We only styled the container. -->
         <?php if ($error): ?>
             <!-- Frontend Change: Styled error message container -->
-            <div class="bg-red-500/20 border border-red-500/50 text-red-300 p-3 rounded-lg mb-6 text-sm font-medium flex items-center gap-3">
+            <div
+                class="bg-red-500/20 border border-red-500/50 text-red-300 p-3 rounded-lg mb-6 text-sm font-medium flex items-center gap-3">
                 <i class="fa-solid fa-circle-exclamation"></i>
                 <?php echo $error; ?>
             </div>
@@ -119,9 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <i class="fa-solid fa-user text-slate-400"></i>
                     </div>
                     <!-- Frontend Change: Applied the 'form-input-glass' class to the username input -->
-                    <input type="text" name="username" required 
-                           class="form-input-glass w-full pl-10 pr-3 py-2.5 rounded-lg" 
-                           placeholder="Enter username">
+                    <input type="text" name="username" required
+                        class="form-input-glass w-full pl-10 pr-3 py-2.5 rounded-lg" placeholder="Enter username">
                 </div>
             </div>
 
@@ -133,14 +140,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <i class="fa-solid fa-lock text-slate-400"></i>
                     </div>
                     <!-- Frontend Change: Applied the 'form-input-glass' class to the password input -->
-                    <input type="password" name="password" required 
-                           class="form-input-glass w-full pl-10 pr-3 py-2.5 rounded-lg" 
-                           placeholder="Enter password">
+                    <input type="password" name="password" required
+                        class="form-input-glass w-full pl-10 pr-3 py-2.5 rounded-lg" placeholder="Enter password">
                 </div>
             </div>
 
             <!-- Frontend Change: Applied our custom 'btn-primary-glass' class to the submit button -->
-            <button type="submit" class="btn-primary-glass w-full py-3 px-4 rounded-lg flex justify-center items-center gap-2 shadow-lg">
+            <button type="submit"
+                class="btn-primary-glass w-full py-3 px-4 rounded-lg flex justify-center items-center gap-2 shadow-lg">
                 <span>Sign In</span>
                 <i class="fa-solid fa-arrow-right-to-bracket"></i>
             </button>
@@ -148,4 +155,5 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 
 </body>
+
 </html>
