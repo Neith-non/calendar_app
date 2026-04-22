@@ -352,10 +352,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </div>
                     </div>
                     
-                    <p id="holiday-warning" class="hidden text-red-500 text-sm mt-1.5 font-medium animate-pulse">
-                        <i class="fa-solid fa-triangle-exclamation"></i> Warning: This date falls on <strong
-                            id="holiday-name"></strong>.
-                    </p>
                     
                     <div class="p-4 bg-black/20 rounded-lg border border-white/10 flex items-center justify-between">
                         <div>
@@ -367,6 +363,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <div class="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
                         </label>
                     </div>
+
+                    <p id="holiday-warning" class="hidden text-red-500 text-sm mt-1.5 font-medium animate-pulse">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Warning: This date falls on <strong
+                            id="holiday-name"></strong>.
+                    </p>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
                         <div class="space-y-4">
