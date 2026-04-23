@@ -119,13 +119,35 @@ function openModal(element) {
         const grouped = {};
         participants.forEach(p => {
             if (!grouped[p.department]) grouped[p.department] = [];
-            grouped[p.department].push(p.name);
+            
+            // Helper function to convert 24h to 12h AM/PM
+            const formatTime = (t) => {
+                if(!t || t === '00:00:00') return 'All Day';
+                let [h, m] = t.split(':');
+                h = parseInt(h, 10);
+                let ampm = h >= 12 ? 'PM' : 'AM';
+                h = h % 12 || 12;
+                return `${h}:${m} ${ampm}`;
+            };
+
+            let timeStr = "";
+            if (p.start_time && p.end_time) {
+                timeStr = ` <span class="text-white/50 text-[11px] ml-1 bg-black/20 px-1.5 py-0.5 rounded border border-white/5 whitespace-nowrap"><i class="fa-regular fa-clock mr-1"></i>${formatTime(p.start_time)} - ${formatTime(p.end_time)}</span>`;
+            }
+
+            grouped[p.department].push(`<div class="text-slate-200 mb-2 mr-4 flex items-center">${p.name}${timeStr}</div>`);
         });
 
-        for (const [dept, names] of Object.entries(grouped)) {
+        // Build a nicer block layout for departments since we are showing more data now
+        for (const [dept, namesHTML] of Object.entries(grouped)) {
             const badge = document.createElement('div');
-            badge.className = "bg-white/10 border border-white/20 rounded px-3 py-1.5 text-sm mb-2 mr-2 inline-block";
-            badge.innerHTML = `<span class="text-yellow-400 font-bold mr-2">${dept}:</span><span class="text-slate-200">${names.join(', ')}</span>`;
+            badge.className = "bg-white/10 border border-white/20 rounded p-3 text-sm mb-3 w-full";
+            badge.innerHTML = `
+                <div class="text-yellow-400 font-bold mb-2 text-xs uppercase tracking-wider border-b border-white/10 pb-1">${dept}</div>
+                <div class="flex flex-wrap items-center mt-2">
+                    ${namesHTML.join('')}
+                </div>
+            `;
             partsDiv.appendChild(badge);
         }
     } else {
