@@ -98,57 +98,7 @@ $requests = $stmt->fetchAll();
             </p>
         </div>
 
-        <div class="flex-1 overflow-y-auto">
-            <div class="p-6 border-b border-white/10">
-                <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Traversal</h3>
-                <div class="space-y-2">
-                    <a href="index.php"
-                        class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                        <i class="fa-solid fa-list w-5 text-center"></i>
-                        <span>All Schedule Events</span>
-                    </a>
-                    <a href="calendar.php"
-                        class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                        <i class="fa-regular fa-calendar-days w-5 text-center"></i>
-                        <span>View Calendar</span>
-                    </a>
-                    <?php if ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler'): ?>
-                        <a href="request_status.php"
-                            class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
-                            <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
-                            <span>Event Status</span>
-                        </a>
-                    <?php endif; ?>
-                    <?php if ($_SESSION['role_name'] === 'Admin'): ?>
-                        <a href="admin/admin_manage.php"
-                            class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                            <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
-                            <span>Admin Panel</span>
-                        </a>
-                    <?php endif; ?>
-                    <button onclick="openPdfModal()"
-                        class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
-                        <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
-                    </button>
-                </div>
-            </div>
-
-            <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')): ?>
-                <div class="p-6 border-b border-white/10">
-                    <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
-                    <div class="space-y-3">
-                        <a href="add_event.php"
-                            class="w-full bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
-                            <i class="fa-solid fa-plus"></i> Add New Event
-                        </a>
-                        <a href="functions/sync_holidays.php"
-                            class="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-white/20">
-                            <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
-                        </a>
-                    </div>
-                </div>
-            <?php endif; ?>
-        </div>
+        <?php include 'includes/sidebar.php'; ?>
 
         <div class="p-6 mt-auto border-t border-white/10">
             <a href="logout.php"
