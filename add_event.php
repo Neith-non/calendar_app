@@ -30,18 +30,20 @@ $categories = $stmt_cats->fetchAll();
 $stmt_venues = $pdo->query("SELECT * FROM venues ORDER BY venue_name ASC");
 $venues = $stmt_venues->fetchAll();
 
-// Fetch Participants and group them by department
-$stmt_parts = $pdo->query("SELECT * FROM participants ORDER BY department ASC, name ASC, strand ASC");
-$all_participants = $stmt_parts->fetchAll();
+// Fetch all participants and their departments using the new ERD structure
+$partStmt = $pdo->query("
+    SELECT p.id AS participant_id, p.name, d.name AS department 
+    FROM participants p
+    JOIN department d ON p.department_id = d.id
+    ORDER BY d.id ASC, p.id ASC
+");
+$participantsList = $partStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// FIXED: Loop through the correct variable and remove the old 'strand' logic
 $grouped_participants = [];
-foreach ($all_participants as $p) {
-    // Generate the display name with the green strand tag
-    $displayName = htmlspecialchars($p['name']);
-    if (!empty($p['strand'])) {
-        $displayName .= ' <span class="text-green-400 font-bold">(' . htmlspecialchars($p['strand']) . ')</span>';
-    }
-    $p['display_name'] = $displayName;
-    
+foreach ($participantsList as $p) {
+    // The name already includes the strand now, so we just use the name directly
+    $p['display_name'] = htmlspecialchars($p['name']); 
     $grouped_participants[$p['department']][] = $p;
 }
 
@@ -56,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $start_date = $_POST['start_date'];
     $end_date = $_POST['end_date'];
 
-    // NEW: Handle All-Day Events
+    // Handle All-Day Events
     $is_all_day = isset($_POST['is_all_day']);
     
     if ($is_all_day) {
@@ -81,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $message = "Oops! The End Date/Time must be after the Start Date/Time.";
     } else {
         
-        // NEW: Check if the requested venue is "Off-Campus"
+        // Check if the requested venue is "Off-Campus"
         $is_off_campus = false;
         foreach ($venues as $v) {
             if ($v['venue_id'] == $venue_id && $v['is_off_campus']) {
@@ -91,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         // RULE 2: Conflict Detection V2 (Venue & Participants)
+        // FIXED: Replaced event_participants with participant_schedule
         $conflictStmt = $pdo->prepare("
             SELECT e.title, p.status, p.venue_id, p.id as publish_id
             FROM events e
@@ -114,9 +117,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 break; 
             }
 
-            // Check B: Participant Conflict
+            // Check B: Participant Conflict (Using new participant_schedule table)
             $placeholders = implode(',', array_fill(0, count($participant_ids), '?'));
-            $partCheckStmt = $pdo->prepare("SELECT 1 FROM event_participants WHERE publish_id = ? AND participant_id IN ($placeholders) LIMIT 1");
+            $partCheckStmt = $pdo->prepare("SELECT 1 FROM participant_schedule WHERE event_publish_id = ? AND participant_id IN ($placeholders) LIMIT 1");
             $params = array_merge([$oe['publish_id']], $participant_ids);
             $partCheckStmt->execute($params);
             
@@ -142,10 +145,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_event = $pdo->prepare("INSERT INTO events (publish_id, category_id, title, description, start_date, start_time, end_date, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt_event->execute([$publish_id, $category_id, $title, $description, $start_date, $start_time, $end_date, $end_time]);
 
-                // Step C: Link Participants
-                $stmt_link = $pdo->prepare("INSERT INTO event_participants (publish_id, participant_id) VALUES (?, ?)");
+                // Step C: Link Participants (Using new participant_schedule table)
+                $stmt_link = $pdo->prepare("INSERT INTO participant_schedule (event_publish_id, participant_id, start_time, end_time) VALUES (?, ?, ?, ?)");
                 foreach ($participant_ids as $pid) {
-                    $stmt_link->execute([$publish_id, $pid]);
+                    // For now, we set the participant's individual schedule to match the main event schedule
+                    $stmt_link->execute([$publish_id, $pid, $start_time, $end_time]);
                 }
 
                 $pdo->commit();
@@ -462,7 +466,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     let isHolidayBypassed = false; 
 
-    // NEW: All-Day Toggle Javascript
+    // All-Day Toggle Javascript
     const allDayToggle = document.getElementById('is_all_day');
     const timeInputs = document.querySelectorAll('.time-input');
     const timeContainers = document.querySelectorAll('.time-input-container');

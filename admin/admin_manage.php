@@ -8,7 +8,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role_name'] !== 'Admin') {
 }
 
 require_once '../functions/database.php';
-
 require_once '../functions/get_pending_count.php';
 $msg = '';
 $error = '';
@@ -35,8 +34,10 @@ try {
         header("Location: admin_manage.php?msg=Category+deleted");
         exit();
     }
+    
+    // UPDATED: Delete Participant using the new 'id' column
     if (isset($_GET['delete_participant'])) {
-        $stmt = $pdo->prepare("DELETE FROM participants WHERE participant_id = ?");
+        $stmt = $pdo->prepare("DELETE FROM participants WHERE id = ?");
         $stmt->execute([(int) $_GET['delete_participant']]);
         header("Location: admin_manage.php?msg=Participant+deleted");
         exit();
@@ -56,10 +57,9 @@ try {
             $msg = "User successfully added!";
         }
 
-        // UPDATED: Handle Venue Addition with Off-Campus Flag
         if ($_POST['action'] === 'add_venue') {
             $venue_name = trim($_POST['venue_name']);
-            $is_off_campus = isset($_POST['is_off_campus']) ? 1 : 0; // Check if the box was ticked
+            $is_off_campus = isset($_POST['is_off_campus']) ? 1 : 0; 
             
             $stmt = $pdo->prepare("INSERT INTO venues (venue_name, is_off_campus) VALUES (?, ?)");
             $stmt->execute([$venue_name, $is_off_campus]);
@@ -74,12 +74,23 @@ try {
             $msg = "Category successfully added!";
         }
 
+        // UPDATED: Insert Participant handling numeric department_id and combined strand
         if ($_POST['action'] === 'add_participant') {
-            $participant_name = trim($_POST['participant_name']);
-            $strand = trim($_POST['strand']) !== '' ? trim($_POST['strand']) : NULL;
-            $department = trim($_POST['department']);
-            $stmt = $pdo->prepare("INSERT INTO participants (name, strand, department) VALUES (?, ?, ?)");
-            $stmt->execute([$participant_name, $strand, $department]);
+            $base_name = trim($_POST['participant_name']);
+            $strand = trim($_POST['strand'] ?? '');
+            
+            // We now expect the HTML form to pass the numeric department_id
+            $department_id = (int) $_POST['department']; 
+
+            // Combine the name and strand into a single string (e.g., "Grade 11 (STEM)")
+            $participant_name = $base_name;
+            if ($strand !== '') {
+                $participant_name .= ' (' . $strand . ')';
+            }
+
+            // Insert into the new ERD structure
+            $stmt = $pdo->prepare("INSERT INTO participants (name, department_id) VALUES (?, ?)");
+            $stmt->execute([$participant_name, $department_id]);
             $msg = "Participant group successfully added!";
         }
     }
@@ -101,10 +112,19 @@ $users = $pdo->query("
     ORDER BY r.role_name, u.full_name
 ")->fetchAll();
 
-// Fetch Venues (Including off-campus flag)
 $venues = $pdo->query("SELECT venue_id, venue_name, is_off_campus FROM venues ORDER BY venue_name")->fetchAll();
 $categories = $pdo->query("SELECT category_id, category_name, category_type FROM event_categories ORDER BY category_type, category_name")->fetchAll();
-$participants = $pdo->query("SELECT participant_id, name, strand, department FROM participants ORDER BY department, name, strand")->fetchAll();
+
+// NEW: Fetch Departments for the dropdown list
+$departments_list = $pdo->query("SELECT id, name FROM department ORDER BY id")->fetchAll();
+
+// UPDATED: Fetch Participants using JOIN
+$participants = $pdo->query("
+    SELECT p.id AS participant_id, p.name, d.name AS department 
+    FROM participants p
+    JOIN department d ON p.department_id = d.id
+    ORDER BY d.id ASC, p.id ASC
+")->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -382,9 +402,17 @@ $participants = $pdo->query("SELECT participant_id, name, strand, department FRO
                                 <input type="text" name="strand" placeholder="Strand (Optional, e.g. STEM)" 
                                     class="w-1/2 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-400">
                             </div>
+                            
                             <div class="flex gap-2">
-                                <input type="text" name="department" placeholder="Department (e.g. High School)" required
+                                <select name="department" required
                                     class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-400">
+                                    <option value="" disabled selected class="text-black">Select Department...</option>
+                                    <?php foreach ($departments_list as $dept): ?>
+                                        <option value="<?php echo $dept['id']; ?>" class="text-black">
+                                            <?php echo htmlspecialchars($dept['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                                 <button type="submit"
                                     class="bg-pink-500/20 hover:bg-pink-500/40 text-pink-300 border border-pink-500/30 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Add</button>
                             </div>
@@ -397,9 +425,6 @@ $participants = $pdo->query("SELECT participant_id, name, strand, department FRO
                                 <div>
                                     <p class="text-white text-sm">
                                         <?php echo htmlspecialchars($p['name']); ?>
-                                        <?php if (!empty($p['strand'])): ?>
-                                            <span class="text-pink-400 font-bold ml-1">(<?php echo htmlspecialchars($p['strand']); ?>)</span>
-                                        <?php endif; ?>
                                     </p>
                                     <p class="text-xs text-slate-400"><?php echo htmlspecialchars($p['department']); ?></p>
                                 </div>

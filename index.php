@@ -17,23 +17,20 @@ require_once 'functions/get_pending_count.php';
 $stmt = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmt->fetchAll();
 
-// NEW: Fetch all participants linked to events so we can group them
-// NEW: Fetch all participants linked to events so we can group them
+// NEW: Fetch all participants linked to events using the upgraded ERD structure
 $part_stmt = $pdo->query("
-    SELECT ep.publish_id, p.name, p.department, p.strand 
-    FROM event_participants ep
-    JOIN participants p ON ep.participant_id = p.participant_id
+    SELECT ps.event_publish_id AS publish_id, p.name, d.name AS department
+    FROM participant_schedule ps
+    JOIN participants p ON ps.participant_id = p.id
+    JOIN department d ON p.department_id = d.id
 ");
+
 $event_participants_map = [];
 while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
-    // Automatically append the strand so the modals don't need JS updates!
-    $displayName = $row['name'];
-    if (!empty($row['strand'])) {
-        $displayName .= ' (' . $row['strand'] . ')';
-    }
-    
+    // Since we embedded the strand directly into the name (e.g., 'Grade 11 (STEM)'), 
+    // we no longer need the complex IF statement to combine them!
     $event_participants_map[$row['publish_id']][] = [
-        'name' => $displayName,
+        'name' => $row['name'],
         'department' => $row['department']
     ];
 }

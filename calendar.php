@@ -39,23 +39,19 @@ $rawEvents = $stmt->fetchAll();
 $stmtCats = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmtCats->fetchAll();
 
-// NEW: Fetch all participants linked to events so we can group them
-// NEW: Fetch all participants linked to events so we can group them
+// Fetch all participants linked to events using the upgraded ERD structure
 $part_stmt = $pdo->query("
-    SELECT ep.publish_id, p.name, p.department, p.strand 
-    FROM event_participants ep
-    JOIN participants p ON ep.participant_id = p.participant_id
+    SELECT ps.event_publish_id AS publish_id, p.name, d.name AS department
+    FROM participant_schedule ps
+    JOIN participants p ON ps.participant_id = p.id
+    JOIN department d ON p.department_id = d.id
 ");
+
 $event_participants_map = [];
 while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
-    // Automatically append the strand so the modals don't need JS updates!
-    $displayName = $row['name'];
-    if (!empty($row['strand'])) {
-        $displayName .= ' (' . $row['strand'] . ')';
-    }
-    
+    // The strand is now perfectly baked into the name (e.g., 'Grade 11 (STEM)')
     $event_participants_map[$row['publish_id']][] = [
-        'name' => $displayName,
+        'name' => $row['name'],
         'department' => $row['department']
     ];
 }
@@ -260,10 +256,11 @@ function getCategoryColor($categoryName)
                 <?php endforeach; ?>
             </div>
 
-            <div class="grid grid-cols-7 flex-1 bg-white/10 gap-px">
+            <div class="grid grid-cols-7 grid-rows-6 flex-1 bg-white/10 gap-px">
                 <?php
                 for ($i = 0; $i < $firstDayOfWeek; $i++) {
-                    echo '<div class="bg-black/10 min-h-[120px]"></div>';
+                    // FIX 2: Removed 'min-h-[120px]' so the grid handles the height automatically
+                    echo '<div class="bg-black/10"></div>';
                 }
 
                 for ($day = 1; $day <= $daysInMonth; $day++) {
@@ -272,10 +269,12 @@ function getCategoryColor($categoryName)
                     $dayClass = $isToday ? "bg-black/20" : "bg-black/10";
                     $numberClass = $isToday ? "bg-yellow-500 text-dark-green rounded-full w-7 h-7 flex items-center justify-center font-bold" : "text-slate-300 font-semibold p-1";
 
-                    echo "<div class='{$dayClass} min-h-[120px] p-2 hover:bg-black/20 transition relative group'>";
+                    // FIX 3: Removed 'min-h-[120px]' and added 'overflow-y-auto custom-scrollbar flex flex-col' 
+                    // Now, if a day has too many events, you can scroll inside that specific day!
+                    echo "<div class='{$dayClass} p-2 hover:bg-black/20 transition relative group overflow-y-auto custom-scrollbar flex flex-col'>";
                     $hoverClass = $isToday ? "hover:bg-yellow-600" : "hover:bg-white/10 hover:text-white cursor-pointer rounded-full transition";
 
-                    echo "<div class='flex justify-between items-start mb-1'>";
+                    echo "<div class='flex justify-between items-start mb-1 flex-shrink-0'>";
 
                     if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')) {
                         echo "<a href='add_event.php?date={$currentDate}' class='action-btn text-sm {$numberClass} {$hoverClass} inline-flex items-center justify-center w-7 h-7' title='Add event on " . date('F j, Y', strtotime($currentDate)) . "'>{$day}</a>";
@@ -288,7 +287,7 @@ function getCategoryColor($categoryName)
                     echo "</div>";
 
                     if (isset($eventsByDate[$currentDate])) {
-                        echo "<div class='flex flex-col gap-1 mt-2'>";
+                        echo "<div class='flex flex-col gap-1 mt-1'>";
                         foreach ($eventsByDate[$currentDate] as $evt) {
                             $color = getCategoryColor($evt['category_name']);
                             $opacity = ($evt['status'] === 'Pending') ? 'opacity-60 border-dashed' : '';
@@ -333,9 +332,10 @@ function getCategoryColor($categoryName)
 
                 $totalBoxes = $firstDayOfWeek + $daysInMonth;
                 $remainingBoxes = 42 - $totalBoxes;
-                if ($remainingBoxes < 7) {
+                if ($remainingBoxes > 0) {
                     for ($i = 0; $i < $remainingBoxes; $i++) {
-                        echo '<div class="bg-black/10 min-h-[120px]"></div>';
+                        // FIX 2 Applied here as well: Removed min-h-[120px]
+                        echo '<div class="bg-black/10"></div>';
                     }
                 }
                 ?>
