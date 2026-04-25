@@ -1,7 +1,16 @@
 <?php
 // calendar.php
+session_start();
+
+// Redirect if not logged in BEFORE sending any HTML
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php';
+
 // 1. Get the requested Month and Year (Default to current month)
 $month = isset($_GET['month']) ? str_pad($_GET['month'], 2, '0', STR_PAD_LEFT) : date('m');
 $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
@@ -12,23 +21,22 @@ $daysInMonth = date('t', strtotime($dateString));
 $firstDayOfWeek = date('w', strtotime($dateString)); // 0 (Sun) to 6 (Sat)
 $monthName = date('F', strtotime($dateString));
 
-// Previous and Next month calculations for the arrows
 $prevMonth = date('m', strtotime("-1 month", strtotime($dateString)));
 $prevYear = date('Y', strtotime("-1 month", strtotime($dateString)));
 $nextMonth = date('m', strtotime("+1 month", strtotime($dateString)));
 $nextYear = date('Y', strtotime("+1 month", strtotime($dateString)));
 
-// 3. Fetch Events for THIS specific month
+// 3. Fetch Events (UNCHANGED BACKEND)
 $stmt = $pdo->prepare("
     SELECT 
         e.*, 
         c.category_name, 
         p.status,
-        v.venue_name -- Grabbing the actual name of the venue
+        v.venue_name 
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
     LEFT JOIN event_publish p ON e.publish_id = p.id
-    LEFT JOIN venues v ON p.venue_id = v.venue_id -- Joining the venues table
+    LEFT JOIN venues v ON p.venue_id = v.venue_id 
     WHERE DATE_FORMAT(e.start_date, '%Y-%m') = ?
     ORDER BY e.start_time ASC
 ");
@@ -38,256 +46,322 @@ $rawEvents = $stmt->fetchAll();
 $stmtCats = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmtCats->fetchAll();
 
-// Group events by their exact date so we can easily put them in the right box
-$eventsByDate = [];
-foreach ($rawEvents as $event) {
-    $eventsByDate[$event['start_date']][] = $event;
+// Fetch Participants (UNCHANGED BACKEND)
+$part_stmt = $pdo->query("
+    SELECT ps.event_publish_id AS publish_id, p.name, d.name AS department, ps.start_time, ps.end_time
+    FROM participant_schedule ps
+    JOIN participants p ON ps.participant_id = p.id
+    JOIN department d ON p.department_id = d.id
+");
+
+$event_participants_map = [];
+while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
+    $event_participants_map[$row['publish_id']][] = [
+        'name' => $row['name'],
+        'department' => $row['department'],
+        'start_time' => $row['start_time'],
+        'end_time' => $row['end_time']
+    ];
 }
 
-// Color Helper Function
+// --- VISUAL PROCESSOR: WEEK-BY-WEEK GRID SPANNING ---
+$calendarWeeks = [];
+$currentWeek = 0;
+$dayCounter = 0;
+
+// Pad start of month
+for ($i = 0; $i < $firstDayOfWeek; $i++) {
+    $calendarWeeks[$currentWeek]['days'][$i] = ['type' => 'blank'];
+    $dayCounter++;
+}
+
+// Generate active days
+for ($day = 1; $day <= $daysInMonth; $day++) {
+    $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
+    $calendarWeeks[$currentWeek]['days'][$dayCounter % 7] = [
+        'type' => 'day',
+        'date' => $dateStr,
+        'day' => $day,
+        'isToday' => ($dateStr === date('Y-m-d'))
+    ];
+    $dayCounter++;
+    if ($dayCounter % 7 == 0 && $day < $daysInMonth) {
+        $currentWeek++;
+    }
+}
+
+// Pad end of month
+while ($dayCounter % 7 != 0) {
+    $calendarWeeks[$currentWeek]['days'][$dayCounter % 7] = ['type' => 'blank'];
+    $dayCounter++;
+}
+
+// Prepare weeks for events
+foreach ($calendarWeeks as &$weekData) {
+    $weekData['events'] = [];
+}
+unset($weekData);
+
+// Sort longest events first so multi-day spans float to the top of the cell
+usort($rawEvents, function($a, $b) {
+    $aStart = strtotime($a['start_date']);
+    $aEnd = (!empty($a['end_date']) && $a['end_date'] !== '0000-00-00') ? strtotime($a['end_date']) : $aStart;
+    $bStart = strtotime($b['start_date']);
+    $bEnd = (!empty($b['end_date']) && $b['end_date'] !== '0000-00-00') ? strtotime($b['end_date']) : $bStart;
+    
+    $aDuration = $aEnd - $aStart;
+    $bDuration = $bEnd - $bStart;
+    
+    if ($aDuration !== $bDuration) return $bDuration <=> $aDuration; 
+    if ($aStart !== $bStart) return $aStart <=> $bStart; 
+    return strtotime($a['start_time']) <=> strtotime($b['start_time']);
+});
+
+// Map events into specific weeks with grid coordinate logic
+foreach ($rawEvents as $evt) {
+    $startDt = new DateTime($evt['start_date']);
+    $endStr = (!empty($evt['end_date']) && $evt['end_date'] !== '0000-00-00') ? $evt['end_date'] : $evt['start_date'];
+    $endDt = new DateTime($endStr);
+    if ($endDt < $startDt) $endDt = clone $startDt; // Failsafe
+
+    foreach ($calendarWeeks as &$weekData) {
+        $colStart = -1;
+        $colEnd = -1;
+        
+        foreach ($weekData['days'] as $colIdx => $dayData) {
+            if ($dayData['type'] === 'day') {
+                $currentDayDt = new DateTime($dayData['date']);
+                if ($currentDayDt >= $startDt && $currentDayDt <= $endDt) {
+                    if ($colStart === -1) $colStart = $colIdx + 1; // Grid cols are 1-indexed
+                    $colEnd = $colIdx + 1;
+                }
+            }
+        }
+
+        if ($colStart !== -1) {
+            $span = $colEnd - $colStart + 1;
+            $evtCopy = $evt;
+            $evtCopy['col_start'] = $colStart;
+            $evtCopy['col_span'] = $span;
+            
+            // Logic for rounding CSS corners if event gets cut off by a new week
+            $evtCopy['is_start_of_event'] = ($startDt->format('Y-m-d') === $weekData['days'][$colStart-1]['date']);
+            $endMatch = false;
+            if ($weekData['days'][$colEnd-1]['type'] === 'day') {
+                $endMatch = ($endDt->format('Y-m-d') === $weekData['days'][$colEnd-1]['date']);
+            }
+            $evtCopy['is_end_of_event'] = $endMatch;
+            
+            $weekData['events'][] = $evtCopy;
+        }
+    }
+    unset($weekData);
+}
+// --- END VISUAL PROCESSOR ---
+
+// --- UPGRADED COLOR HELPER WITH GRADIENTS & ACCENT BORDERS ---
 function getCategoryColor($categoryName)
 {
     $name = strtolower($categoryName);
-    // Returns an array of Tailwind classes optimized for a dark theme
-    if (strpos($name, 'curricular') !== false && strpos($name, 'extra') === false)
-        return ['text' => 'text-sky-300', 'bg' => 'bg-sky-500/20', 'border' => 'border-sky-500/30', 'ring' => 'focus:ring-sky-500', 'checkbox' => 'text-sky-500'];
-    if (strpos($name, 'extra-curricular') !== false || strpos($name, 'sports') !== false)
-        return ['text' => 'text-emerald-300', 'bg' => 'bg-emerald-500/20', 'border' => 'border-emerald-500/30', 'ring' => 'focus:ring-emerald-500', 'checkbox' => 'text-emerald-500'];
-    if (strpos($name, 'mass') !== false)
-        return ['text' => 'text-violet-300', 'bg' => 'bg-violet-500/20', 'border' => 'border-violet-500/30', 'ring' => 'focus:ring-violet-500', 'checkbox' => 'text-violet-500'];
-    if (strpos($name, 'meeting') !== false || strpos($name, 'staff') !== false)
-        return ['text' => 'text-orange-300', 'bg' => 'bg-orange-500/20', 'border' => 'border-orange-500/30', 'ring' => 'focus:ring-orange-500', 'checkbox' => 'text-orange-500'];
-    if (strpos($name, 'holiday') !== false)
-        return ['text' => 'text-yellow-300', 'bg' => 'bg-yellow-500/20', 'border' => 'border-yellow-500/30', 'ring' => 'focus:ring-yellow-500', 'checkbox' => 'text-yellow-500'];
-    // Default fallback (Slate)
-    return ['text' => 'text-slate-300', 'bg' => 'bg-slate-500/20', 'border' => 'border-slate-500/30', 'ring' => 'focus:ring-slate-500', 'checkbox' => 'text-slate-500'];
+    if (strpos($name, 'curricular') !== false && strpos($name, 'extra') === false) 
+        return ['text' => 'text-sky-800 dark:text-sky-200', 'bg' => 'bg-gradient-to-r from-sky-100 to-sky-50 dark:from-sky-900/50 dark:to-sky-800/20', 'border' => 'border-sky-200 dark:border-sky-700', 'accent' => 'border-sky-500 dark:border-sky-400', 'ring' => 'focus:ring-sky-500', 'checkbox' => 'text-sky-600'];
+    
+    if (strpos($name, 'extra-curricular') !== false || strpos($name, 'sports') !== false) 
+        return ['text' => 'text-emerald-800 dark:text-emerald-200', 'bg' => 'bg-gradient-to-r from-emerald-100 to-emerald-50 dark:from-emerald-900/50 dark:to-emerald-800/20', 'border' => 'border-emerald-200 dark:border-emerald-700', 'accent' => 'border-emerald-500 dark:border-emerald-400', 'ring' => 'focus:ring-emerald-500', 'checkbox' => 'text-emerald-600'];
+    
+    if (strpos($name, 'mass') !== false) 
+        return ['text' => 'text-violet-800 dark:text-violet-200', 'bg' => 'bg-gradient-to-r from-violet-100 to-violet-50 dark:from-violet-900/50 dark:to-violet-800/20', 'border' => 'border-violet-200 dark:border-violet-700', 'accent' => 'border-violet-500 dark:border-violet-400', 'ring' => 'focus:ring-violet-500', 'checkbox' => 'text-violet-600'];
+    
+    if (strpos($name, 'meeting') !== false || strpos($name, 'staff') !== false) 
+        return ['text' => 'text-orange-800 dark:text-orange-200', 'bg' => 'bg-gradient-to-r from-orange-100 to-orange-50 dark:from-orange-900/50 dark:to-orange-800/20', 'border' => 'border-orange-200 dark:border-orange-700', 'accent' => 'border-orange-500 dark:border-orange-400', 'ring' => 'focus:ring-orange-500', 'checkbox' => 'text-orange-600'];
+    
+    if (strpos($name, 'holiday') !== false) 
+        return ['text' => 'text-yellow-800 dark:text-yellow-200', 'bg' => 'bg-gradient-to-r from-yellow-100 to-yellow-50 dark:from-yellow-900/50 dark:to-yellow-800/20', 'border' => 'border-yellow-200 dark:border-yellow-700', 'accent' => 'border-yellow-500 dark:border-yellow-400', 'ring' => 'focus:ring-yellow-500', 'checkbox' => 'text-yellow-600'];
+    
+    return ['text' => 'text-slate-800 dark:text-slate-200', 'bg' => 'bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800/50 dark:to-slate-700/20', 'border' => 'border-slate-200 dark:border-slate-700', 'accent' => 'border-slate-500 dark:border-slate-400', 'ring' => 'focus:ring-slate-500', 'checkbox' => 'text-slate-600'];
 }
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calendar View - St. Joseph School</title>
+    <title>Calendar View - SJSFI</title>
+    
+    <script>
+        if (localStorage.getItem('color-theme') === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="assets/css/styles.css">
 
+    <script>
+        tailwind.config = {
+            darkMode: 'class', 
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        chinese: ['Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        sjsfi: {
+                            green: '#004731',
+                            greenHover: '#003323',
+                            yellow: '#ffbb00'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        /* 1. Hide the sidebar completely */
-        body.presentation-mode aside {
-            display: none !important;
-        }
+        body { color: #1e293b; transition: background-color 0.3s ease, color 0.3s ease; }
+        .dark body { color: #f1f5f9; }
 
-        /* 2. Lock down ALL links, buttons, inputs, and calendar events */
-        body.presentation-mode a,
-        body.presentation-mode button,
-        body.presentation-mode input,
+        .nav-item { color: #64748b; transition: all 0.2s ease; }
+        .nav-item:hover { color: #004731; background-color: #f1f5f9; }
+        .dark .nav-item { color: #94a3b8; }
+        .dark .nav-item:hover { color: #10b981; background-color: rgba(30, 41, 59, 0.5); }
+        .nav-item.active { background-color: #004731; color: #ffffff; box-shadow: 0 4px 12px rgba(0, 71, 49, 0.15); }
+        .dark .nav-item.active { background-color: #10b981; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
+
+        .bento-card {
+            transition: all 0.3s ease;
+            background: #ffffff; border: 1px solid #d1f0e0; border-radius: 1.5rem; box-shadow: 0 4px 12px rgba(209, 240, 224, 0.3);
+        }
+        .dark .bento-card { background: #07160f; border-color: #123f29; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+
+        .dark ::-webkit-scrollbar-thumb { background-color: #123f29; }
+        .dark ::-webkit-scrollbar-track { background-color: #04120a; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.02); border-radius: 4px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 4px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.3); }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(16, 185, 129, 0.4); }
+
+        /* --- IMMERSIVE PRESENTATION MODE CSS --- */
+        body.presentation-mode { background-color: #ffffff !important; }
+        .dark body.presentation-mode { background-color: #000000 !important; }
+        body.presentation-mode main { padding: 0 !important; }
+        
+        /* Hides Sidebar, Search, Filters, and "Pending" events */
+        body.presentation-mode .hide-in-presentation, 
+        body.presentation-mode aside { 
+            display: none !important; 
+        }
+        
+        /* Forces the Month Header to stretch beautifully across the top */
+        body.presentation-mode .presentation-header {
+            padding: 1.5rem 2.5rem; margin-bottom: 0; border-bottom: 1px solid #d1f0e0;
+            background-color: #ffffff; width: 100%;
+        }
+        .dark body.presentation-mode .presentation-header { border-color: #123f29; background-color: #000000; }
+        
+        body.presentation-mode .calendar-container {
+            border: none !important; border-radius: 0 !important; box-shadow: none !important; height: calc(100vh - 80px) !important;
+        }
+        
+        body.presentation-mode a, 
+        body.presentation-mode button:not(#exitPresentationFloat), 
+        body.presentation-mode input, 
         body.presentation-mode .calendar-event-item {
-            pointer-events: none !important;
-            /* Stops all clicks */
-            cursor: default !important;
-            /* Removes the hand pointer */
-        }
-
-        /* 3. Hide the little "+" add buttons completely for a cleaner screen */
-        body.presentation-mode .action-btn {
-            opacity: 0 !important;
-        }
-
-        /* 4. The ONLY thing that stays clickable is the Presentation Toggle button */
-        body.presentation-mode #presentationToggle {
-            pointer-events: auto !important;
-            cursor: pointer !important;
+            pointer-events: none !important; cursor: default !important;
         }
     </style>
 </head>
 
-<body class="dashboard-body h-screen flex overflow-hidden">
+<body x-data="{ sidebarOpen: false }" class="h-screen flex overflow-hidden bg-[#f4fcf7] dark:bg-[#04120a] transition-colors duration-300">
 
-    <?php
-    // We need session data for the sidebar, so let's start it
-    // And also check if the user is logged in.
-    session_start();
-    if (!isset($_SESSION['user_id'])) {
-        header("Location: login.php");
-        exit;
-    }
-    ?>
+    <?php include 'includes/sidebar.php'; ?>
 
-    <aside class="w-72 glass-container flex flex-col flex-shrink-0 z-10 transition-all duration-300">
-        <div class="p-8 text-center border-b border-white/10">
-            <div
-                class="w-20 h-20 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4 overflow-hidden border-4 border-white/20">
-                <i class="fa-solid fa-user text-3xl text-white/50"></i>
-            </div>
-            <h2 class="text-xl font-bold text-white">
-                <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Ma\'am Reyes'); ?>
-            </h2>
-            <p class="text-sm text-yellow-400 capitalize">
-                <?php echo htmlspecialchars($_SESSION['role_name'] ?? ''); ?>
-            </p>
+    <button id="exitPresentationFloat" onclick="togglePresentationMode()" class="fixed bottom-6 right-6 z-[100] bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-2xl hidden items-center gap-2 hover:bg-red-700 transition transform hover:scale-105">
+        <i class="fa-solid fa-compress"></i> Exit Presentation
+    </button>
+
+    <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8 relative custom-scrollbar">
+        
+        <div class="lg:hidden flex items-center justify-between mb-6 pb-4 border-b border-[#d1f0e0] dark:border-[#123f29] w-full hide-in-presentation">
+            <h2 class="text-lg font-bold text-slate-800 dark:text-white">Menu</h2>
+            <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 bg-white dark:bg-[#0a1a12] rounded-xl border border-[#d1f0e0] dark:border-[#123f29] text-emerald-700 dark:text-emerald-400 flex items-center justify-center shadow-sm hover:bg-emerald-50 dark:hover:bg-[#103322] transition-colors">
+                <i class="fa-solid fa-bars"></i>
+            </button>
         </div>
 
-        <div class="flex-1 overflow-y-auto">
-            <div class="p-6 border-b border-white/10">
-                <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Traversal</h3>
-                <div class="space-y-2">
-
-                    <a href="index.php"
-                        class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                        <i class="fa-solid fa-list w-5 text-center"></i>
-                        <span>All Schedule Events</span>
-                    </a>
-
-                    <a href="calendar.php"
-                        class="w-full bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors border border-white/30">
-                        <i class="fa-regular fa-calendar-days w-5 text-center"></i>
-                        <span>View Calendar</span>
-                    </a>
-
-                    <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler')): ?>
-                        <a href="request_status.php"
-                            class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                            <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
-                            <span>Event Status</span>
-
-                            <?php if (isset($pendingCount) && $pendingCount > 0): ?>
-                                <span class="ml-auto relative flex h-3 w-3"
-                                    title="<?php echo $pendingCount; ?> Pending Requests">
-                                    <span
-                                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                                </span>
-                            <?php endif; ?>
-                        </a>
-                    <?php endif; ?>
-
-                    <?php if (isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'Admin'): ?>
-                        <a href="admin/admin_manage.php"
-                            class="w-full hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-lg flex items-center gap-3 transition-colors">
-                            <i class="fa-solid fa-screwdriver-wrench w-5 text-center"></i>
-                            <span>Admin Panel</span>
-                        </a>
-                    <?php endif; ?>
-
-                    <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')): ?>
-                        <button onclick="openPdfModal()"
-                            class="w-full bg-slate-600 hover:bg-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm mt-3 border border-slate-500 block text-center">
-                            <i class="fa-solid fa-print text-slate-300"></i> Print Schedule
-                        </button>
-                    <?php endif; ?>
-
+        <div class="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4 border-b border-[#d1f0e0] dark:border-[#123f29] pb-6 presentation-header transition-all">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-[#e0f5ea] dark:bg-[#103322] border border-[#bbf2d1] dark:border-[#1a4d33] flex items-center justify-center shadow-sm hide-in-presentation">
+                    <i class="fa-solid fa-calendar-days text-lg text-emerald-600 dark:text-emerald-400"></i>
                 </div>
+                <h1 class="text-2xl font-black text-slate-800 dark:text-white tracking-tight" id="month-title">Calendar of Events for the Month of <span class="text-emerald-600 dark:text-emerald-400 ml-2 text-xl"><?php echo "$monthName $year"; ?></span></h1>
             </div>
-
-            <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')): ?>
-                <div class="p-6 border-b border-white/10">
-                    <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3">Quick Actions</h3>
-                    <div class="space-y-3">
-                        <a href="add_event.php"
-                            class="w-full bg-yellow-500 hover:bg-yellow-600 text-dark-green font-bold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center">
-                            <i class="fa-solid fa-plus"></i> Add New Event
-                        </a>
-                        <a href="functions/sync_holidays.php"
-                            class="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm block text-center border border-white/20">
-                            <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
-                        </a>
-                    </div>
+            
+            <div class="flex flex-wrap items-center gap-3 hide-in-presentation">
+                <div class="flex items-center bg-white dark:bg-[#0a1a12] border border-[#d1f0e0] dark:border-[#123f29] rounded-xl p-1 shadow-sm">
+                    <a href="?month=<?php echo $prevMonth; ?>&year=<?php echo $prevYear; ?>" class="p-2 w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#e0f5ea] dark:hover:bg-[#103322] text-emerald-700 dark:text-emerald-400 transition">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </a>
+                    <h2 class="text-sm font-extrabold w-36 text-center text-slate-800 dark:text-slate-200 tracking-wide uppercase"><?php echo "$monthName $year"; ?></h2>
+                    <a href="?month=<?php echo $nextMonth; ?>&year=<?php echo $nextYear; ?>" class="p-2 w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#e0f5ea] dark:hover:bg-[#103322] text-emerald-700 dark:text-emerald-400 transition">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </a>
                 </div>
-            <?php endif; ?>
-        </div>
-
-        <div class="p-6 mt-auto border-t border-white/10">
-            <a href="logout.php"
-                class="flex items-center gap-3 px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors font-medium">
-                <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                <span>Logout</span>
-            </a>
-        </div>
-    </aside>
-
-    <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8">
-
-        <div class="flex items-center justify-between mb-6">
-
-            <h1 class="text-3xl font-bold text-white">Monthly Calendar</h1>
-
-            <div class="flex items-center gap-4">
-                <a href="?month=<?php echo $prevMonth; ?>&year=<?php echo $prevYear; ?>"
-                    class="p-2 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition">
-                    <i class="fa-solid fa-chevron-left"></i>
-                </a>
-
-                <h2 class="text-xl font-bold w-48 text-center text-white">
-                    <?php echo "$monthName $year"; ?>
-                </h2>
-
-                <a href="?month=<?php echo $nextMonth; ?>&year=<?php echo $nextYear; ?>"
-                    class="p-2 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition">
-                    <i class="fa-solid fa-chevron-right"></i>
-                </a>
-
-                <a href="calendar.php"
-                    class="ml-2 bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded-lg text-sm font-semibold border border-white/20 transition">
-                    Today
-                </a>
-
+                
+                <a href="calendar.php" class="bg-white dark:bg-[#0a1a12] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-700 dark:text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-bold border border-[#d1f0e0] dark:border-[#123f29] shadow-sm transition">Today</a>
+                
                 <?php if (isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin'])): ?>
-                    <button id="presentationToggle" onclick="togglePresentationMode()"
-                        class="bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 px-4 py-1.5 rounded-lg text-sm font-semibold border border-blue-500/30 transition flex items-center gap-2">
+                    <button onclick="togglePresentationMode()" class="bg-[#ebfbf3] dark:bg-[#103322] hover:bg-[#d1f0e0] dark:hover:bg-[#1a4d33] text-emerald-700 dark:text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-bold border border-[#bbf2d1] dark:border-[#215c3d] shadow-sm transition flex items-center gap-2">
                         <i class="fa-solid fa-desktop"></i> <span>Present</span>
                     </button>
                 <?php endif; ?>
             </div>
         </div>
 
-        <div id="empty-state-message"
-            class="hidden glass-container rounded-xl p-8 mb-6 flex-col items-center justify-center text-center border border-yellow-500/30 bg-yellow-500/10">
-            <div class="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
-                <i class="fa-solid fa-calendar-xmark text-3xl text-yellow-400"></i>
+        <div id="empty-state-message" class="hidden bento-card hide-in-presentation rounded-2xl p-8 mb-6 flex-col items-center justify-center text-center">
+            <div class="w-16 h-16 bg-[#f0fcf5] dark:bg-[#0a1a12] rounded-full flex items-center justify-center mb-4 border border-[#d1f0e0] dark:border-[#123f29]">
+                <i class="fa-solid fa-ghost text-3xl text-emerald-300 dark:text-emerald-700"></i>
             </div>
-            <h3 class="text-xl font-bold text-white mb-2">No events found</h3>
-            <p class="text-slate-300">Try adjusting your search or category filters.</p>
+            <h3 class="text-xl font-extrabold text-slate-800 dark:text-white mb-1">No events found</h3>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Try adjusting your search or category filters.</p>
         </div>
 
-        <div class="glass-container rounded-xl p-4 mb-6 flex flex-col sm:flex-row items-center gap-4 relative z-10">
-            <div class="relative w-full flex-1">
-                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <i class="fa-solid fa-search text-slate-400"></i>
+        <div class="bento-card hide-in-presentation p-2 pl-4 mb-6 flex flex-col sm:flex-row items-center gap-2 relative z-20">
+            <div class="relative w-full flex-1 group">
+                <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                    <i class="fa-solid fa-search text-emerald-400 group-focus-within:text-emerald-600 transition-colors"></i>
                 </div>
-                <input type="text" id="search-bar" placeholder="Search events..."
-                    class="form-input-glass w-full pl-11 pr-4 py-2.5 rounded-lg">
+                <input type="text" id="search-bar" placeholder="Search events, dates, or categories..." class="w-full pl-8 pr-4 py-3 text-sm font-medium border-none shadow-none bg-transparent focus:outline-none focus:ring-0 text-slate-800 dark:text-slate-200 dark:placeholder-slate-500 placeholder-slate-400">
             </div>
 
-            <div x-data="{ open: false }" class="relative w-full sm:w-auto">
-                <button @click="open = !open"
-                    class="form-input-glass w-full sm:w-56 flex items-center justify-between gap-2 font-semibold py-2.5 px-4 rounded-lg transition">
-                    <i class="fa-solid fa-filter text-slate-400"></i>
-                    <span id="filter-button-text">All Categories</span>
-                    <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform"
-                        :class="{ 'rotate-180': open }"></i>
+            <div x-data="{ filterOpen: false }" class="relative w-full sm:w-auto border-t sm:border-t-0 sm:border-l border-[#d1f0e0] dark:border-[#123f29] pt-2 sm:pt-0 sm:pl-2">
+                <button @click="filterOpen = !filterOpen" class="w-full sm:w-56 flex items-center justify-between gap-2 font-bold text-sm py-2.5 px-4 rounded-xl hover:bg-[#f0fcf5] dark:hover:bg-[#103322] transition text-emerald-800 dark:text-emerald-300">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-filter text-emerald-500"></i>
+                        <span id="filter-button-text">All Categories</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-xs text-emerald-500 transition-transform" :class="{ 'rotate-180': filterOpen }"></i>
                 </button>
 
-                <div x-show="open" @click.away="open = false" x-transition
-                    class="absolute right-0 mt-2 w-full sm:w-72 bg-[#002a1d] border border-white/20 rounded-xl shadow-lg z-20 p-4"
-                    style="display: none;">
-                    <h4 class="text-sm font-bold text-slate-300 mb-3">Filter by Category</h4>
-                    <div class="space-y-3">
+                <div x-show="filterOpen" @click.away="filterOpen = false" x-transition.opacity.duration.200ms class="absolute right-0 mt-3 w-full sm:w-72 bg-white dark:bg-[#07160f] border border-[#d1f0e0] dark:border-[#123f29] rounded-2xl shadow-xl z-30 p-5" style="display: none;">
+                    <h4 class="text-xs font-extrabold text-emerald-500 uppercase tracking-widest mb-4">Filter by Category</h4>
+                    <div class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                         <?php foreach ($categories as $cat): ?>
                             <?php $color = getCategoryColor($cat['category_name']); ?>
-                            <label class="flex items-center space-x-3 cursor-pointer group">
-                                <input type="checkbox" checked
-                                    value="<?php echo htmlspecialchars($cat['category_name']); ?>"
-                                    class="category-filter w-5 h-5 rounded <?php echo $color['checkbox']; ?> bg-transparent border-slate-500 focus:ring-offset-0 focus:ring-offset-transparent <?php echo $color['ring']; ?>">
-                                <span
-                                    class="group-hover:text-yellow-400 transition-colors text-slate-200 font-medium"><?php echo htmlspecialchars($cat['category_name']); ?></span>
+                            <label class="flex items-center space-x-3 cursor-pointer p-2 rounded-lg hover:bg-[#f0fcf5] dark:hover:bg-[#103322] transition group">
+                                <input type="checkbox" checked value="<?php echo htmlspecialchars($cat['category_name']); ?>" class="category-filter w-4 h-4 rounded <?php echo $color['checkbox']; ?> bg-white dark:bg-[#04120a] border-[#bbf2d1] dark:border-[#1a4d33] focus:ring-offset-0 <?php echo $color['ring']; ?>">
+                                <span class="text-slate-700 dark:text-slate-300 font-bold text-sm group-hover:text-emerald-800 dark:group-hover:text-emerald-200 transition-colors"><?php echo htmlspecialchars($cat['category_name']); ?></span>
                             </label>
                         <?php endforeach; ?>
                     </div>
@@ -295,278 +369,224 @@ function getCategoryColor($categoryName)
             </div>
         </div>
 
-        <div class="glass-container rounded-xl overflow-hidden flex flex-col flex-1 min-h-[600px]">
-
-            <div class="grid grid-cols-7 border-b border-white/10 bg-black/20">
+        <div class="calendar-container bg-white dark:bg-[#07160f] border border-[#d1f0e0] dark:border-[#123f29] rounded-[2rem] shadow-xl flex flex-col flex-1 min-h-[700px] overflow-hidden transition-all z-10 relative">
+            
+            <div class="grid grid-cols-7 border-b border-[#d1f0e0] dark:border-[#123f29] bg-[#f0fcf5] dark:bg-[#0a1a12] shrink-0">
                 <?php
                 $days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                 foreach ($days as $day):
                     ?>
-                    <div class="py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    <div class="py-4 text-center text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">
                         <?php echo $day; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
 
-            <div class="grid grid-cols-7 flex-1 bg-white/10 gap-px">
+            <div class="flex-1 flex flex-col bg-[#d1f0e0] dark:bg-[#123f29] gap-[1px]">
+                <?php foreach ($calendarWeeks as $weekIdx => $week): ?>
+                    <div class="relative flex-1 min-h-[130px] flex flex-col bg-white dark:bg-[#07160f]">
+                        
+                        <div class="absolute inset-0 grid grid-cols-7 divide-x divide-[#d1f0e0] dark:divide-[#123f29]">
+                            <?php foreach ($week['days'] as $colIdx => $day): ?>
+                                <?php if ($day['type'] === 'blank'): ?>
+                                    <div class="bg-[#fafdfb] dark:bg-[#05140b] h-full"></div>
+                                <?php else: ?>
+                                    <?php 
+                                    $dayClass = $day['isToday'] ? "bg-[#f0fcf5] dark:bg-[#0a1a12]" : "";
+                                    $numberClass = $day['isToday'] ? "bg-emerald-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-black shadow-md ring-4 ring-emerald-100 dark:ring-emerald-900" : "text-slate-600 dark:text-slate-400 font-bold p-1 inline-flex items-center justify-center w-8 h-8";
+                                    ?>
+                                    <div class="p-3 <?php echo $dayClass; ?> hover:bg-[#fafdfb] dark:hover:bg-[#0a1a12] transition-colors relative group h-full">
+                                        <div class="flex justify-between items-start">
+                                            <?php if (isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin'])): ?>
+                                                <a href="add_event.php?date=<?php echo $day['date']; ?>" class="action-btn text-xs <?php echo $numberClass; ?> z-20 relative"><?php echo $day['day']; ?></a>
+                                                <a href="add_event.php?date=<?php echo $day['date']; ?>" class="action-btn opacity-0 group-hover:opacity-100 text-emerald-300 hover:text-emerald-600 transition p-1 z-20 relative"><i class="fa-solid fa-plus text-xs"></i></a>
+                                            <?php else: ?>
+                                                <span class="text-xs <?php echo $numberClass; ?> z-20 relative"><?php echo $day['day']; ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
 
-                <?php
-                // 1. Draw blank boxes for days before the 1st of the month
-                for ($i = 0; $i < $firstDayOfWeek; $i++) {
-                    echo '<div class="bg-black/10 min-h-[120px]"></div>';
-                }
+                        <div class="relative z-10 grid grid-cols-7 gap-x-0 gap-y-1.5 pt-12 pb-2 px-1 pointer-events-none">
+                            <?php foreach ($week['events'] as $evt): ?>
+                                <?php
+                                $color = getCategoryColor($evt['category_name']);
+                                
+                                // Hide Pending status entirely from the calendar if in presentation mode
+                                $presentationHideClass = ($evt['status'] === 'Pending') ? 'hide-in-presentation' : '';
+                                
+                                // Accent Left Border - Applies to ALL events at their physical start date
+                                $accentBorder = $evt['is_start_of_event'] ? "border-l-[4px] {$color['accent']}" : "border-l border-l-transparent";
 
-                // 2. Draw the actual days (1 to $daysInMonth)
-                for ($day = 1; $day <= $daysInMonth; $day++) {
-                    // Create the date string for this specific box (e.g., "2026-03-05")
-                    $currentDate = sprintf('%04d-%02d-%02d', $year, $month, $day);
+                                $opacity = ($evt['status'] === 'Pending') ? 'opacity-90 bg-white dark:bg-[#07160f]' : 'shadow-sm shadow-black/5';
+                                $pendingIcon = ($evt['status'] === 'Pending') ? '<i class="fa-solid fa-hourglass-half text-[9px] mr-1 opacity-70"></i><span class="text-[9px] uppercase tracking-wider opacity-80 font-extrabold mr-1">[PENDING]</span> ' : '';
+                                
+                                $safeTitle = htmlspecialchars($evt['title']);
+                                $shortTitle = strlen($safeTitle) > ($evt['col_span'] * 15) ? substr($safeTitle, 0, ($evt['col_span'] * 15)) . '...' : $safeTitle;
+                                
+                                // Padding and margins calculated perfectly to overlap the 1px grid gap
+                                $rounded = 'rounded-md';
+                                $borderFix = 'border mx-1 px-2.5';
+                                
+                                if ($evt['col_span'] > 1) {
+                                    if ($evt['is_start_of_event'] && !$evt['is_end_of_event']) {
+                                        $rounded = 'rounded-l-md rounded-r-none';
+                                        $borderFix = 'border-y border-r-0 ml-1 -mr-1 pr-3';
+                                    } elseif (!$evt['is_start_of_event'] && $evt['is_end_of_event']) {
+                                        $rounded = 'rounded-r-md rounded-l-none';
+                                        $borderFix = 'border-y border-r -ml-1 mr-1 pl-3'; 
+                                        $accentBorder = "border-l-0"; // Remove left border on tail
+                                    } elseif (!$evt['is_start_of_event'] && !$evt['is_end_of_event']) {
+                                        $rounded = 'rounded-none';
+                                        $borderFix = 'border-y border-x-0 -mx-1 px-3';
+                                        $accentBorder = ""; // Remove left border on middle body
+                                    }
+                                }
 
-                    // Highlight today's date if we are currently looking at today
-                    $isToday = ($currentDate === date('Y-m-d'));
-                    $dayClass = $isToday ? "bg-black/20" : "bg-black/10";
-                    $numberClass = $isToday ? "bg-yellow-500 text-dark-green rounded-full w-7 h-7 flex items-center justify-center font-bold" : "text-slate-300 font-semibold p-1";
+                                $formattedDate = date('F j, Y', strtotime($evt['start_date']));
+                                $formattedTime = ($evt['start_time'] == '00:00:00' || $evt['start_time'] == '23:59:59') ? 'All Day' : date('g:i A', strtotime($evt['start_time']));
+                                $formattedEndDate = date('F j, Y', strtotime($evt['end_date']));
+                                $formattedEndTime = ($evt['end_time'] == '00:00:00' || $evt['end_time'] == '23:59:59') ? 'All Day' : date('g:i A', strtotime($evt['end_time']));
+                                $safeDesc = htmlspecialchars($evt['description'] ?? 'No description provided.');
+                                $safeVenue = htmlspecialchars($evt['venue_name'] ?? 'Not specified');
 
-                    echo "<div class='{$dayClass} min-h-[120px] p-2 hover:bg-black/20 transition relative group'>";
+                                $participants_array = $evt['publish_id'] ? ($event_participants_map[$evt['publish_id']] ?? []) : [];
+                                $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
+                                
+                                $timeDisplay = ($evt['is_start_of_event'] && $formattedTime !== 'All Day') ? "<span class='opacity-70 font-semibold mr-1.5 text-[10px]'>{$formattedTime}</span>" : "";
+                                
+                                // Compile final classes
+                                $finalClasses = "{$color['bg']} {$color['text']} {$borderFix} {$accentBorder} {$color['border']} {$opacity} {$rounded}";
+                                ?>
+                                
+                                <div class="calendar-event-item <?php echo $presentationHideClass; ?> pointer-events-auto col-start-<?php echo $evt['col_start']; ?> col-span-<?php echo $evt['col_span']; ?> <?php echo $finalClasses; ?> flex items-center h-[28px] mt-1 text-xs font-bold truncate cursor-pointer hover:brightness-95 transition-all relative overflow-hidden"
+                                    title='<?php echo $safeTitle; ?>'
+                                    data-title='<?php echo $safeTitle; ?>'
+                                    data-desc='<?php echo $safeDesc; ?>'
+                                    data-category='<?php echo htmlspecialchars($evt['category_name']); ?>' 
+                                    data-venue='<?php echo $safeVenue; ?>'
+                                    data-date='<?php echo $formattedDate; ?>'
+                                    data-time='<?php echo $formattedTime; ?>'
+                                    data-end-date='<?php echo $formattedEndDate; ?>'
+                                    data-end-time='<?php echo $formattedEndTime; ?>'
+                                    data-participants='<?php echo $jsParticipants; ?>'
+                                    onclick='openModal(this)'>
+                                    <div class="truncate w-full">
+                                        <?php echo $pendingIcon . $timeDisplay . $shortTitle; ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
 
-                    // The Date Number (Now a Clickable Link!)
-                    // Add a hover effect so the user knows they can click the number
-                    $hoverClass = $isToday ? "hover:bg-yellow-600" : "hover:bg-white/10 hover:text-white cursor-pointer rounded-full transition";
-
-                    // The Date Number Header
-                    echo "<div class='flex justify-between items-start mb-1'>";
-
-                    // Check role (Added parentheses around the OR statement for safety)
-                    if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')) {
-                        // HEAD SCHEDULER: Gets the clickable link and the '+' icon. ADDED 'action-btn' HERE.
-                        echo "<a href='add_event.php?date={$currentDate}' class='action-btn text-sm {$numberClass} {$hoverClass} inline-flex items-center justify-center w-7 h-7' title='Add event on " . date('F j, Y', strtotime($currentDate)) . "'>{$day}</a>";
-                        echo "<a href='add_event.php?date={$currentDate}' class='action-btn opacity-0 group-hover:opacity-100 text-slate-400 hover:text-yellow-400 transition p-1'><i class='fa-solid fa-plus text-xs'></i></a>";
-                    } else {
-                        // ADMIN / VIEWER: Just sees the number as plain text, no links, no '+'
-                        // We remove the $hoverClass so it doesn't look clickable
-                        $plainNumberClass = $isToday ? "bg-yellow-500 text-dark-green rounded-full w-7 h-7 flex items-center justify-center font-bold" : "text-slate-300 font-semibold p-1 inline-flex items-center justify-center w-7 h-7";
-                        echo "<span class='text-sm {$plainNumberClass}'>{$day}</span>";
-                    }
-
-                    echo "</div>";
-
-                    // Display Events for this Day
-                    if (isset($eventsByDate[$currentDate])) {
-
-
-                        echo "<div class='flex flex-col gap-1 mt-2'>";
-                        foreach ($eventsByDate[$currentDate] as $evt) {
-                            $color = getCategoryColor($evt['category_name']);
-
-                            // Visual cue if it's pending
-                            $opacity = ($evt['status'] === 'Pending') ? 'opacity-60 border-dashed' : '';
-                            $pendingIcon = ($evt['status'] === 'Pending') ? '<i class="fa-solid fa-clock mr-1"></i>' : '';
-
-                            // Shorten the title so it fits in the box
-                            $shortTitle = strlen($evt['title']) > 12 ? substr($evt['title'], 0, 12) . '...' : $evt['title'];
-
-                            // Format Data for the Modal
-                
-                            $formattedDate = date('F j, Y', strtotime($evt['start_date']));
-                            $formattedTime = ($evt['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($evt['start_time']));
-
-                            // NEW: Format the End Date/Time
-                            $formattedEndDate = date('F j, Y', strtotime($evt['end_date']));
-                            $formattedEndTime = ($evt['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($evt['end_time']));
-
-                            $safeTitle = htmlspecialchars($evt['title']);
-                            $safeDesc = htmlspecialchars($evt['description'] ?? 'No description provided.');
-                            // NEW: Format the Venue
-                            $safeVenue = htmlspecialchars($evt['venue_name'] ?? 'Not specified');
-
-                            echo "
-                            <div class='calendar-event-item {$color['bg']} {$color['text']} border {$color['border']} {$opacity} px-2 py-1 rounded text-xs font-semibold truncate cursor-pointer hover:bg-white/20 hover:border-yellow-400/50 transition' 
-                                title='{$safeTitle}'
-                                data-title='{$safeTitle}'
-                                data-desc='{$safeDesc}'
-                                data-category='" . htmlspecialchars($evt['category_name']) . "' 
-                                data-venue='{$safeVenue}'
-                                data-date='{$formattedDate}'
-                                data-time='{$formattedTime}'
-                                data-end-date='{$formattedEndDate}'
-                                data-end-time='{$formattedEndTime}'
-                                onclick='openModal(this)'>
-                                {$pendingIcon}{$shortTitle}
-                            </div>
-                            ";
-                        }
-                        echo "</div>";
-                    }
-
-                    echo "</div>"; // End Day Box
-                }
-
-                // 3. Fill in the remaining blank boxes at the end of the grid
-                $totalBoxes = $firstDayOfWeek + $daysInMonth;
-                $remainingBoxes = 42 - $totalBoxes; // 42 is a standard 6-row calendar grid
-                if ($remainingBoxes < 7) {
-                    for ($i = 0; $i < $remainingBoxes; $i++) {
-                        echo '<div class="bg-black/10 min-h-[120px]"></div>';
-                    }
-                }
-                ?>
-
+                    </div>
+                <?php endforeach; ?>
             </div>
         </div>
     </main>
 
-    <div id="eventModal"
-        class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity p-4">
-        <div class="glass-container rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-95 opacity-0"
-            id="modalContent">
-
-            <div class="bg-black/20 p-4 flex justify-between items-center border-b border-white/10">
-                <h2 id="modalTitle" class="text-xl font-bold truncate text-yellow-400">Event Title</h2>
-                <button onclick="closeModal()"
-                    class="text-white/70 hover:text-white transition bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
-                    <i class="fa-solid fa-xmark"></i>
+    <div id="eventModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[110] backdrop-blur-sm transition-opacity p-4">
+        <div class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-[#d1f0e0] dark:border-[#123f29] transform transition-all scale-95 opacity-0" id="modalContent">
+            
+            <div class="bg-[#f0fcf5] dark:bg-[#0a1a12] p-6 flex justify-between items-start border-b border-[#d1f0e0] dark:border-[#123f29]">
+                <h2 id="modalTitle" class="text-xl font-extrabold text-emerald-900 dark:text-emerald-100 leading-tight pr-4">Event Title</h2>
+                <button onclick="closeModal()" class="text-emerald-400 hover:text-red-500 transition bg-white dark:bg-[#07160f] border border-[#d1f0e0] dark:border-[#123f29] hover:border-red-200 rounded-full w-8 h-8 flex items-center justify-center shadow-sm shrink-0">
+                    <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
             </div>
 
-            <div class="p-6 space-y-4">
-
-                <div class="bg-black/20 p-4 rounded-lg border border-white/10 space-y-3">
-
-                    <div class="flex items-center gap-3 text-slate-200 font-medium">
-                        <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">Start</span>
-                        <i class="fa-regular fa-calendar text-emerald-500 text-lg"></i>
-                        <span id="modalDate">Date</span>
-                        <span class="text-white/20 mx-1">|</span>
-                        <i class="fa-regular fa-clock text-emerald-500 text-lg"></i>
-                        <span id="modalTime">Time</span>
+            <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                <div class="bg-white dark:bg-[#07160f] p-5 rounded-2xl border border-[#d1f0e0] dark:border-[#123f29] shadow-sm space-y-4">
+                    <div class="flex items-center gap-3 text-slate-700 dark:text-slate-300 font-semibold text-sm">
+                        <span class="w-10 text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Start</span>
+                        <div class="flex items-center gap-2 bg-[#f0fcf5] dark:bg-[#0a1a12] px-3 py-1.5 rounded-lg border border-[#d1f0e0] dark:border-[#123f29]">
+                            <i class="fa-regular fa-calendar text-emerald-600"></i>
+                            <span id="modalDate">Date</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-[#f0fcf5] dark:bg-[#0a1a12] px-3 py-1.5 rounded-lg border border-[#d1f0e0] dark:border-[#123f29]">
+                            <i class="fa-regular fa-clock text-emerald-600"></i>
+                            <span id="modalTime">Time</span>
+                        </div>
                     </div>
-
-                    <div class="h-px bg-white/10 w-full ml-12"></div>
-
-                    <div class="flex items-center gap-3 text-slate-200 font-medium">
-                        <span class="w-12 text-xs font-bold text-slate-400 uppercase tracking-wider">End</span>
-                        <i class="fa-regular fa-calendar-check text-red-400 text-lg"></i>
-                        <span id="modalEndDate">Date</span>
-                        <span class="text-white/20 mx-1">|</span>
-                        <i class="fa-regular fa-clock text-red-400 text-lg"></i>
-                        <span id="modalEndTime">Time</span>
+                    <div class="flex items-center gap-3 text-slate-700 dark:text-slate-300 font-semibold text-sm">
+                        <span class="w-10 text-[10px] font-bold text-emerald-400 uppercase tracking-widest">End</span>
+                        <div class="flex items-center gap-2 bg-[#f0fcf5] dark:bg-[#0a1a12] px-3 py-1.5 rounded-lg border border-[#d1f0e0] dark:border-[#123f29]">
+                            <i class="fa-regular fa-calendar-check text-slate-400"></i>
+                            <span id="modalEndDate">Date</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-[#f0fcf5] dark:bg-[#0a1a12] px-3 py-1.5 rounded-lg border border-[#d1f0e0] dark:border-[#123f29]">
+                            <i class="fa-regular fa-clock text-slate-400"></i>
+                            <span id="modalEndTime">Time</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex flex-col sm:flex-row gap-4">
-                    <div class="flex-1 bg-black/20 p-3 rounded-lg border border-white/10">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Category</h3>
-                        <div class="flex items-center gap-2 text-slate-200">
-                            <i class="fa-solid fa-tag text-sky-400"></i>
-                            <span id="modalCategory" class="font-medium text-sm">Category Name</span>
-                        </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1.5">Category</h3>
+                        <p class="text-emerald-800 dark:text-emerald-200 font-bold bg-[#f0fcf5] dark:bg-[#0a1a12] p-3.5 rounded-xl border border-[#d1f0e0] dark:border-[#123f29] flex items-center gap-2 text-sm">
+                            <i class="fa-solid fa-tag text-emerald-500"></i>
+                            <span id="modalCategory" class="truncate">Not categorized</span>
+                        </p>
                     </div>
-
-                    <div class="flex-1 bg-black/20 p-3 rounded-lg border border-white/10">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Venue</h3>
-                        <div class="flex items-center gap-2 text-slate-200">
-                            <i class="fa-solid fa-location-dot text-rose-400"></i>
-                            <span id="modalVenue" class="font-medium text-sm">Venue Name</span>
-                        </div>
+                    <div>
+                        <h3 class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1.5">Venue</h3>
+                        <p class="text-emerald-800 dark:text-emerald-200 font-bold bg-[#f0fcf5] dark:bg-[#0a1a12] p-3.5 rounded-xl border border-[#d1f0e0] dark:border-[#123f29] flex items-center gap-2 text-sm">
+                            <i class="fa-solid fa-location-dot text-emerald-500"></i>
+                            <span id="modalVenue" class="truncate">Not specified</span>
+                        </p>
                     </div>
                 </div>
 
                 <div>
-                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Description</h3>
-                    <p id="modalDesc"
-                        class="text-slate-300 whitespace-pre-line leading-relaxed bg-black/20 p-4 rounded-lg border border-white/10 min-h-[80px]">
-                    </p>
+                    <h3 class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2">Participants</h3>
+                    <div id="modalParticipants" class="bg-[#f0fcf5] dark:bg-[#0a1a12] p-4 rounded-xl border border-[#d1f0e0] dark:border-[#123f29] min-h-[60px] flex flex-col gap-3">
+                        <span class="text-slate-400 italic text-sm">Loading participants...</span>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2">Description</h3>
+                    <p id="modalDesc" class="text-slate-600 dark:text-slate-300 text-sm whitespace-pre-line leading-relaxed bg-[#f0fcf5] dark:bg-[#0a1a12] p-5 rounded-xl border border-[#d1f0e0] dark:border-[#123f29] min-h-[100px] font-medium"></p>
                 </div>
             </div>
 
-            <div class="bg-black/20 px-6 py-4 border-t border-white/10 flex justify-end">
-                <button onclick="closeModal()"
-                    class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-4 rounded-lg transition">Close</button>
+            <div class="bg-white dark:bg-[#07160f] px-6 py-4 border-t border-[#d1f0e0] dark:border-[#123f29] flex justify-end">
+                <button onclick="closeModal()" class="bg-white dark:bg-[#0a1a12] border border-[#d1f0e0] dark:border-[#123f29] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-800 dark:text-emerald-200 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">Close Details</button>
             </div>
         </div>
     </div>
 
 </body>
+
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script src="assets/js/event_modal.js"></script>
+<script src="assets/js/calendar.js?v=<?php echo time(); ?>"></script>
+<script src="assets/js/pdf_modal.js"></script>
+
 <script>
-    // Basic modal functionality for demonstration
-    const eventModal = document.getElementById('eventModal');
-    const modalContent = document.getElementById('modalContent');
-
-    function openModal(element) {
-        // Populate modal with data attributes from the clicked event
-        document.getElementById('modalTitle').innerText = element.dataset.title;
-        document.getElementById('modalDesc').innerText = element.dataset.desc;
-        document.getElementById('modalDate').innerText = element.dataset.date;
-        document.getElementById('modalTime').innerText = element.dataset.time;
-        document.getElementById('modalEndDate').innerText = element.dataset.endDate;
-        document.getElementById('modalEndTime').innerText = element.dataset.endTime;
-
-        // NEW: Populate Category and Venue
-        document.getElementById('modalCategory').innerText = element.dataset.category || 'Not categorized';
-        document.getElementById('modalVenue').innerText = element.dataset.venue || 'Not specified';
-
-        // Show modal with transition
-        eventModal.classList.remove('hidden');
-        eventModal.classList.add('flex');
-        setTimeout(() => {
-            eventModal.classList.remove('opacity-0');
-            modalContent.classList.remove('scale-95', 'opacity-0');
-        }, 10);
-    }
-
-    function closeModal() {
-        // Hide modal with transition
-        eventModal.classList.add('opacity-0');
-        modalContent.classList.add('scale-95', 'opacity-0');
-        setTimeout(() => {
-            eventModal.classList.add('hidden');
-            eventModal.classList.remove('flex');
-        }, 200);
-    }
-
-    // Close modal if backdrop is clicked
-    eventModal.addEventListener('click', (e) => {
-        if (e.target === eventModal) {
-            closeModal();
-        }
-    });
-
-    // PRESENTATION MODE LOGIC
     function togglePresentationMode() {
-        const body = document.body;
-        const btn = document.getElementById('presentationToggle');
-        const btnText = btn.querySelector('span');
-        const btnIcon = btn.querySelector('i');
-
-        body.classList.toggle('presentation-mode');
-        const isPresenting = body.classList.contains('presentation-mode');
-
-        if (isPresenting) {
-            btnText.innerText = 'Exit Presenting';
-            btnIcon.className = 'fa-solid fa-compress';
-            btn.classList.replace('bg-blue-500/20', 'bg-red-500/20');
-            btn.classList.replace('text-blue-300', 'text-red-400');
-            btn.classList.replace('border-blue-500/30', 'border-red-500/30');
-            btn.classList.replace('hover:bg-blue-500/40', 'hover:bg-red-500/40');
-
+        document.body.classList.toggle('presentation-mode');
+        const floatBtn = document.getElementById('exitPresentationFloat');
+        
+        if (document.body.classList.contains('presentation-mode')) {
+            floatBtn.classList.remove('hidden');
+            floatBtn.classList.add('flex');
+            
             if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen error:", e));
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
             }
         } else {
-            btnText.innerText = 'Present';
-            btnIcon.className = 'fa-solid fa-desktop';
-            btn.classList.replace('bg-red-500/20', 'bg-blue-500/20');
-            btn.classList.replace('text-red-400', 'text-blue-300');
-            btn.classList.replace('border-red-500/30', 'border-blue-500/30');
-            btn.classList.replace('hover:bg-red-500/40', 'hover:bg-blue-500/40');
-
-            if (document.fullscreenElement) {
+            floatBtn.classList.add('hidden');
+            floatBtn.classList.remove('flex');
+            
+            if (document.exitFullscreen && document.fullscreenElement) {
                 document.exitFullscreen();
             }
         }
     }
 </script>
-<script src="assets/js/calendar.js?v=<?php echo time(); ?>"></script>
-<script src="assets/js/pdf_modal.js"></script>
-
 </html>

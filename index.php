@@ -1,29 +1,41 @@
 <?php
 // index.php
 
-// Start the session at the VERY TOP
 session_start();
-
-// 1. Tell the browser NEVER to cache this page
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
 
-// Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
 
-// 1. Include database connection from the functions folder
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php';
-// 2. Fetch Categories for the Sidebar
+
 $stmt = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmt->fetchAll();
 
-// 3. Fetch ONLY This Year's Events (With Publish Status and Venue Name)
-$currentYear = date('Y'); // Get the current year dynamically
+// Fetch all participants linked to events using the upgraded ERD structure
+$part_stmt = $pdo->query("
+    SELECT ps.event_publish_id AS publish_id, p.name, d.name AS department, ps.start_time, ps.end_time
+    FROM participant_schedule ps
+    JOIN participants p ON ps.participant_id = p.id
+    JOIN department d ON p.department_id = d.id
+");
+
+$event_participants_map = [];
+while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
+    $event_participants_map[$row['publish_id']][] = [
+        'name' => $row['name'],
+        'department' => $row['department'],
+        'start_time' => $row['start_time'],
+        'end_time' => $row['end_time']
+    ];
+}
+
+$currentYear = date('Y');
 
 $stmt = $pdo->prepare("
     SELECT e.*, c.category_name, p.status, v.venue_name 
@@ -35,11 +47,9 @@ $stmt = $pdo->prepare("
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
 
-// Execute the prepared statement securely
 $stmt->execute([':current_year' => $currentYear]);
 $events = $stmt->fetchAll();
 
-// --- Separate Pending, Holidays, and Regular Scheduled Events ---
 $pendingEvents = [];
 $holidayEvents = [];
 $scheduledEvents = [];
@@ -53,9 +63,8 @@ foreach ($events as $event) {
         $scheduledEvents[] = $event;
     }
 }
-// ------------------------------------------------------------------------
 
-// UPDATED: Added Tailwind 'dark:' variants to the PHP strings so the colors adapt beautifully to dark mode
+// Light/Dark mode adapted category colors
 function getCategoryColor($categoryName)
 {
     $name = strtolower($categoryName);
@@ -87,7 +96,7 @@ function getCategoryColor($categoryName)
     <title>SJSFI - Calendar of Events</title>
     
     <script>
- if (localStorage.getItem('color-theme') === 'dark') {
+        if (localStorage.getItem('color-theme') === 'dark') {
             document.documentElement.classList.add('dark');
         } else {
             document.documentElement.classList.remove('dark');
@@ -104,7 +113,7 @@ function getCategoryColor($categoryName)
 
     <script>
         tailwind.config = {
-            darkMode: 'class', // Enables dark mode toggling via class
+            darkMode: 'class', 
             theme: {
                 extend: {
                     fontFamily: {
@@ -129,10 +138,7 @@ function getCategoryColor($categoryName)
             color: #1e293b;
             transition: background-color 0.3s ease, color 0.3s ease;
         }
-
-        .dark body {
-            color: #f1f5f9;
-        }
+        .dark body { color: #f1f5f9; }
 
         .nav-item {
             color: #64748b;
@@ -143,13 +149,10 @@ function getCategoryColor($categoryName)
             background-color: #f1f5f9;
         }
         
-        /* Dark Mode Nav Items */
-        .dark .nav-item {
-            color: #94a3b8;
-        }
+        .dark .nav-item { color: #94a3b8; }
         .dark .nav-item:hover {
-            color: #10b981; /* Emerald */
-            background-color: rgba(30, 41, 59, 0.5); /* Slate 800 */
+            color: #10b981; 
+            background-color: rgba(30, 41, 59, 0.5); 
         }
 
         .nav-item.active {
@@ -162,11 +165,18 @@ function getCategoryColor($categoryName)
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
         }
 
-        /* Abstracted the styles into Tailwind classes where possible, kept base transitions here */
-        .bento-card, .sidebar-panel {
+        .bento-card {
             transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+            background: #ffffff;
+            border: 1px solid #e2e8f0; 
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
         }
-
+        .dark .bento-card {
+            background: #111827;
+            border-color: #1e293b;
+        }
+        
         .event-bento {
             display: flex;
             flex-direction: column;
@@ -183,135 +193,31 @@ function getCategoryColor($categoryName)
             border-color: #475569; 
         }
 
-        .input-premium {
-            transition: all 0.25s ease;
-        }
-        .input-premium:focus {
-            border-color: #004731;
-            box-shadow: 0 0 0 3px rgba(0, 71, 49, 0.05);
-            outline: none;
-        }
-        .dark .input-premium:focus {
-            border-color: #10b981;
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-        }
+        .dark ::-webkit-scrollbar-thumb { background-color: #334155; }
+        .dark ::-webkit-scrollbar-track { background-color: #0f172a; }
         
-        /* Custom scrollbar for dark mode */
-        .dark ::-webkit-scrollbar-thumb {
-            background-color: #334155;
-        }
-        .dark ::-webkit-scrollbar-track {
-            background-color: #0f172a;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.05); border-radius: 4px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); border-radius: 4px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.3); }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
     </style>
 </head>
 
-<body class="h-screen flex overflow-hidden bg-[#f8faf9] dark:bg-[#030712] transition-colors duration-300">
+<body x-data="{ sidebarOpen: false }" class="h-screen flex overflow-hidden bg-[#f8faf9] dark:bg-[#030712] transition-colors duration-300">
 
-    <aside class="w-72 sidebar-panel flex flex-col flex-shrink-0 z-20 bg-white dark:bg-[#0b1120] border-r border-slate-200 dark:border-slate-800">
-        
-        <div class="p-8 text-center border-b border-slate-100 dark:border-slate-800/50">
-            <div class="w-16 h-16 mx-auto bg-white dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100 dark:border-slate-700">
-                <img src="assets/img/sjsfi_schoologo.png" alt="SJSFI Logo" 
-                     class="w-full h-full object-contain rounded-full" 
-                     onerror="this.outerHTML='<i class=\'fa-solid fa-graduation-cap text-sjsfi-green dark:text-emerald-500 text-3xl\'></i>'">
-            </div>
-            <h2 class="text-sm font-extrabold text-sjsfi-green dark:text-emerald-400 leading-tight mb-1">
-                Saint Joseph School<br>Foundation Inc.
-            </h2>
-            <h3 class="text-xs font-bold font-chinese text-slate-400 dark:text-slate-500 tracking-widest">
-                三寶颜忠義中學
-            </h3>
-        </div>
+    <?php include 'includes/sidebar.php'; ?>
 
-        <div class="flex-1 overflow-y-auto">
-            <div class="p-6 border-b border-slate-100 dark:border-slate-800/50">
-                <h3 class="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 font-bold mb-4">Traversal</h3>
-                <div class="space-y-2">
+    <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 md:p-8 lg:p-10 relative custom-scrollbar">
 
-                    <a href="index.php" class="nav-item active w-full py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm">
-                        <i class="fa-solid fa-table-cells-large w-5 text-center"></i>
-                        <span>Dashboard Hub</span>
-                    </a>
-
-                    <a href="calendar.php" class="nav-item w-full py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm">
-                        <i class="fa-regular fa-calendar-days w-5 text-center text-slate-400 dark:text-slate-500"></i>
-                        <span>View Calendar</span>
-                    </a>
-
-                    <?php if ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler'): ?>
-                        <a href="request_status.php" class="nav-item w-full py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm">
-                            <i class="fa-solid fa-clipboard-list w-5 text-center text-slate-400 dark:text-slate-500"></i>
-                            <span>Event Status</span>
-                        </a>
-                    <?php endif; ?>
-
-                    <?php if ($_SESSION['role_name'] === 'Admin'): ?>
-                        <a href="admin/admin_manage.php" class="nav-item w-full py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm">
-                            <i class="fa-solid fa-screwdriver-wrench w-5 text-center text-slate-400 dark:text-slate-500"></i>
-                            <span>Admin Panel</span>
-                        </a>
-                    <?php endif; ?>
-
-                    <?php if ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin'): ?>
-                        <button onclick="openPdfModal()" class="w-full mt-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-sm">
-                            <i class="fa-solid fa-print text-slate-400 dark:text-slate-500"></i> Print Schedule
-                        </button>
-                    <?php endif; ?>
-
-                </div>
-            </div>
-
-            <div class="p-6">
-                <h3 class="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 font-bold mb-4">Quick Actions</h3>
-                <div class="space-y-3">
-                    <?php if (isset($_SESSION['role_name']) && $_SESSION['role_name'] !== 'Viewer'): ?>
-                        <a href="add_event.php" class="bg-sjsfi-yellow hover:bg-yellow-400 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sjsfi-green dark:text-white w-full font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-sm shadow-sm transition-colors">
-                            <i class="fa-solid fa-plus"></i> Add New Event
-                        </a>
-                    <?php endif; ?>
-
-                    <a href="functions/sync_holidays.php" class="w-full bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-sm text-sm">
-                        <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <div class="p-5 mt-auto border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-[#0b1120] flex flex-col gap-4">
-            
-            <button id="theme-toggle" class="flex items-center justify-between w-full p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors shadow-sm">
-                <div class="flex items-center gap-2">
-                    <i id="theme-toggle-icon" class="fa-solid fa-moon text-slate-400 dark:text-yellow-400"></i>
-                    <span class="text-xs font-bold text-slate-600 dark:text-slate-300" id="theme-toggle-text">Dark Mode</span>
-                </div>
-                <div class="relative w-10 h-5 rounded-full bg-slate-200 dark:bg-emerald-500 transition-colors border border-slate-300 dark:border-transparent">
-                    <div id="theme-toggle-knob" class="absolute left-1 top-1 bg-white dark:bg-white w-3 h-3 rounded-full transition-transform transform dark:translate-x-5 shadow-sm"></div>
-                </div>
+        <div class="lg:hidden flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800 w-full">
+            <h2 class="text-lg font-bold text-slate-800 dark:text-white">Menu</h2>
+            <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shadow-sm hover:text-sjsfi-green dark:hover:text-emerald-400 transition-colors">
+                <i class="fa-solid fa-bars"></i>
             </button>
-
-            <div class="flex items-center gap-3 px-2">
-                <div class="w-10 h-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center text-sjsfi-green dark:text-emerald-400 shrink-0 shadow-sm">
-                    <i class="fa-solid fa-user"></i>
-                </div>
-                <div class="overflow-hidden">
-                    <p class="text-sm font-extrabold text-slate-800 dark:text-slate-100 leading-tight truncate">
-                        <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Guest'); ?>
-                    </p>
-                    <p class="text-[11px] font-bold uppercase tracking-wider text-sjsfi-green dark:text-emerald-500 truncate mt-0.5">
-                        <?php echo htmlspecialchars($_SESSION['role_name'] ?? ''); ?>
-                    </p>
-                </div>
-            </div>
-
-            <a href="logout.php" class="flex items-center justify-center gap-2 w-full py-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition font-bold text-sm border border-transparent hover:border-red-100 dark:hover:border-red-500/30">
-                <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                <span>Secure Logout</span>
-            </a>
         </div>
-    </aside>
-
-    <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 md:p-8 lg:p-10 relative">
 
         <?php if (isset($_GET['sync_msg'])): ?>
             <?php
@@ -327,16 +233,15 @@ function getCategoryColor($categoryName)
 
         <div class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
             
-            <div class="md:col-span-12 lg:col-span-6 bento-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-8 relative flex flex-col justify-between shadow-sm">
+            <div class="md:col-span-12 lg:col-span-6 bento-card p-8 relative flex flex-col justify-between">
                 <div class="absolute -right-10 -top-10 w-48 h-48 bg-sjsfi-green/5 dark:bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
                 
                 <div class="relative z-10">
-                    <h1 class="text-3xl font-extrabold tracking-tight text-sjsfi-green dark:text-slate-100 mb-1">Calendar Hub</h1>
+                    <h1 class="text-3xl font-extrabold tracking-tight text-sjsfi-green dark:text-slate-100 mb-1">Calendar of Events</h1>
                     <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Today is <?php echo date('l, F j, Y'); ?></p>
                 </div>
 
                 <div class="mt-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-                    
                     <div class="flex flex-wrap items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 w-full sm:w-max shadow-inner">
                         <button data-view="all" class="view-toggle bg-sjsfi-green dark:bg-emerald-600 text-white shadow-md font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex-1 sm:flex-none">All Events</button>
                         <button data-view="pending" class="view-toggle text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex-1 sm:flex-none">Pending</button>
@@ -352,7 +257,7 @@ function getCategoryColor($categoryName)
                 </div>
             </div>
 
-            <div class="md:col-span-6 lg:col-span-3 bento-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-center items-center text-center shadow-sm">
+            <div class="md:col-span-6 lg:col-span-3 bento-card p-6 flex flex-col justify-center items-center text-center">
                 <div class="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 flex items-center justify-center mb-4 border border-amber-100 dark:border-amber-500/20">
                     <i class="fa-solid fa-hourglass-half text-lg"></i>
                 </div>
@@ -360,7 +265,7 @@ function getCategoryColor($categoryName)
                 <p class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Pending</p>
             </div>
 
-            <div class="md:col-span-6 lg:col-span-3 bento-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-center items-center text-center shadow-sm">
+            <div class="md:col-span-6 lg:col-span-3 bento-card p-6 flex flex-col justify-center items-center text-center">
                 <div class="w-12 h-12 rounded-full bg-sjsfi-light dark:bg-emerald-500/10 text-sjsfi-green dark:text-emerald-400 flex items-center justify-center mb-4 border border-slate-100 dark:border-emerald-500/20">
                     <i class="fa-solid fa-calendar-check text-lg"></i>
                 </div>
@@ -369,7 +274,7 @@ function getCategoryColor($categoryName)
             </div>
         </div>
 
-        <div class="bento-card bg-white dark:bg-[#111827] p-2 pl-4 mb-8 flex flex-col sm:flex-row items-center gap-2 relative z-10 shadow-sm border border-slate-200 dark:border-slate-800">
+        <div class="bento-card p-2 pl-4 mb-8 flex flex-col sm:flex-row items-center gap-2 relative z-10">
             <div class="relative w-full flex-1 group">
                 <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none">
                     <i class="fa-solid fa-search text-slate-400 group-focus-within:text-sjsfi-green dark:group-focus-within:text-emerald-500 transition-colors"></i>
@@ -406,12 +311,15 @@ function getCategoryColor($categoryName)
                     <?php
                     $color = getCategoryColor($event['category_name']);
                     $formattedDate = date('M j, Y', strtotime($event['start_date']));
-                    $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
-                    $formattedEndDate = date('M j, Y', strtotime($event['end_date']));
-                    $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
+$formattedTime = ($event['start_time'] == '00:00:00' || $event['start_time'] == '23:59:59') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
+$formattedEndDate = date('M j, Y', strtotime($event['end_date']));
+$formattedEndTime = ($event['end_time'] == '00:00:00' || $event['end_time'] == '23:59:59') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
+                    
+                    $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
+                    $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
                     ?>
                     
-                    <div class="bento-card event-bento event-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 cursor-pointer group p-6 shadow-sm"
+                    <div class="bento-card event-bento event-card cursor-pointer group p-6"
                          data-status="pending" 
                          data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                          data-title="<?php echo htmlspecialchars($event['title']); ?>"
@@ -419,6 +327,7 @@ function getCategoryColor($categoryName)
                          data-date="<?php echo date('F j, Y', strtotime($event['start_date'])); ?>" data-time="<?php echo $formattedTime; ?>"
                          data-end-date="<?php echo date('F j, Y', strtotime($event['end_date'])); ?>" data-end-time="<?php echo $formattedEndTime; ?>"
                          data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
+                         data-participants="<?php echo $jsParticipants; ?>"
                          onclick="openModal(this)">
                         
                         <div>
@@ -471,9 +380,12 @@ function getCategoryColor($categoryName)
                     $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
                     $formattedEndDate = date('M j, Y', strtotime($event['end_date']));
                     $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
+                    
+                    $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
+                    $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
                     ?>
                     
-                    <div class="bento-card event-bento event-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 cursor-pointer group p-6 shadow-sm"
+                    <div class="bento-card event-bento event-card cursor-pointer group p-6"
                          data-status="holiday"
                          data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                          data-title="<?php echo htmlspecialchars($event['title']); ?>"
@@ -481,6 +393,7 @@ function getCategoryColor($categoryName)
                          data-date="<?php echo date('F j, Y', strtotime($event['start_date'])); ?>" data-time="<?php echo $formattedTime; ?>"
                          data-end-date="<?php echo date('F j, Y', strtotime($event['end_date'])); ?>" data-end-time="<?php echo $formattedEndTime; ?>"
                          data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
+                         data-participants="<?php echo $jsParticipants; ?>"
                          onclick="openModal(this)">
                         
                         <div>
@@ -520,9 +433,12 @@ function getCategoryColor($categoryName)
                     $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
                     $formattedEndDate = date('M j, Y', strtotime($event['end_date']));
                     $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
+                    
+                    $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
+                    $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
                     ?>
                     
-                    <div class="bento-card event-bento event-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 cursor-pointer group p-6 shadow-sm"
+                    <div class="bento-card event-bento event-card cursor-pointer group p-6"
                          data-status="scheduled"
                          data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                          data-title="<?php echo htmlspecialchars($event['title']); ?>"
@@ -530,6 +446,7 @@ function getCategoryColor($categoryName)
                          data-date="<?php echo date('F j, Y', strtotime($event['start_date'])); ?>" data-time="<?php echo $formattedTime; ?>"
                          data-end-date="<?php echo date('F j, Y', strtotime($event['end_date'])); ?>" data-end-time="<?php echo $formattedEndTime; ?>"
                          data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
+                         data-participants="<?php echo $jsParticipants; ?>"
                          onclick="openModal(this)">
                         
                         <div>
@@ -581,7 +498,7 @@ function getCategoryColor($categoryName)
                 </button>
             </div>
 
-            <div class="p-6 space-y-6">
+            <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
                 <div class="bg-white dark:bg-[#111827] p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
                     <div class="flex items-center gap-3 text-slate-700 dark:text-slate-300 font-semibold text-sm">
                         <span class="w-10 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Start</span>
@@ -621,6 +538,13 @@ function getCategoryColor($categoryName)
                             <i class="fa-solid fa-location-dot text-slate-400"></i>
                             <span id="modalVenue" class="truncate">Not specified</span>
                         </p>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Participants</h3>
+                    <div id="modalParticipants" class="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 min-h-[60px] flex flex-col gap-3">
+                        <span class="text-slate-400 dark:text-slate-500 italic text-sm">Loading participants...</span>
                     </div>
                 </div>
 
@@ -668,7 +592,7 @@ function getCategoryColor($categoryName)
 </body>
 
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<script src="assets/js/filter.js"></script>
+<script src="assets/js/event_modal.js"></script>
 <script src="assets/js/pdf_modal.js"></script>
 
 <script>
@@ -690,24 +614,17 @@ function getCategoryColor($categoryName)
         }
     }
 
-    // Set initial toggle state on page load
     updateToggleUI();
 
     themeToggleBtn.addEventListener('click', function() {
-        // Toggle the 'dark' class on HTML
         document.documentElement.classList.toggle('dark');
-        
-        // Save to local storage
         if (document.documentElement.classList.contains('dark')) {
             localStorage.setItem('color-theme', 'dark');
         } else {
             localStorage.setItem('color-theme', 'light');
         }
-        
-        // Update the button icon/text
         updateToggleUI();
     });
-
 
     // --- COMBINED JAVASCRIPT FOR SEARCH AND TABS ---
     const dashSearchBar = document.getElementById('search-bar');
@@ -718,25 +635,20 @@ function getCategoryColor($categoryName)
     
     let currentTab = 'all';
 
-    // Handle Tab Clicks
     viewToggles.forEach(toggle => {
         toggle.addEventListener('click', (e) => {
-            // Remove active styling from all
             viewToggles.forEach(t => {
                 t.classList.remove('bg-sjsfi-green', 'dark:bg-emerald-600', 'text-white', 'shadow-md');
                 t.classList.add('text-slate-500', 'dark:text-slate-400', 'hover:bg-slate-200', 'dark:hover:bg-slate-800');
             });
-            // Add active styling to clicked
             e.currentTarget.classList.remove('text-slate-500', 'dark:text-slate-400', 'hover:bg-slate-200', 'dark:hover:bg-slate-800');
             e.currentTarget.classList.add('bg-sjsfi-green', 'dark:bg-emerald-600', 'text-white', 'shadow-md');
             
-            // Update state and filter
             currentTab = e.currentTarget.getAttribute('data-view');
             applyCustomFilters();
         });
     });
 
-    // Centralized Filtering Function
     function applyCustomFilters() {
         const searchTerm = dashSearchBar ? dashSearchBar.value.toLowerCase().trim() : '';
         const activeCategories = Array.from(categoryCheckboxes)
@@ -750,7 +662,7 @@ function getCategoryColor($categoryName)
             const status = card.getAttribute('data-status') || '';
             const desc = (card.getAttribute('data-desc') || '').toLowerCase();
             let date = (card.getAttribute('data-date') || '').toLowerCase();
-            date = date.replace(/\d{4}/g, ''); // strip year
+            date = date.replace(/\d{4}/g, ''); 
             const time = (card.getAttribute('data-time') || '').toLowerCase();
 
             const matchesSearch = title.includes(searchTerm) || category.toLowerCase().includes(searchTerm) || desc.includes(searchTerm) || date.includes(searchTerm) || time.includes(searchTerm);
@@ -765,7 +677,6 @@ function getCategoryColor($categoryName)
             }
         });
 
-        // Toggle Empty State
         if (dashEmptyMessage) {
             if (visibleCount === 0) {
                 dashEmptyMessage.classList.remove('hidden');
