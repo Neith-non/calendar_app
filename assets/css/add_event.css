@@ -1,0 +1,111 @@
+/* ==========================================================================
+   add_event.css - Accessible/Elderly-Friendly Form Styling
+   ========================================================================== */
+
+/* Custom Scrollbar for Dark Mode */
+.dark ::-webkit-scrollbar-thumb {
+    background-color: #475569;
+    border-radius: 8px;
+}
+.dark ::-webkit-scrollbar-track {
+    background-color: #0f172a;
+}
+::-webkit-scrollbar {
+    width: 8px; /* Slightly thicker scrollbar for easier grabbing */
+}
+
+/* Core Layout Transitions */
+body {
+    color: #1e293b;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+.dark body {
+    color: #f1f5f9;
+}
+
+/* Fixed Navigation Items (Sidebar) - Identical to index.php */
+.nav-item {
+    color: #64748b;
+    transition: all 0.2s ease;
+}
+.nav-item i {
+    color: #94a3b8;
+    transition: all 0.2s ease;
+}
+.nav-item:hover { color: #004731; background-color: #f1f5f9; }
+.nav-item:hover i { color: #004731; }
+
+.dark .nav-item { color: #94a3b8; }
+.dark .nav-item i { color: #64748b; }
+.dark .nav-item:hover { color: #10b981; background-color: rgba(30, 41, 59, 0.5); }
+.dark .nav-item:hover i { color: #10b981; }
+
+/* Active States */
+.nav-item.active {
+    background-color: #004731;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 71, 49, 0.15);
+}
+.nav-item.active i { color: #ffffff; }
+
+.dark .nav-item.active {
+    background-color: #10b981;
+    color: #ffffff !important; 
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+.dark .nav-item.active i {
+    color: #ffffff !important; 
+}
+
+
+/* ==========================================================================
+  Accessible "Premium" Inputs (Main content area only)
+  Large text, thick borders, massive touch targets, and high contrast focus
+  ========================================================================== 
+*/
+.input-premium {
+    background-color: #f8fafc;
+    border: 2px solid #cbd5e1; /* Thicker default border */
+    color: #0f172a;
+    font-size: 1.125rem; /* 18px text for elderly users */
+    padding: 1rem 1.25rem; /* Massive touch padding */
+    border-radius: 1rem; /* Rounded corners */
+    transition: all 0.2s ease-in-out;
+}
+
+.input-premium:focus {
+    background-color: #ffffff;
+    border-color: #10b981; /* Bright emerald focus */
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15); /* Very clear focus ring */
+    outline: none;
+}
+
+/* Dark Mode Inputs */
+.dark .input-premium {
+    background-color: rgba(15, 23, 42, 0.8);
+    border-color: #475569;
+    color: #f8fafc;
+}
+
+.dark .input-premium:focus {
+    background-color: #0f172a;
+    border-color: #10b981;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+}
+
+/* Ensure placeholder text is highly readable but distinct */
+.input-premium::placeholder {
+    color: #94a3b8;
+    font-weight: 500;
+}
+.dark .input-premium::placeholder {
+    color: #64748b;
+}
+
+/* Fix dropdown option colors in dark mode */
+.dark .input-premium option {
+    background-color: #0f172a;
+    color: #f8fafc;
+    font-size: 1rem;
+    padding: 10px;
+}

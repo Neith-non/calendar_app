@@ -1,0 +1,92 @@
+/* ==========================================================================
+   calendar.css - Custom Overrides & Transitions
+   ========================================================================== */
+
+/* Custom Scrollbar for Dark Mode */
+.dark ::-webkit-scrollbar-thumb { background-color: #334155; border-radius: 4px; }
+.dark ::-webkit-scrollbar-track { background-color: transparent; }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+
+/* Core Layout Transitions */
+body { transition: background-color 0.3s ease, color 0.3s ease; }
+
+/* Navigation Items */
+.nav-item { color: #64748b; transition: all 0.2s ease; }
+.nav-item i { color: #94a3b8; transition: all 0.2s ease; }
+.nav-item:hover { color: #004731; background-color: #f1f5f9; }
+.nav-item:hover i { color: #004731; }
+
+.dark .nav-item { color: #94a3b8; }
+.dark .nav-item i { color: #64748b; }
+.dark .nav-item:hover { color: #10b981; background-color: rgba(30, 41, 59, 0.5); }
+.dark .nav-item:hover i { color: #10b981; }
+
+.nav-item.active { background-color: #004731; color: #ffffff; box-shadow: 0 4px 12px rgba(0, 71, 49, 0.15); }
+.nav-item.active i { color: #ffffff; }
+.dark .nav-item.active { background-color: #10b981; color: #ffffff !important; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
+.dark .nav-item.active i { color: #ffffff !important; }
+
+/* Bento Cards Transition */
+.bento-card, .sidebar-panel { transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; }
+
+/* ==========================================================================
+   Presentation Mode Overrides - ENHANCED TV MODE
+   ========================================================================== */
+
+/* 1. Hide Sidebar and Filter Bar completely */
+body.presentation-mode aside,
+body.presentation-mode #filterBar {
+    display: none !important;
+}
+
+/* 2. Remove all Add Event "+" buttons */
+body.presentation-mode .action-btn {
+    display: none !important;
+}
+
+/* 3. Custom Presenter Cursor (Yellow Highlighter Dot) */
+body.presentation-mode,
+body.presentation-mode * {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="%23facc15" fill-opacity="0.5" stroke="%23eab308" stroke-width="2"/></svg>') 16 16, auto !important;
+}
+
+/* Give clickable events a distinct GREEN highlighter dot to signify they can be opened */
+body.presentation-mode a, 
+body.presentation-mode button, 
+body.presentation-mode .calendar-event-item {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="%2310b981" fill-opacity="0.5" stroke="%23059669" stroke-width="2"/></svg>') 16 16, pointer !important;
+}
+
+/* 4. Subtle Hover Lift (No Dimming) */
+body.presentation-mode .grid.grid-cols-7.flex-1 > div:hover:not(.pointer-events-none) {
+    transform: scale(1.02);
+    z-index: 50;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+    background-color: #ffffff; 
+}
+.dark body.presentation-mode .grid.grid-cols-7.flex-1 > div:hover:not(.pointer-events-none) {
+    background-color: #1e293b; 
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* 5. Auto-Scaling TV Typography */
+body.presentation-mode .calendar-day {
+    min-height: 180px; 
+    padding: 1.25rem !important; 
+}
+
+body.presentation-mode .text-xs.font-extrabold {
+    font-size: 1.1rem !important; 
+}
+
+body.presentation-mode .calendar-event-item {
+    font-size: 1rem !important; 
+    padding: 0.6rem 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+    border-left-width: 5px !important; 
+}
+
+/* Keep the Exit button clickable with standard cursor logic */
+body.presentation-mode #presentationToggle {
+    pointer-events: auto !important;
+}

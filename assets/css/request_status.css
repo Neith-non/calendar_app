@@ -1,0 +1,49 @@
+/* Custom Scrollbar for Dark Mode */
+.dark ::-webkit-scrollbar-thumb { background-color: #334155; border-radius: 4px; }
+.dark ::-webkit-scrollbar-track { background-color: #0f172a; }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+
+/* Core Layout Transitions */
+body { transition: background-color 0.3s ease, color 0.3s ease; color: #1e293b; }
+.dark body { color: #f1f5f9; }
+
+/* Fixed Navigation Items (Sidebar) */
+.nav-item {
+    color: #64748b;
+    transition: all 0.2s ease;
+}
+.nav-item i {
+    color: #94a3b8;
+    transition: all 0.2s ease;
+}
+.nav-item:hover { color: #004731; background-color: #f1f5f9; }
+.nav-item:hover i { color: #004731; }
+
+.dark .nav-item { color: #94a3b8; }
+.dark .nav-item i { color: #64748b; }
+.dark .nav-item:hover { color: #10b981; background-color: rgba(30, 41, 59, 0.5); }
+.dark .nav-item:hover i { color: #10b981; }
+
+/* Active States */
+.nav-item.active {
+    background-color: #004731;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 71, 49, 0.15);
+}
+.nav-item.active i { color: #ffffff; }
+
+.dark .nav-item.active {
+    background-color: #10b981;
+    color: #ffffff !important; /* FIX: Keeps text white in dark mode */
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+.dark .nav-item.active i {
+    color: #ffffff !important; /* FIX: Keeps icon white in dark mode */
+}
+
+/* Bento Cards General Transition */
+.bento-card, .sidebar-panel { transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease; }
+
+/* Event Status Card Specific Hover */
+.status-card:hover { transform: translateY(-4px); box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.08); border-color: #cbd5e1; }
+.dark .status-card:hover { box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.5); border-color: #475569; }
