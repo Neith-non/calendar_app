@@ -402,7 +402,7 @@ $requests = $stmt->fetchAll();
 
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script src="assets/js/event_modal.js"></script>
-
+<script src="assets/js/pdf_modal.js"></script>
 <script>
     // Theme toggle initialization
     const themeToggleBtn = document.getElementById('theme-toggle');

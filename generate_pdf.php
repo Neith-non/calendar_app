@@ -8,17 +8,27 @@ require_once 'functions/database.php';
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-// 1. Get the array of months selected from the modal
+// 1. Get the arrays of selected data from the modal
 $selectedMonths = $_GET['months'] ?? [];
+$selectedCategories = $_GET['categories'] ?? [];
 $year = isset($_GET['year']) ? (int) $_GET['year'] : date('Y');
 
-// Safety Check
+// Safety Checks
 if (empty($selectedMonths)) {
     die("<h2 style='font-family:sans-serif; color:red;'>Error: Please select at least one month.</h2> <a href='javascript:history.back()'>Go Back</a>");
 }
+if (empty($selectedCategories)) {
+    die("<h2 style='font-family:sans-serif; color:red;'>Error: Please select at least one category to print.</h2> <a href='javascript:history.back()'>Go Back</a>");
+}
 
+// Sanitize inputs
 $selectedMonths = array_map('intval', $selectedMonths);
 sort($selectedMonths);
+
+$selectedCategories = array_map('intval', $selectedCategories);
+
+// Create the dynamic "?, ?, ?" placeholders based on how many categories were checked
+$catPlaceholders = implode(',', array_fill(0, count($selectedCategories), '?'));
 
 // 2. Load the Header Image securely using Base64 encoding
 $imagePath = 'assets/img/sjsf_header.png';
@@ -38,35 +48,19 @@ $html = '
     <title>School Schedule - ' . $year . '</title>
     <style>
         body { font-family: "Cambria", Georgia, serif; color: #000; font-size: 14px; }
-        
-        /* Header Image Styles */
         .header { text-align: center; margin-bottom: 10px; }
         .header img { max-width: 100%; max-height: 140px; height: auto; margin-bottom: 5px; }
         .header h1 { margin: 0; color: #000; font-size: 18px; text-transform: uppercase; }
-        
-        /* First Page Yearly Title */
         .yearly-title { text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; }
-        
-        /* Month Title */
         .month-title { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
-        
         .page-break { page-break-after: always; }
-        
-        /* Formal Bordered Table Styles */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #000; padding: 10px; vertical-align: middle; }
-        
-        /* Table Headers (Beige) */
         th { background-color: #F5F5DC; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 13px; color: #000; }
-        
-        /* Column Sizing and Alignment */
         .date-col { width: 12%; text-align: center; font-size: 18px; font-weight: bold; }
         .activity-col { width: 88%; text-align: left; padding-left: 15px; }
-        
-        /* Event Text Formatting */
         .ev-title { font-weight: bold; font-size: 14px; margin-bottom: 3px; }
         .ev-desc { font-size: 13px; line-height: 1.4; }
-        
         .no-events { text-align: center; padding: 40px; font-style: italic; border: 1px solid #000; }
     </style>
 </head>
@@ -74,24 +68,28 @@ $html = '
 
 $totalMonths = count($selectedMonths);
 $currentIndex = 0;
-$exludedCategories = "Personal";
-$stmt = $pdo->prepare("
+
+// THE EXACT STRICT QUERY: We use the dynamic $catPlaceholders to lock the query to ONLY the checked categories
+$sql = "
     SELECT e.*, c.category_name, p.status 
-        FROM events e
-        JOIN event_categories c ON e.category_id = c.category_id
-        LEFT JOIN event_publish p ON e.publish_id = p.id
-        WHERE MONTH(e.start_date) = :month
-        AND YEAR(e.start_date) = :year 
-        AND c.category_name != :exlude
-        AND (p.status = 'Approved' OR e.publish_id IS NULL)
-        ORDER BY e.start_date ASC, e.start_time ASC;
-");
+    FROM events e
+    JOIN event_categories c ON e.category_id = c.category_id
+    LEFT JOIN event_publish p ON e.publish_id = p.id
+    WHERE MONTH(e.start_date) = ?
+    AND YEAR(e.start_date) = ? 
+    AND e.category_id IN ($catPlaceholders)
+    AND (p.status = 'Approved' OR e.publish_id IS NULL)
+    ORDER BY e.start_date ASC, e.start_time ASC
+";
+$stmt = $pdo->prepare($sql);
 
 // 4. Loop through each selected month and build its page
 foreach ($selectedMonths as $month) {
     $monthName = date('F', mktime(0, 0, 0, $month, 10));
 
-    $stmt->execute([':month' => $month, ':year' => $year, ':exlude' => $exludedCategories]);
+    // Combine the current month, year, and the checked category IDs into a single array for the query
+    $params = array_merge([$month, $year], $selectedCategories);
+    $stmt->execute($params);
     $events = $stmt->fetchAll();
 
     // Document Header & Logo 
@@ -141,7 +139,7 @@ foreach ($selectedMonths as $month) {
         }
         $html .= '</tbody></table>';
     } else {
-        $html .= '<div class="no-events">No events scheduled for ' . $monthName . '.</div>';
+        $html .= '<div class="no-events">No events scheduled matching your criteria for ' . $monthName . '.</div>';
     }
 
     // Add a page break if this is NOT the last month in the loop
@@ -161,7 +159,7 @@ $options->set('isRemoteEnabled', true);
 $dompdf = new Dompdf($options);
 $dompdf->loadHtml($html);
 
-// CHANGED: Paper size is now 'letter' instead of 'A4'
+// Paper size set to letter
 $dompdf->setPaper('letter', 'portrait');
 
 $dompdf->render();

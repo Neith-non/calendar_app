@@ -830,4 +830,5 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         eventForm.submit(); 
     }
 </script>
+<script src="assets/js/pdf_modal.js"></script>
 </html>
