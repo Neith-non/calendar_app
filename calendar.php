@@ -11,6 +11,9 @@ if (!isset($_SESSION['user_id'])) {
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php';
 
+// Check if we are currently traversing while in presentation mode
+$isPresenting = isset($_GET['present']) && $_GET['present'] == 'true';
+
 // 1. Get the requested Month and Year (Default to current month)
 $month = isset($_GET['month']) ? str_pad($_GET['month'], 2, '0', STR_PAD_LEFT) : date('m');
 $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
@@ -26,7 +29,7 @@ $prevYear = date('Y', strtotime("-1 month", strtotime($dateString)));
 $nextMonth = date('m', strtotime("+1 month", strtotime($dateString)));
 $nextYear = date('Y', strtotime("+1 month", strtotime($dateString)));
 
-// 3. Fetch Events (UNCHANGED BACKEND)
+// 3. Fetch Events
 $stmt = $pdo->prepare("
     SELECT 
         e.*, 
@@ -46,7 +49,7 @@ $rawEvents = $stmt->fetchAll();
 $stmtCats = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
 $categories = $stmtCats->fetchAll();
 
-// Fetch Participants (UNCHANGED BACKEND)
+// Fetch Participants
 $part_stmt = $pdo->query("
     SELECT ps.event_publish_id AS publish_id, p.name, d.name AS department, ps.start_time, ps.end_time
     FROM participant_schedule ps
@@ -69,13 +72,11 @@ $calendarWeeks = [];
 $currentWeek = 0;
 $dayCounter = 0;
 
-// Pad start of month
 for ($i = 0; $i < $firstDayOfWeek; $i++) {
     $calendarWeeks[$currentWeek]['days'][$i] = ['type' => 'blank'];
     $dayCounter++;
 }
 
-// Generate active days
 for ($day = 1; $day <= $daysInMonth; $day++) {
     $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
     $calendarWeeks[$currentWeek]['days'][$dayCounter % 7] = [
@@ -90,19 +91,16 @@ for ($day = 1; $day <= $daysInMonth; $day++) {
     }
 }
 
-// Pad end of month
 while ($dayCounter % 7 != 0) {
     $calendarWeeks[$currentWeek]['days'][$dayCounter % 7] = ['type' => 'blank'];
     $dayCounter++;
 }
 
-// Prepare weeks for events
 foreach ($calendarWeeks as &$weekData) {
     $weekData['events'] = [];
 }
 unset($weekData);
 
-// Sort longest events first so multi-day spans float to the top of the cell
 usort($rawEvents, function($a, $b) {
     $aStart = strtotime($a['start_date']);
     $aEnd = (!empty($a['end_date']) && $a['end_date'] !== '0000-00-00') ? strtotime($a['end_date']) : $aStart;
@@ -117,12 +115,11 @@ usort($rawEvents, function($a, $b) {
     return strtotime($a['start_time']) <=> strtotime($b['start_time']);
 });
 
-// Map events into specific weeks with grid coordinate logic
 foreach ($rawEvents as $evt) {
     $startDt = new DateTime($evt['start_date']);
     $endStr = (!empty($evt['end_date']) && $evt['end_date'] !== '0000-00-00') ? $evt['end_date'] : $evt['start_date'];
     $endDt = new DateTime($endStr);
-    if ($endDt < $startDt) $endDt = clone $startDt; // Failsafe
+    if ($endDt < $startDt) $endDt = clone $startDt;
 
     foreach ($calendarWeeks as &$weekData) {
         $colStart = -1;
@@ -132,7 +129,7 @@ foreach ($rawEvents as $evt) {
             if ($dayData['type'] === 'day') {
                 $currentDayDt = new DateTime($dayData['date']);
                 if ($currentDayDt >= $startDt && $currentDayDt <= $endDt) {
-                    if ($colStart === -1) $colStart = $colIdx + 1; // Grid cols are 1-indexed
+                    if ($colStart === -1) $colStart = $colIdx + 1; 
                     $colEnd = $colIdx + 1;
                 }
             }
@@ -144,7 +141,6 @@ foreach ($rawEvents as $evt) {
             $evtCopy['col_start'] = $colStart;
             $evtCopy['col_span'] = $span;
             
-            // Logic for rounding CSS corners if event gets cut off by a new week
             $evtCopy['is_start_of_event'] = ($startDt->format('Y-m-d') === $weekData['days'][$colStart-1]['date']);
             $endMatch = false;
             if ($weekData['days'][$colEnd-1]['type'] === 'day') {
@@ -157,9 +153,7 @@ foreach ($rawEvents as $evt) {
     }
     unset($weekData);
 }
-// --- END VISUAL PROCESSOR ---
 
-// --- UPGRADED COLOR HELPER WITH GRADIENTS & ACCENT BORDERS ---
 function getCategoryColor($categoryName)
 {
     $name = strtolower($categoryName);
@@ -198,9 +192,7 @@ function getCategoryColor($categoryName)
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="assets/css/styles.css">
@@ -212,7 +204,6 @@ function getCategoryColor($categoryName)
                 extend: {
                     fontFamily: {
                         sans: ['Plus Jakarta Sans', 'sans-serif'],
-                        chinese: ['Noto Sans TC', 'sans-serif'],
                     },
                     colors: {
                         sjsfi: {
@@ -250,20 +241,17 @@ function getCategoryColor($categoryName)
         .dark .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 4px; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.3); }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(16, 185, 129, 0.4); }
 
         /* --- IMMERSIVE PRESENTATION MODE CSS --- */
         body.presentation-mode { background-color: #ffffff !important; }
         .dark body.presentation-mode { background-color: #000000 !important; }
         body.presentation-mode main { padding: 0 !important; }
         
-        /* Hides Sidebar, Search, Filters, and "Pending" events */
         body.presentation-mode .hide-in-presentation, 
         body.presentation-mode aside { 
             display: none !important; 
         }
         
-        /* Forces the Month Header to stretch beautifully across the top */
         body.presentation-mode .presentation-header {
             padding: 1.5rem 2.5rem; margin-bottom: 0; border-bottom: 1px solid #d1f0e0;
             background-color: #ffffff; width: 100%;
@@ -274,7 +262,7 @@ function getCategoryColor($categoryName)
             border: none !important; border-radius: 0 !important; box-shadow: none !important; height: calc(100vh - 80px) !important;
         }
         
-        body.presentation-mode a, 
+        body.presentation-mode a:not(.presentation-nav), 
         body.presentation-mode button:not(#exitPresentationFloat), 
         body.presentation-mode input, 
         body.presentation-mode .calendar-event-item {
@@ -283,11 +271,19 @@ function getCategoryColor($categoryName)
     </style>
 </head>
 
-<body x-data="{ sidebarOpen: false }" class="h-screen flex overflow-hidden bg-[#f4fcf7] dark:bg-[#04120a] transition-colors duration-300">
+<body x-data="{ sidebarOpen: false }" class="h-screen flex overflow-hidden bg-[#f4fcf7] dark:bg-[#04120a] transition-colors duration-300 <?php echo $isPresenting ? 'presentation-mode' : ''; ?>">
 
     <?php include 'includes/sidebar.php'; ?>
 
-    <button id="exitPresentationFloat" onclick="togglePresentationMode()" class="fixed bottom-6 right-6 z-[100] bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-2xl hidden items-center gap-2 hover:bg-red-700 transition transform hover:scale-105">
+    <a href="?month=<?php echo $prevMonth; ?>&year=<?php echo $prevYear; ?>&present=true" id="presentPrevBtn" class="presentation-nav fixed left-6 top-1/2 -translate-y-1/2 z-[100] bg-emerald-900/60 hover:bg-emerald-800/90 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl backdrop-blur-md transition-opacity duration-500 opacity-0 pointer-events-none <?php echo $isPresenting ? '' : 'hidden'; ?>">
+        <i class="fa-solid fa-chevron-left"></i>
+    </a>
+    
+    <a href="?month=<?php echo $nextMonth; ?>&year=<?php echo $nextYear; ?>&present=true" id="presentNextBtn" class="presentation-nav fixed right-6 top-1/2 -translate-y-1/2 z-[100] bg-emerald-900/60 hover:bg-emerald-800/90 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl backdrop-blur-md transition-opacity duration-500 opacity-0 pointer-events-none <?php echo $isPresenting ? '' : 'hidden'; ?>">
+        <i class="fa-solid fa-chevron-right"></i>
+    </a>
+
+    <button id="exitPresentationFloat" onclick="exitPresentationMode()" class="fixed bottom-6 right-6 z-[100] bg-red-600/90 backdrop-blur-md text-white px-6 py-3 rounded-full font-bold shadow-2xl <?php echo $isPresenting ? 'flex' : 'hidden'; ?> items-center gap-2 hover:bg-red-700 transition-all duration-500 transform hover:scale-105">
         <i class="fa-solid fa-compress"></i> Exit Presentation
     </button>
 
@@ -322,7 +318,7 @@ function getCategoryColor($categoryName)
                 <a href="calendar.php" class="bg-white dark:bg-[#0a1a12] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-700 dark:text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-bold border border-[#d1f0e0] dark:border-[#123f29] shadow-sm transition">Today</a>
                 
                 <?php if (isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin'])): ?>
-                    <button onclick="togglePresentationMode()" class="bg-[#ebfbf3] dark:bg-[#103322] hover:bg-[#d1f0e0] dark:hover:bg-[#1a4d33] text-emerald-700 dark:text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-bold border border-[#bbf2d1] dark:border-[#215c3d] shadow-sm transition flex items-center gap-2">
+                    <button onclick="enterPresentationMode()" class="bg-[#ebfbf3] dark:bg-[#103322] hover:bg-[#d1f0e0] dark:hover:bg-[#1a4d33] text-emerald-700 dark:text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-bold border border-[#bbf2d1] dark:border-[#215c3d] shadow-sm transition flex items-center gap-2">
                         <i class="fa-solid fa-desktop"></i> <span>Present</span>
                     </button>
                 <?php endif; ?>
@@ -414,19 +410,14 @@ function getCategoryColor($categoryName)
                                 <?php
                                 $color = getCategoryColor($evt['category_name']);
                                 
-                                // Hide Pending status entirely from the calendar if in presentation mode
                                 $presentationHideClass = ($evt['status'] === 'Pending') ? 'hide-in-presentation' : '';
-                                
-                                // Accent Left Border - Applies to ALL events at their physical start date
                                 $accentBorder = $evt['is_start_of_event'] ? "border-l-[4px] {$color['accent']}" : "border-l border-l-transparent";
-
                                 $opacity = ($evt['status'] === 'Pending') ? 'opacity-90 bg-white dark:bg-[#07160f]' : 'shadow-sm shadow-black/5';
                                 $pendingIcon = ($evt['status'] === 'Pending') ? '<i class="fa-solid fa-hourglass-half text-[9px] mr-1 opacity-70"></i><span class="text-[9px] uppercase tracking-wider opacity-80 font-extrabold mr-1">[PENDING]</span> ' : '';
                                 
                                 $safeTitle = htmlspecialchars($evt['title']);
                                 $shortTitle = strlen($safeTitle) > ($evt['col_span'] * 15) ? substr($safeTitle, 0, ($evt['col_span'] * 15)) . '...' : $safeTitle;
                                 
-                                // Padding and margins calculated perfectly to overlap the 1px grid gap
                                 $rounded = 'rounded-md';
                                 $borderFix = 'border mx-1 px-2.5';
                                 
@@ -437,11 +428,11 @@ function getCategoryColor($categoryName)
                                     } elseif (!$evt['is_start_of_event'] && $evt['is_end_of_event']) {
                                         $rounded = 'rounded-r-md rounded-l-none';
                                         $borderFix = 'border-y border-r -ml-1 mr-1 pl-3'; 
-                                        $accentBorder = "border-l-0"; // Remove left border on tail
+                                        $accentBorder = "border-l-0"; 
                                     } elseif (!$evt['is_start_of_event'] && !$evt['is_end_of_event']) {
                                         $rounded = 'rounded-none';
                                         $borderFix = 'border-y border-x-0 -mx-1 px-3';
-                                        $accentBorder = ""; // Remove left border on middle body
+                                        $accentBorder = ""; 
                                     }
                                 }
 
@@ -457,7 +448,6 @@ function getCategoryColor($categoryName)
                                 
                                 $timeDisplay = ($evt['is_start_of_event'] && $formattedTime !== 'All Day') ? "<span class='opacity-70 font-semibold mr-1.5 text-[10px]'>{$formattedTime}</span>" : "";
                                 
-                                // Compile final classes
                                 $finalClasses = "{$color['bg']} {$color['text']} {$borderFix} {$accentBorder} {$color['border']} {$opacity} {$rounded}";
                                 ?>
                                 
@@ -566,27 +556,157 @@ function getCategoryColor($categoryName)
 <script src="assets/js/pdf_modal.js"></script>
 
 <script>
-    function togglePresentationMode() {
-        document.body.classList.toggle('presentation-mode');
-        const floatBtn = document.getElementById('exitPresentationFloat');
+    // --- IMMERSIVE PRESENTATION & TRAVERSAL LOGIC ---
+    let mouseTimer;
+    const prevBtn = document.getElementById('presentPrevBtn');
+    const nextBtn = document.getElementById('presentNextBtn');
+    const floatBtn = document.getElementById('exitPresentationFloat');
+    let isPresenting = <?php echo $isPresenting ? 'true' : 'false'; ?>;
+
+    function enterPresentationMode() {
+        document.body.classList.add('presentation-mode');
+        floatBtn.classList.remove('hidden');
+        floatBtn.classList.add('flex');
+        prevBtn.classList.remove('hidden');
+        nextBtn.classList.remove('hidden');
+        isPresenting = true;
         
-        if (document.body.classList.contains('presentation-mode')) {
-            floatBtn.classList.remove('hidden');
-            floatBtn.classList.add('flex');
-            
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
-                });
-            }
-        } else {
-            floatBtn.classList.add('hidden');
-            floatBtn.classList.remove('flex');
-            
-            if (document.exitFullscreen && document.fullscreenElement) {
-                document.exitFullscreen();
-            }
+        // Append present=true to URL so traversing keeps you in presentation mode
+        const url = new URL(window.location);
+        url.searchParams.set('present', 'true');
+        window.history.replaceState({}, '', url);
+
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.log(`Error attempting to enable fullscreen: ${err.message}`);
+            });
         }
+        
+        triggerMouseMove();
+    }
+
+    function exitPresentationMode() {
+        document.body.classList.remove('presentation-mode');
+        floatBtn.classList.add('hidden');
+        floatBtn.classList.remove('flex');
+        prevBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+        isPresenting = false;
+
+        const url = new URL(window.location);
+        url.searchParams.delete('present');
+        window.history.replaceState({}, '', url);
+
+        if (document.exitFullscreen && document.fullscreenElement) {
+            document.exitFullscreen();
+        }
+    }
+
+    function togglePresentationMode() {
+        if (document.body.classList.contains('presentation-mode')) {
+            exitPresentationMode();
+        } else {
+            enterPresentationMode();
+        }
+    }
+
+    function triggerMouseMove() {
+        if (!isPresenting) return;
+        
+        // Fade in UI on mouse move
+        prevBtn.classList.remove('opacity-0', 'pointer-events-none');
+        nextBtn.classList.remove('opacity-0', 'pointer-events-none');
+        floatBtn.classList.remove('opacity-0'); 
+        
+        clearTimeout(mouseTimer);
+        
+        // Fade out UI after 2.5 seconds of inactivity
+        mouseTimer = setTimeout(() => {
+            prevBtn.classList.add('opacity-0', 'pointer-events-none');
+            nextBtn.classList.add('opacity-0', 'pointer-events-none');
+            floatBtn.classList.add('opacity-0');
+        }, 1500);
+    }
+
+    // --- NEW: AJAX NAVIGATION TO PREVENT FULL-SCREEN EXIT ---
+    async function navigatePresentation(url) {
+        try {
+            document.body.style.cursor = 'wait'; // Show loading cursor
+            
+            // 1. Fetch the new month's HTML silently
+            const response = await fetch(url);
+            const html = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // 2. Extract and replace the Calendar Grid
+            const currentCalendar = document.querySelector('.calendar-container');
+            const newCalendar = doc.querySelector('.calendar-container');
+            if (currentCalendar && newCalendar) {
+                currentCalendar.innerHTML = newCalendar.innerHTML;
+            }
+
+            // 3. Extract and replace the Month Header Title
+            const currentHeader = document.querySelector('.presentation-header');
+            const newHeader = doc.querySelector('.presentation-header');
+            if (currentHeader && newHeader) {
+                currentHeader.innerHTML = newHeader.innerHTML;
+            }
+
+            // 4. Update the URLs on the invisible side-arrows
+            const newPrev = doc.getElementById('presentPrevBtn');
+            const newNext = doc.getElementById('presentNextBtn');
+            if (prevBtn && newPrev) prevBtn.href = newPrev.href;
+            if (nextBtn && newNext) nextBtn.href = newNext.href;
+
+            // 5. Update the URL in the browser address bar cleanly
+            window.history.pushState({}, '', url);
+
+            // 6. Tell our filter engine to re-scan the new events
+            if (typeof window.reapplyFilters === 'function') {
+                window.reapplyFilters();
+            }
+
+        } catch (error) {
+            console.error('Failed to load new month seamlessly:', error);
+            window.location.href = url; // Fallback to a normal page reload if it fails
+        } finally {
+            document.body.style.cursor = 'default';
+        }
+    }
+
+    // Intercept the arrow clicks so they trigger the AJAX function instead of a reload
+    prevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigatePresentation(prevBtn.href);
+    });
+    
+    nextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigatePresentation(nextBtn.href);
+    });
+
+    // Event Listeners
+    document.addEventListener('mousemove', triggerMouseMove);
+
+    document.addEventListener('keydown', (e) => {
+        if (isPresenting) {
+            if (e.key === 'ArrowLeft') navigatePresentation(prevBtn.href);
+            else if (e.key === 'ArrowRight') navigatePresentation(nextBtn.href);
+            else if (e.key === 'Escape') exitPresentationMode();
+        }
+    });
+    
+    // Sync if the user hits ESC to natively exit the browser's Fullscreen
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement && isPresenting) {
+            exitPresentationMode();
+        }
+    });
+    
+    // Run an initial check if the page loaded natively into Presentation Mode
+    if (isPresenting) {
+        triggerMouseMove();
     }
 </script>
 </html>
