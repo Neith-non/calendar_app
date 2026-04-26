@@ -12,7 +12,6 @@ if (isset($_SESSION['user_id'])) {
     exit;
 }
 
-
 $error = '';
 
 // 3. Process the form when they click "Sign In"
@@ -61,99 +60,164 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Event Calendar</title>
+    <title>SJSFI - Calendar of Events</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Frontend Change: Added Google Font for a more modern typeface -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Frontend Change: Linked our new global stylesheet -->
     <link rel="stylesheet" href="assets/css/styles.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        chinese: ['Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        sjsfi: {
+                            green: '#004731',
+                            greenHover: '#003323',
+                            greenTint: '#e6f2ee',
+                            yellow: '#ffbb00'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        /* Frontend Change: Component-specific styles for the primary login button */
-        .btn-primary-glass {
-            background-color: #ffbb00;
-            /* var(--yellow) */
-            color: #004731;
-            /* var(--dark-green) */
-            font-weight: 700;
-            transition: background-color 0.3s, transform 0.2s;
+        body {
+            background-color: #d1e8df; 
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(0, 71, 49, 0.15) 0px, transparent 60%),
+                radial-gradient(at 100% 100%, rgba(255, 187, 0, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
         }
 
-        .btn-primary-glass:hover {
-            background-color: #ffca2a;
-            /* A slightly lighter yellow for hover */
+        .premium-card {
+            background: linear-gradient(145deg, #ffffff 0%, #f0fdf4 100%);
+            box-shadow: 0 25px 50px -12px rgba(0, 71, 49, 0.15), 0 0 0 1px rgba(0, 71, 49, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .premium-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(to right, #05a170, #03583c, #d49d06);
+        }
+
+        .input-premium {
+            background-color: #ffffff;
+            border: 1px solid #bce3d4; 
+            color: #004731;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .input-premium:focus {
+            background-color: #ffffff;
+            border-color: #004731;
+            box-shadow: 0 0 0 4px rgba(0, 71, 49, 0.15);
+            outline: none;
+            transform: translateY(-1px);
+        }
+
+        .input-premium::placeholder {
+            color: #8dafa1;
+        }
+
+        .btn-premium {
+            background-color: #004731;
+            color: #ffffff;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 71, 49, 0.25);
+        }
+
+        .btn-premium:hover {
+            background-color: #003323;
             transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 71, 49, 0.35);
         }
     </style>
 </head>
-<!-- Frontend Change: Added 'login-body' class for the new background and centered layout -->
 
-<body class="login-body flex items-center justify-center min-h-screen p-4">
+<body class="flex items-center justify-center min-h-screen p-4 text-sjsfi-green">
 
-    <!-- Frontend Change: Main login form container with the glassmorphism effect -->
-    <div class="glass-container p-8 sm:p-10 rounded-2xl shadow-lg max-w-sm w-full">
+    <div class="premium-card p-8 sm:p-12 rounded-[2rem] w-full max-w-md z-10">
 
-        <!-- Frontend Change: Header section of the login form -->
-        <div class="text-center mb-8">
-            <!-- Icon Container -->
-            <div
-                class="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-full mb-4 border border-white/20">
-                <i class="fa-solid fa-calendar-days text-yellow-400 text-2xl"></i>
+        <div class="flex flex-col items-center justify-center mb-8 text-center">
+            
+            <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg mb-4 p-1 border-2 border-green-100 relative group transition-transform duration-300 hover:scale-105">
+                <img src="assets/img/sjsfi_schoologo.png" alt="SJSFI Logo" 
+                     class="w-full h-full object-contain rounded-full relative z-10" 
+                     onerror="this.outerHTML='<i class=\'fa-solid fa-graduation-cap text-sjsfi-green text-4xl relative z-10\'></i>'">
             </div>
-            <!-- Title and Subtitle -->
-            <h2 class="text-3xl font-bold text-white">Welcome Back</h2>
-            <p class="text-slate-300 text-sm mt-2">Sign in to access the event calendar</p>
+            
+            <h2 class="text-xl sm:text-2xl font-extrabold text-sjsfi-green tracking-tight leading-tight mb-1">
+                Saint Joseph School<br>Foundation Incorporated
+            </h2>
+            
+            <h3 class="text-lg sm:text-xl font-bold font-chinese text-sjsfi-green/80 tracking-widest mb-3">
+                三寶颜忠義中學
+</h3>
+            
+            <p class="text-sjsfi-green/70 text-xs font-bold tracking-widest uppercase">Calendar of Events</p>
         </div>
 
-        <!-- Backend Note: This PHP block displays an error message. We only styled the container. -->
         <?php if ($error): ?>
-            <!-- Frontend Change: Styled error message container -->
-            <div
-                class="bg-red-500/20 border border-red-500/50 text-red-300 p-3 rounded-lg mb-6 text-sm font-medium flex items-center gap-3">
-                <i class="fa-solid fa-circle-exclamation"></i>
+            <div class="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl mb-6 text-sm font-semibold flex items-center gap-3">
+                <i class="fa-solid fa-circle-exclamation text-red-500 text-lg"></i>
                 <?php echo $error; ?>
             </div>
         <?php endif; ?>
 
-        <!-- Backend Note: This is the main login form. We only styled the inputs and button. -->
         <form method="POST" action="">
-            <!-- Username Input Container -->
-            <div class="mb-5">
-                <label class="block text-slate-300 text-sm font-semibold mb-2">Username</label>
+            
+            <div class="mb-5 group">
+                <label class="block text-sjsfi-green text-xs font-bold mb-2 uppercase tracking-wide">Username</label>
                 <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fa-solid fa-user text-slate-400"></i>
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-user text-green-700/50 group-focus-within:text-sjsfi-green transition-colors duration-300"></i>
                     </div>
-                    <!-- Frontend Change: Applied the 'form-input-glass' class to the username input -->
                     <input type="text" name="username" required
-                        class="form-input-glass w-full pl-10 pr-3 py-2.5 rounded-lg" placeholder="Enter username">
+                        class="input-premium w-full pl-11 pr-4 py-3.5 rounded-xl text-sm font-medium" 
+                        placeholder="Enter your username">
                 </div>
             </div>
 
-            <!-- Password Input Container -->
-            <div class="mb-6">
-                <label class="block text-slate-300 text-sm font-semibold mb-2">Password</label>
+            <div class="mb-8 group">
+                <label class="block text-sjsfi-green text-xs font-bold mb-2 uppercase tracking-wide">Password</label>
                 <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fa-solid fa-lock text-slate-400"></i>
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-lock text-green-700/50 group-focus-within:text-sjsfi-green transition-colors duration-300"></i>
                     </div>
-                    <!-- Frontend Change: Applied the 'form-input-glass' class to the password input -->
                     <input type="password" name="password" required
-                        class="form-input-glass w-full pl-10 pr-3 py-2.5 rounded-lg" placeholder="Enter password">
+                        class="input-premium w-full pl-11 pr-4 py-3.5 rounded-xl text-sm font-medium" 
+                        placeholder="Enter your password">
                 </div>
             </div>
 
-            <!-- Frontend Change: Applied our custom 'btn-primary-glass' class to the submit button -->
-            <button type="submit"
-                class="btn-primary-glass w-full py-3 px-4 rounded-lg flex justify-center items-center gap-2 shadow-lg">
-                <span>Sign In</span>
+            <button type="submit" class="btn-premium w-full py-4 rounded-xl flex justify-center items-center gap-3 text-sm">
+                <span>Secure Sign In</span>
                 <i class="fa-solid fa-arrow-right-to-bracket"></i>
             </button>
+            
         </form>
+        
+        <div class="mt-8 text-center border-t border-green-200/60 pt-6">
+            <p class="text-sjsfi-green/60 text-xs font-medium tracking-wide">© <?php echo date('Y'); ?> Saint Joseph School Foundation Incorporated</p>
+        </div>
     </div>
 
 </body>
-
 </html>
