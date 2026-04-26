@@ -48,6 +48,11 @@ $path_prefix = $in_admin_folder ? '../' : '';
                     <span>View Calendar</span>
                 </a>
 
+                <a href="<?php echo $path_prefix; ?>present.php" class="nav-item w-full py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm <?php echo ($current_page == 'present.php') ? 'active' : ''; ?>">
+                    <i class="fa-solid fa-desktop w-5 text-center"></i>
+                    <span>Present</span>
+                </a>
+
                 <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler')): ?>
                     <a href="<?php echo $path_prefix; ?>request_status.php" class="nav-item w-full py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm <?php echo ($current_page == 'request_status.php') ? 'active' : ''; ?>">
                         <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
@@ -68,12 +73,6 @@ $path_prefix = $in_admin_folder ? '../' : '';
                     </a>
                 <?php endif; ?>
 
-                <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Head Scheduler' || $_SESSION['role_name'] === 'Admin')): ?>
-                    <button onclick="openPdfModal()" class="w-full mt-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-sm">
-                        <i class="fa-solid fa-print text-slate-400 dark:text-slate-500"></i> Print Schedule
-                    </button>
-                <?php endif; ?>
-
             </div>
         </div>
 
@@ -87,6 +86,10 @@ $path_prefix = $in_admin_folder ? '../' : '';
                     <a href="<?php echo $path_prefix; ?>functions/sync_holidays.php" class="w-full bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-sm text-sm">
                         <i class="fa-solid fa-cloud-arrow-down"></i> Sync Holidays
                     </a>
+                    
+                    <button onclick="openPdfModal()" class="w-full bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-sm">
+                        <i class="fa-solid fa-print text-slate-400 dark:text-slate-500"></i> Print Schedule
+                    </button>
                 </div>
             </div>
         <?php endif; ?>
