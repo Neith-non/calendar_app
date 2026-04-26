@@ -1,0 +1,28 @@
+{
+  "name": "calendar_app",
+  "version": "1.0.0",
+  "description": "SET UP\r Step 1:\r download https://getcomposer.org/Composer-Setup.exe",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Neith-non/calendar_app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Neith-non/calendar_app/issues"
+  },
+  "homepage": "https://github.com/Neith-non/calendar_app#readme",
+  "devDependencies": {
+    "tailwindcss": "^4.2.4"
+  },
+  "dependencies": {
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.10"
+  }
+}

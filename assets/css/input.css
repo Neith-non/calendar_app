@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* 1. Tell Tailwind where your PHP files are (VERY IMPORTANT) */
+@source "../../**/*.php";
+@source "../../includes/**/*.php";
+@source "../../assets/js/**/*.js";
+
+@theme {
+  /* 2. Brand Colors (Match your old config names exactly) */
+  --color-sjsfi-green: #004731;
+  --color-sjsfi-green-hover: #003323;
+  --color-sjsfi-yellow: #ffbb00;
+
+  /* 3. The "Mint" Design Palette */
+  --color-mint-bg: #f4fcf7;
+  --color-mint-card: #d1f0e0;
+  --color-mint-border: #bbf2d1;
+  --color-mint-light: #e0f5ea;
+
+  /* 4. Fonts */
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui;
+  --font-chinese: "Noto Sans TC", sans-serif;
+}
+
+/* 5. Custom styles that Tailwind might miss during the build */
+@layer base {
+  body {
+    @apply bg-mint-bg text-slate-800 transition-colors duration-300;
+  }
+  .dark body {
+    @apply bg-[#04120a] text-slate-100;
+  }
+}
