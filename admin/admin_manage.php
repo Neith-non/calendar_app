@@ -389,7 +389,7 @@ $participants = $pdo->query("
             </div>
         </div>
     </main>
-
+    <script src="../assets/js/theme_toggle.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="../assets/js/pdf_modal.js"></script>
 </body>
