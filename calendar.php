@@ -258,8 +258,10 @@ function getCategoryColor($categoryName)
         }
         .dark body.presentation-mode .presentation-header { border-color: #123f29; background-color: #000000; }
         
+        /* FIX: Changed height to min-height to allow scaling in presentation mode */
         body.presentation-mode .calendar-container {
-            border: none !important; border-radius: 0 !important; box-shadow: none !important; height: calc(100vh - 80px) !important;
+            border: none !important; border-radius: 0 !important; box-shadow: none !important; 
+            min-height: calc(100vh - 80px) !important; height: auto !important;
         }
         
         body.presentation-mode a:not(.presentation-nav), 
@@ -365,7 +367,7 @@ function getCategoryColor($categoryName)
             </div>
         </div>
 
-        <div class="calendar-container bg-white dark:bg-[#07160f] border border-[#d1f0e0] dark:border-[#123f29] rounded-[2rem] shadow-xl flex flex-col flex-1 min-h-[700px] overflow-hidden transition-all z-10 relative">
+        <div class="calendar-container bg-white dark:bg-[#07160f] border border-[#d1f0e0] dark:border-[#123f29] rounded-[2rem] shadow-xl flex flex-col flex-auto shrink-0 h-auto min-h-[700px] overflow-hidden transition-all z-10 relative">
             
             <div class="grid grid-cols-7 border-b border-[#d1f0e0] dark:border-[#123f29] bg-[#f0fcf5] dark:bg-[#0a1a12] shrink-0">
                 <?php
@@ -378,9 +380,9 @@ function getCategoryColor($categoryName)
                 <?php endforeach; ?>
             </div>
 
-            <div class="flex-1 flex flex-col bg-[#d1f0e0] dark:bg-[#123f29] gap-[1px]">
+            <div class="flex-auto flex flex-col bg-[#d1f0e0] dark:bg-[#123f29] gap-[1px]">
                 <?php foreach ($calendarWeeks as $weekIdx => $week): ?>
-                    <div class="relative flex-1 min-h-[130px] flex flex-col bg-white dark:bg-[#07160f]">
+                    <div class="relative flex-auto shrink-0 min-h-[130px] flex flex-col bg-white dark:bg-[#07160f]">
                         
                         <div class="absolute inset-0 grid grid-cols-7 divide-x divide-[#d1f0e0] dark:divide-[#123f29]">
                             <?php foreach ($week['days'] as $colIdx => $day): ?>
@@ -621,7 +623,7 @@ function getCategoryColor($categoryName)
         
         clearTimeout(mouseTimer);
         
-        // Fade out UI after 2.5 seconds of inactivity
+        // Fade out UI after seconds of inactivity
         mouseTimer = setTimeout(() => {
             prevBtn.classList.add('opacity-0', 'pointer-events-none');
             nextBtn.classList.add('opacity-0', 'pointer-events-none');
