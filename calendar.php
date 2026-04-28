@@ -29,7 +29,13 @@ $prevYear = date('Y', strtotime("-1 month", strtotime($dateString)));
 $nextMonth = date('m', strtotime("+1 month", strtotime($dateString)));
 $nextYear = date('Y', strtotime("+1 month", strtotime($dateString)));
 
-// 3. Fetch Events
+// 3. Fetch Events (Smart Query based on User Role)
+// Check if the logged-in user is an Admin or Head Scheduler
+$isAdmin = isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin']);
+
+// If they are a normal viewer, ONLY pull Approved events. If Admin, pull everything.
+$statusFilter = $isAdmin ? "" : "AND (p.status != 'Pending' OR e.publish_id IS NULL)";
+
 $stmt = $pdo->prepare("
     SELECT 
         e.*, 
@@ -41,6 +47,7 @@ $stmt = $pdo->prepare("
     LEFT JOIN event_publish p ON e.publish_id = p.id
     LEFT JOIN venues v ON p.venue_id = v.venue_id 
     WHERE DATE_FORMAT(e.start_date, '%Y-%m') = ?
+    $statusFilter
     ORDER BY e.start_time ASC
 ");
 $stmt->execute(["$year-$month"]);
