@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $end_datetime = $end_date . ' ' . $end_time;
 
     // Validation
+    // Validation
     if (empty($participant_ids)) {
         $message = "Oops! You must select at least one participant group.";
     } elseif (strtotime($end_datetime) <= strtotime($start_datetime)) {
@@ -87,41 +88,91 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
 
-        // Conflict Detection
-        $conflictStmt = $pdo->prepare("
-            SELECT e.title, p.status, p.venue_id, p.id as publish_id
-            FROM events e
-            JOIN event_publish p ON e.publish_id = p.id
-            WHERE p.status IN ('Approved', 'Pending') 
-            AND CONCAT(e.start_date, ' ', e.start_time) < ? 
-            AND CONCAT(e.end_date, ' ', e.end_time) > ?
-        ");
-        $conflictStmt->execute([$end_datetime, $start_datetime]);
-        $overlappingEvents = $conflictStmt->fetchAll();
-
-        $hasConflict = false;
-
-        foreach ($overlappingEvents as $oe) {
-            if (!$is_off_campus && $oe['venue_id'] == $venue_id) {
-                $statusText = $oe['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
-                $message = "Venue Conflict! '{$oe['title']}' {$statusText} at this venue during your selected time.";
-                $hasConflict = true;
-                break; 
-            }
-
-            $placeholders = implode(',', array_fill(0, count($participant_ids), '?'));
-            $partCheckStmt = $pdo->prepare("SELECT 1 FROM participant_schedule WHERE event_publish_id = ? AND participant_id IN ($placeholders) LIMIT 1");
-            $params = array_merge([$oe['publish_id']], $participant_ids);
-            $partCheckStmt->execute($params);
-            
-            if ($partCheckStmt->fetch()) {
-                $statusText = $oe['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
-                $message = "Participant Conflict! Some of your selected participants are already tied to '{$oe['title']}' which {$statusText} during this time.";
-                $hasConflict = true;
-                break;
+        // --- 1. EXTRACT CUSTOM TIMES EARLY ---
+        // We need to know everyone's custom time before we can check for conflicts!
+        $custom_times = [];
+        if (isset($_POST['custom_blocks']) && is_array($_POST['custom_blocks'])) {
+            foreach ($_POST['custom_blocks'] as $block) {
+                if (isset($block['pids']) && is_array($block['pids'])) {
+                    foreach ($block['pids'] as $pid) {
+                        $custom_times[$pid] = [
+                            'start' => !empty($block['start_time']) ? $block['start_time'] : $start_time,
+                            'end' => !empty($block['end_time']) ? $block['end_time'] : $end_time
+                        ];
+                    }
+                }
             }
         }
 
+        $hasConflict = false;
+
+        // --- 2. SMART VENUE CHECKER ---
+        if (!$is_off_campus) {
+            $venueConflictStmt = $pdo->prepare("
+                SELECT e.title, p.status
+                FROM events e
+                JOIN event_publish p ON e.publish_id = p.id
+                WHERE p.status IN ('Approved', 'Pending') 
+                AND p.venue_id = ?
+                AND CONCAT(e.start_date, ' ', e.start_time) < ? 
+                AND CONCAT(e.end_date, ' ', e.end_time) > ?
+                LIMIT 1
+            ");
+            $venueConflictStmt->execute([$venue_id, $end_datetime, $start_datetime]);
+            if ($venueConflict = $venueConflictStmt->fetch()) {
+                $statusText = $venueConflict['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
+                $message = "Venue Conflict! '{$venueConflict['title']}' {$statusText} at this venue during your selected time.";
+                $hasConflict = true;
+            }
+        }
+
+        // --- 3. SMART PARTICIPANT CHECKER ---
+        // Now checks the specific participant's custom schedule against the database!
+        if (!$hasConflict) {
+            $partConflictStmt = $pdo->prepare("
+                SELECT e.title, pub.status, p.name 
+                FROM participant_schedule ps
+                JOIN event_publish pub ON ps.event_publish_id = pub.id
+                JOIN events e ON pub.id = e.publish_id
+                JOIN participants p ON ps.participant_id = p.id
+                WHERE ps.participant_id = ?
+                AND pub.status IN ('Approved', 'Pending')
+                AND CONCAT(e.start_date, ' ', ps.start_time) < ?
+                AND CONCAT(e.end_date, ' ', ps.end_time) > ?
+                LIMIT 1
+            ");
+
+            foreach ($participant_ids as $pid) {
+                // Calculate the exact time this participant is being scheduled for
+                if ($is_all_day) {
+                    $p_start = '00:00:00';
+                    $p_end = '23:59:59';
+                } else {
+                    if (isset($custom_times[$pid])) {
+                        $p_start = $custom_times[$pid]['start'];
+                        $p_end = $custom_times[$pid]['end'];
+                    } else {
+                        $p_start = $start_time;
+                        $p_end = $end_time;
+                    }
+                }
+
+                $p_start_datetime = $start_date . ' ' . $p_start;
+                $p_end_datetime = $end_date . ' ' . $p_end;
+
+                // Test their custom time against the database
+                $partConflictStmt->execute([$pid, $p_end_datetime, $p_start_datetime]);
+                
+                if ($partConflict = $partConflictStmt->fetch()) {
+                    $statusText = $partConflict['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
+                    $message = "Participant Conflict! '{$partConflict['name']}' is already scheduled for '{$partConflict['title']}' which {$statusText} from " . date('g:i A', strtotime($p_start)) . " to " . date('g:i A', strtotime($p_end)) . ".";
+                    $hasConflict = true;
+                    break;
+                }
+            }
+        }
+
+        // --- 4. INSERT INTO DATABASE ---
         if (!$hasConflict) {
             try {
                 $pdo->beginTransaction();
@@ -133,44 +184,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_event = $pdo->prepare("INSERT INTO events (publish_id, category_id, title, description, start_date, start_time, end_date, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt_event->execute([$publish_id, $category_id, $title, $description, $start_date, $start_time, $end_date, $end_time]);
 
-                // --- FIXED: PROCESS CUSTOM SCHEDULE BLOCKS PROPERLY ---
-                $custom_times = [];
-                if (isset($_POST['custom_blocks']) && is_array($_POST['custom_blocks'])) {
-                    foreach ($_POST['custom_blocks'] as $block) {
-                        if (isset($block['pids']) && is_array($block['pids'])) {
-                            foreach ($block['pids'] as $pid) {
-                                // Capture custom times if provided
-                                $custom_times[$pid] = [
-                                    'start' => !empty($block['start_time']) ? $block['start_time'] : null,
-                                    'end' => !empty($block['end_time']) ? $block['end_time'] : null
-                                ];
-                            }
-                        }
-                    }
-                }
-
                 $stmt_link = $pdo->prepare("INSERT INTO participant_schedule (event_publish_id, participant_id, start_time, end_time) VALUES (?, ?, ?, ?)");
                 
                 foreach ($participant_ids as $pid) {
-                    // 1. Check if this participant has a specific CUSTOM block assigned
-                    if (isset($custom_times[$pid])) {
-                        $p_start = $custom_times[$pid]['start'] ?? ($is_all_day ? '00:00:00' : $start_time);
-                        $p_end = $custom_times[$pid]['end'] ?? ($is_all_day ? '23:59:59' : $end_time);
-                    } 
-                    // 2. Otherwise, check if the main event is ALL DAY
-                    elseif ($is_all_day) {
+                    if ($is_all_day) {
                         $p_start = '00:00:00';
                         $p_end = '23:59:59';
-                    } 
-                    // 3. Fallback to the standard main event start/end times
-                    else {
-                        $p_start = $start_time;
-                        $p_end = $end_time;
+                    } else {
+                        if (isset($custom_times[$pid])) {
+                            $p_start = $custom_times[$pid]['start'];
+                            $p_end = $custom_times[$pid]['end'];
+                        } else {
+                            $p_start = $start_time;
+                            $p_end = $end_time;
+                        }
                     }
-                    
                     $stmt_link->execute([$publish_id, $pid, $p_start, $p_end]);
                 }
-                // --- END FIX ---
 
                 $pdo->commit();
 
