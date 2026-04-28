@@ -73,7 +73,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $end_datetime = $end_date . ' ' . $end_time;
 
     // Validation
-    // Validation
     if (empty($participant_ids)) {
         $message = "Oops! You must select at least one participant group.";
     } elseif (strtotime($end_datetime) <= strtotime($start_datetime)) {
@@ -130,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Now checks the specific participant's custom schedule against the database!
         if (!$hasConflict) {
             $partConflictStmt = $pdo->prepare("
-                SELECT e.title, pub.status, p.name 
+                SELECT e.title, pub.status, p.name, ps.start_time AS conflict_start, ps.end_time AS conflict_end
                 FROM participant_schedule ps
                 JOIN event_publish pub ON ps.event_publish_id = pub.id
                 JOIN events e ON pub.id = e.publish_id
@@ -141,6 +140,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 AND CONCAT(e.end_date, ' ', ps.end_time) > ?
                 LIMIT 1
             ");
+
+            $participantConflicts = []; // NEW: Array to collect multiple conflict messages
 
             foreach ($participant_ids as $pid) {
                 // Calculate the exact time this participant is being scheduled for
@@ -165,10 +166,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 if ($partConflict = $partConflictStmt->fetch()) {
                     $statusText = $partConflict['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
-                    $message = "Participant Conflict! '{$partConflict['name']}' is already scheduled for '{$partConflict['title']}' which {$statusText} from " . date('g:i A', strtotime($p_start)) . " to " . date('g:i A', strtotime($p_end)) . ".";
-                    $hasConflict = true;
-                    break;
+                    
+                    // Grab the EXACT schedule this participant has from the database
+                    $db_start_time = date('g:i A', strtotime($partConflict['conflict_start']));
+                    $db_end_time = date('g:i A', strtotime($partConflict['conflict_end']));
+                    
+                    // NEW: Add this specific conflict to our collection array instead of overwriting the message
+                    // Secure the variables before putting them in the HTML string
+                    $safeName = htmlspecialchars($partConflict['name'], ENT_QUOTES, 'UTF-8');
+                    $safeTitle = htmlspecialchars($partConflict['title'], ENT_QUOTES, 'UTF-8');
+
+                    $participantConflicts[] = "<strong>{$safeName}</strong> is already scheduled for '{$safeTitle}' ({$statusText}) from {$db_start_time} to {$db_end_time}.";                }
+            }
+
+            // NEW: If we found ANY participant conflicts, combine them into a bulleted list!
+            if (!empty($participantConflicts)) {
+                $hasConflict = true;
+                $message = "<strong>Participant Conflict(s) Detected:</strong><br><ul class='list-disc pl-5 mt-2 space-y-1 text-xs'>";
+                foreach ($participantConflicts as $conflictMsg) {
+                    $message .= "<li>{$conflictMsg}</li>";
                 }
+                $message .= "</ul>";
             }
         }
 
@@ -329,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <?php if ($message): ?>
                     <div class="mb-8 px-5 py-4 rounded-2xl border bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 flex items-start gap-4 shadow-sm">
                         <i class="fa-solid fa-triangle-exclamation text-xl mt-0.5"></i>
-                        <p class="font-bold text-sm leading-relaxed"><?php echo htmlspecialchars($message); ?></p>
+                        <div class="font-medium text-sm w-full"><?php echo $message; ?></div>
                     </div>
                 <?php endif; ?>
 
