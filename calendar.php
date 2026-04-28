@@ -623,7 +623,7 @@ function getCategoryColor($categoryName)
         
         clearTimeout(mouseTimer);
         
-        // Fade out UI after 2.5 seconds of inactivity
+        // Fade out UI after seconds of inactivity
         mouseTimer = setTimeout(() => {
             prevBtn.classList.add('opacity-0', 'pointer-events-none');
             nextBtn.classList.add('opacity-0', 'pointer-events-none');

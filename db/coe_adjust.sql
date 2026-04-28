@@ -1,4 +1,3 @@
-DROP DATABASE IF EXISTS calendar_of_event;
 
 CREATE DATABASE calendar_of_event;
 use calendar_of_event;

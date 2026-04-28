@@ -48,10 +48,10 @@ $path_prefix = $in_admin_folder ? '../' : '';
                     <span>View Calendar</span>
                 </a>
 
-                <a href="<?php echo $path_prefix; ?>present.php" class="nav-item w-full py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm <?php echo ($current_page == 'present.php') ? 'active' : ''; ?>">
+                <!-- <a href="<?php echo $path_prefix; ?>present.php" class="nav-item w-full py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm <?php echo ($current_page == 'present.php') ? 'active' : ''; ?>">
                     <i class="fa-solid fa-desktop w-5 text-center"></i>
                     <span>Present</span>
-                </a>
+                </a> -->
 
                 <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler')): ?>
                     <a href="<?php echo $path_prefix; ?>request_status.php" class="nav-item w-full py-3 px-4 rounded-xl flex items-center gap-3 font-semibold text-sm <?php echo ($current_page == 'request_status.php') ? 'active' : ''; ?>">

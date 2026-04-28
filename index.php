@@ -246,7 +246,6 @@ function getCategoryColor($categoryName)
                         <button data-view="all" class="view-toggle bg-sjsfi-green dark:bg-emerald-600 text-white shadow-md font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex-1 sm:flex-none">All Events</button>
                         <button data-view="pending" class="view-toggle text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex-1 sm:flex-none">Pending</button>
                         <button data-view="scheduled" class="view-toggle text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex-1 sm:flex-none">Approved</button>
-                        <button data-view="holiday" class="view-toggle text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 font-bold text-xs px-4 py-2.5 rounded-lg transition-all flex-1 sm:flex-none">Holidays</button>
                     </div>
 
                     <?php if (isset($_SESSION['role_name']) && $_SESSION['role_name'] !== 'Viewer'): ?>
