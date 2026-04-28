@@ -37,17 +37,24 @@ while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
 
 $currentYear = date('Y');
 
+$isAdmin = isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin']);
+
+// If they are a normal viewer, ONLY pull Approved events. If Admin, pull everything.
+$statusFilter = $isAdmin ? "" : "AND (p.status = 'Approved' OR e.publish_id IS NULL)";
+
+// Fetch Upcoming Events
 $stmt = $pdo->prepare("
     SELECT e.*, c.category_name, p.status, v.venue_name 
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
     LEFT JOIN event_publish p ON e.publish_id = p.id
     LEFT JOIN venues v ON p.venue_id = v.venue_id
-    WHERE YEAR(e.start_date) = :current_year
+    WHERE e.start_date >= CURDATE()
+    $statusFilter
     ORDER BY e.start_date ASC, e.start_time ASC
+    LIMIT 10
 ");
-
-$stmt->execute([':current_year' => $currentYear]);
+$stmt->execute();
 $events = $stmt->fetchAll();
 
 $pendingEvents = [];
