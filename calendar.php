@@ -562,6 +562,7 @@ function getCategoryColor($categoryName)
 <script src="assets/js/event_modal.js"></script>
 <script src="assets/js/calendar.js?v=<?php echo time(); ?>"></script>
 <script src="assets/js/pdf_modal.js"></script>
+<script src="assets/js/theme_toggle.js"></script>
 
 <script>
     // --- IMMERSIVE PRESENTATION & TRAVERSAL LOGIC ---
