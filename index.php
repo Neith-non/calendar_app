@@ -43,14 +43,14 @@ $isViewer = isset($_SESSION['role_name']) && $_SESSION['role_name'] === 'Viewer'
 // If they are a normal viewer, ONLY pull Approved events. If Admin, pull everything.
 $statusFilter = $isAdmin ? "" : "AND (p.status = 'Approved' OR e.publish_id IS NULL)";
 
-// Fetch Upcoming Events
+// Fetch Events (Showing current month's past events + all future events)
 $stmt = $pdo->prepare("
     SELECT e.*, c.category_name, p.status, v.venue_name 
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
     LEFT JOIN event_publish p ON e.publish_id = p.id
     LEFT JOIN venues v ON p.venue_id = v.venue_id
-    WHERE e.start_date >= CURDATE()
+    WHERE e.start_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
     $statusFilter
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
@@ -718,9 +718,15 @@ function getCategoryColor($categoryName)
     });
 
     function applyCustomFilters() {
-        if (!isDataLoaded) return; 
+        // 1. Grab the raw search input
+        const rawSearch = dashSearchBar ? dashSearchBar.value.toLowerCase() : '';
+        
+        // 2. Clean the search term: remove commas, normalize spaces, and change "01" to "1"
+        const searchTerm = rawSearch.replace(/,/g, '')
+                                    .replace(/\s+/g, ' ')
+                                    .replace(/\b0([1-9])\b/g, '$1')
+                                    .trim();
 
-        const searchTerm = dashSearchBar ? dashSearchBar.value.toLowerCase().trim() : '';
         const activeCategories = Array.from(categoryCheckboxes)
                                       .filter(cb => cb.checked)
                                       .map(cb => cb.value);
@@ -731,14 +737,26 @@ function getCategoryColor($categoryName)
             const category = card.getAttribute('data-category') || '';
             const status = card.getAttribute('data-status') || '';
             const desc = (card.getAttribute('data-desc') || '').toLowerCase();
-            let date = (card.getAttribute('data-date') || '').toLowerCase();
-            date = date.replace(/\d{4}/g, ''); 
+            
+            // 3. Clean the card's date exactly the same way so they match perfectly!
+            const date = (card.getAttribute('data-date') || '').toLowerCase()
+                                                               .replace(/,/g, '')
+                                                               .replace(/\s+/g, ' '); 
+                                                               
             const time = (card.getAttribute('data-time') || '').toLowerCase();
 
-            const matchesSearch = title.includes(searchTerm) || category.toLowerCase().includes(searchTerm) || desc.includes(searchTerm) || date.includes(searchTerm) || time.includes(searchTerm);
+            // 4. Check for matches
+            const matchesSearch = searchTerm === '' || 
+                                  title.includes(searchTerm) || 
+                                  category.toLowerCase().includes(searchTerm) || 
+                                  desc.includes(searchTerm) || 
+                                  date.includes(searchTerm) || 
+                                  time.includes(searchTerm);
+
             const matchesTab = (currentTab === 'all') || (status === currentTab);
             const matchesCategory = activeCategories.includes(category);
 
+            // 5. Show or hide the card
             if (matchesSearch && matchesTab && matchesCategory) {
                 card.style.display = '';
                 visibleCount++;
@@ -747,6 +765,7 @@ function getCategoryColor($categoryName)
             }
         });
 
+        // 6. Show the ghost icon if no results match
         if (dashEmptyMessage) {
             if (visibleCount === 0) {
                 dashEmptyMessage.classList.remove('hidden');
