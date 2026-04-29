@@ -265,7 +265,6 @@ function getCategoryColor($categoryName)
         }
         .dark body.presentation-mode .presentation-header { border-color: #123f29; background-color: #000000; }
         
-        /* FIX: Changed height to min-height to allow scaling in presentation mode */
         body.presentation-mode .calendar-container {
             border: none !important; border-radius: 0 !important; box-shadow: none !important; 
             min-height: calc(100vh - 80px) !important; height: auto !important;
@@ -292,8 +291,8 @@ function getCategoryColor($categoryName)
         <i class="fa-solid fa-chevron-right"></i>
     </a>
 
-    <button id="exitPresentationFloat" onclick="exitPresentationMode()" class="fixed bottom-6 right-6 z-[100] bg-red-600/90 backdrop-blur-md text-white px-6 py-3 rounded-full font-bold shadow-2xl <?php echo $isPresenting ? 'flex' : 'hidden'; ?> items-center gap-2 hover:bg-red-700 transition-all duration-500 transform hover:scale-105">
-        <i class="fa-solid fa-compress"></i> Exit Presentation
+    <button id="exitPresentationFloat" onclick="exitPresentationMode()" title="Exit Presentation (ESC)" class="fixed top-6 right-6 z-[100] bg-red-600/90 backdrop-blur-md text-white w-12 h-12 rounded-full font-bold shadow-2xl <?php echo $isPresenting ? 'flex' : 'hidden'; ?> items-center justify-center hover:bg-red-700 transition-all duration-500 transform hover:scale-105">
+        <i class="fa-solid fa-right-from-bracket text-lg"></i>
     </button>
 
     <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-4 sm:p-6 md:p-8 relative custom-scrollbar">
@@ -563,7 +562,6 @@ function getCategoryColor($categoryName)
 <script src="assets/js/event_modal.js"></script>
 <script src="assets/js/calendar.js?v=<?php echo time(); ?>"></script>
 <script src="assets/js/pdf_modal.js"></script>
-<script src="assets/js/theme_toggle.js"></script>
 
 <script>
     // --- IMMERSIVE PRESENTATION & TRAVERSAL LOGIC ---
@@ -630,7 +628,7 @@ function getCategoryColor($categoryName)
         
         clearTimeout(mouseTimer);
         
-        // Fade out UI after seconds of inactivity
+        // Fade out UI after 1.5 seconds of inactivity
         mouseTimer = setTimeout(() => {
             prevBtn.classList.add('opacity-0', 'pointer-events-none');
             nextBtn.classList.add('opacity-0', 'pointer-events-none');
@@ -699,6 +697,7 @@ function getCategoryColor($categoryName)
     // Event Listeners
     document.addEventListener('mousemove', triggerMouseMove);
 
+    // Keyboard navigation and ESC to close
     document.addEventListener('keydown', (e) => {
         if (isPresenting) {
             if (e.key === 'ArrowLeft') navigatePresentation(prevBtn.href);
@@ -719,5 +718,4 @@ function getCategoryColor($categoryName)
         triggerMouseMove();
     }
 </script>
-
 </html>

@@ -62,7 +62,7 @@ while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
     ];
 }
 
-// 4. Build Calendar Matrix (Copied perfectly from calendar.php)
+// 4. Build Calendar Matrix
 $calendarWeeks = [];
 $currentWeek = 0;
 $dayCounter = 0;
@@ -490,8 +490,8 @@ function getCategoryColor($categoryName) {
                 </div>
             </div>
 
-            <button @click="showQuitModal = true" class="fixed bottom-8 right-8 z-50 bg-red-600/90 backdrop-blur-md text-white px-6 py-4 rounded-full font-bold shadow-2xl hover:bg-red-700 hover:scale-105 transition-all duration-300 flex items-center gap-3 border border-red-500">
-                <i class="fa-solid fa-compress text-lg"></i> Exit Presentation
+            <button x-show="isPresenting" @click="showQuitModal = true" title="Exit Presentation (ESC)" class="fixed top-6 right-6 z-[100] bg-red-600/90 backdrop-blur-md text-white w-12 h-12 rounded-full font-bold shadow-2xl flex items-center justify-center hover:bg-red-700 transition-all duration-500 transform hover:scale-105 border border-red-500">
+                <i class="fa-solid fa-right-from-bracket text-lg"></i>
             </button>
         </div>
         
@@ -615,9 +615,10 @@ function getCategoryColor($categoryName) {
             }
         });
 
-        // Intercept Keyboard Left/Right Arrows for Months
+        // Intercept Keyboard Left/Right Arrows for Months and ESC for Exit
         document.addEventListener('keydown', (e) => {
             const presentingLayer = document.getElementById('presentation-layer');
+            const alpineComponent = document.querySelector('[x-data]').__x.$data;
             
             // Only trigger if we are actively presenting
             if (presentingLayer && presentingLayer.style.display !== 'none') {
@@ -627,8 +628,10 @@ function getCategoryColor($categoryName) {
                 } else if (e.key === 'ArrowRight') {
                     const nextBtn = document.getElementById('presentNextBtn');
                     if (nextBtn) navigatePresentation(nextBtn.href);
-                } 
-                // Note: Up, Down, and Escape are handled perfectly by Alpine on the body tag!
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    alpineComponent.exitPresentation();
+                }
             }
         });
     </script>

@@ -698,7 +698,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2.5">Apply this time to (Must be checked in main list):</label>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">Apply this time to (Must be checked in main list):</label>
+                        <label class="flex items-center space-x-1.5 cursor-pointer group">
+                            <input type="checkbox" onchange="toggleAllCustomBlockParticipants(${blockId}, this.checked)" class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-violet-500 focus:ring-violet-500 bg-slate-50 dark:bg-slate-900 transition-colors cursor-pointer">
+                            <span class="text-[10px] text-slate-500 dark:text-slate-400 group-hover:text-violet-600 dark:group-hover:text-violet-400 font-bold uppercase tracking-wider transition-colors">Select All</span>
+                        </label>
+                    </div>
                     <div class="custom-block-participants flex flex-wrap gap-2 p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 min-h-[50px]" data-block-id="${blockId}">
                     </div>
                 </div>
@@ -713,6 +719,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         document.getElementById(`block-${id}`).remove();
     }
 
+    // Helper function to handle the "Select All" toggle inside a specific custom block
+    function toggleAllCustomBlockParticipants(blockId, isChecked) {
+        const container = document.querySelector(`.custom-block-participants[data-block-id="${blockId}"]`);
+        if (container) {
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                cb.checked = isChecked;
+            });
+        }
+    }
+
     function updateCustomBlockParticipants() {
         const checkedMain = Array.from(document.querySelectorAll('.participant-cb:checked')).map(cb => ({
             id: cb.value,
@@ -725,10 +742,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             container.innerHTML = ''; 
             
+            // Auto-uncheck the specific "Select All" toggle when the main list changes
+            const selectAllToggle = container.previousElementSibling.querySelector('input[type="checkbox"]');
+            if (selectAllToggle) selectAllToggle.checked = false;
+
             if (checkedMain.length === 0) {
                 container.innerHTML = '<span class="text-xs text-slate-400 dark:text-slate-500 italic font-medium">Check participants in the main list above first.</span>';
+                if (selectAllToggle) selectAllToggle.disabled = true;
                 return;
             }
+
+            if (selectAllToggle) selectAllToggle.disabled = false;
 
             checkedMain.forEach(p => {
                 const isChecked = currentlyChecked.includes(p.id) ? 'checked' : '';
