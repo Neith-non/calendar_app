@@ -52,7 +52,6 @@ $stmt = $pdo->prepare("
     WHERE e.start_date >= CURDATE()
     $statusFilter
     ORDER BY e.start_date ASC, e.start_time ASC
-    LIMIT 10
 ");
 $stmt->execute();
 $events = $stmt->fetchAll();
