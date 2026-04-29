@@ -618,7 +618,6 @@ function getCategoryColor($categoryName) {
         // Intercept Keyboard Left/Right Arrows for Months and ESC for Exit
         document.addEventListener('keydown', (e) => {
             const presentingLayer = document.getElementById('presentation-layer');
-            const alpineComponent = document.querySelector('[x-data]').__x.$data;
             
             // Only trigger if we are actively presenting
             if (presentingLayer && presentingLayer.style.display !== 'none') {
@@ -628,10 +627,8 @@ function getCategoryColor($categoryName) {
                 } else if (e.key === 'ArrowRight') {
                     const nextBtn = document.getElementById('presentNextBtn');
                     if (nextBtn) navigatePresentation(nextBtn.href);
-                } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    alpineComponent.exitPresentation();
-                }
+                } 
+                // Note: Up, Down, and Escape are handled perfectly by Alpine on the body tag!
             }
         });
     </script>
