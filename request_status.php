@@ -240,6 +240,7 @@ $requests = $stmt->fetchAll();
                         ?>
 
                         <div class="bento-card p-6 flex flex-col hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer relative group"
+                             x-data="{ showNoteForm: false }"
                              data-title="<?php echo $jsTitle; ?>"
                              data-desc="<?php echo $jsDesc; ?>"
                              data-category="<?php echo $jsCategory; ?>" 
@@ -250,6 +251,23 @@ $requests = $stmt->fetchAll();
                              data-end-time="<?php echo $endTime; ?>"
                              data-participants="<?php echo $jsParticipants; ?>"
                              onclick="openModal(this)">
+
+                            <button @click.stop="showNoteForm = true" class="absolute top-16 right-6 w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-700/50 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 hover:bg-amber-200 dark:hover:bg-amber-800" title="Add Sticky Note">
+                                <i class="fa-regular fa-note-sticky text-sm"></i>
+                            </button>
+
+                            <div x-show="showNoteForm" style="display: none;" @click.stop x-transition.opacity class="absolute inset-0 bg-white/90 dark:bg-[#07160f]/90 backdrop-blur-sm z-20 rounded-[1.5rem] flex flex-col items-center justify-center p-6 cursor-default">
+                                <div class="w-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl shadow-lg p-4 transform transition-transform">
+                                    <h4 class="text-[10px] font-black text-amber-700 dark:text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                                        <i class="fa-solid fa-thumbtack"></i> Sticky Note
+                                    </h4>
+                                    <textarea class="w-full bg-white dark:bg-[#04120a] border border-amber-200 dark:border-amber-700/50 rounded-lg p-2.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400 dark:focus:ring-amber-600 resize-none placeholder-slate-400 dark:placeholder-slate-500 mb-3" rows="3" placeholder="Type a note here..."></textarea>
+                                    <div class="flex justify-end gap-2">
+                                        <button @click="showNoteForm = false" class="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Cancel</button>
+                                        <button @click="showNoteForm = false" class="px-3 py-1.5 text-xs font-bold bg-amber-400 hover:bg-amber-500 text-amber-900 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"><i class="fa-solid fa-check"></i> Save</button>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div class="flex justify-between items-start mb-4">
                                 <h3 class="text-lg font-black text-slate-800 dark:text-white leading-tight truncate pr-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
