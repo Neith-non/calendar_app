@@ -333,6 +333,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </h2>
                     <p class="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium ml-1">Submit a detailed schedule for administrative approval.</p>
                 </div>
+                <!-- TOP RIGHT CANCEL / BACK BUTTON -->
+                <a href="javascript:history.back()" class="bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 font-bold py-2.5 px-4 rounded-xl transition-colors border border-red-200 dark:border-red-500/30 shadow-sm flex items-center gap-2 text-sm shrink-0">
+                    <i class="fa-solid fa-arrow-left"></i> <span class="hidden sm:inline">Cancel</span>
+                </a>
             </div>
 
             <div class="p-6 sm:p-10 overflow-y-auto custom-scrollbar flex-1">
@@ -651,7 +655,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                     <div class="flex flex-col-reverse sm:flex-row gap-4 pt-6 border-t border-slate-100 dark:border-slate-800">
                         <a href="javascript:history.back()"
-                            class="text-center bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-3.5 px-8 rounded-xl transition-colors border border-slate-200 dark:border-slate-700 shadow-sm text-sm">
+                            class="text-center bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 font-bold py-3.5 px-8 rounded-xl transition-colors border border-red-200 dark:border-red-500/30 shadow-sm text-sm">
                             Cancel
                         </a>
                         <button type="submit"
