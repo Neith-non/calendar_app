@@ -52,8 +52,9 @@ $holidayStmt = $pdo->query("SELECT DISTINCT start_date FROM events WHERE categor
 $holidaysList = $holidayStmt->fetchAll(PDO::FETCH_COLUMN);
 
 // Fetch requests and JOIN with events and categories to get all needed data
+// NOTE: p.sticky_note is included here to load saved notes!
 $stmt = $pdo->query("
-    SELECT p.id, p.title, p.description, p.status, p.sticky_note, 
+    SELECT p.id, p.title, p.description, p.status, p.sticky_note,
            v.venue_name, c.category_name,
            e.start_date, e.start_time, e.end_date, e.end_time
     FROM event_publish p
@@ -113,6 +114,7 @@ $requests = $stmt->fetchAll();
     </script>
 
     <style>
+        [x-cloak] { display: none !important; }
         body { color: #1e293b; transition: background-color 0.3s ease, color 0.3s ease; }
         .dark body { color: #f1f5f9; }
 
@@ -186,7 +188,37 @@ $requests = $stmt->fetchAll();
                 </a>
             </div>
 
-            <div>
+            <!-- SEARCH AND FILTER BAR -->
+            <div class="bento-card p-2 pl-4 flex flex-col sm:flex-row items-center gap-2 relative z-20">
+                <div class="relative w-full flex-1 group">
+                    <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-search text-emerald-400 group-focus-within:text-emerald-600 transition-colors"></i>
+                    </div>
+                    <input type="text" id="statusSearchBar" placeholder="Search by title, category, or venue..." class="w-full pl-8 pr-4 py-3 text-sm font-medium border-none shadow-none bg-transparent focus:outline-none focus:ring-0 text-slate-800 dark:text-slate-200 dark:placeholder-slate-500 placeholder-slate-400">
+                </div>
+
+                <div class="flex items-center gap-4 border-t sm:border-t-0 sm:border-l border-[#d1f0e0] dark:border-[#123f29] pt-3 sm:pt-0 sm:pl-4 pr-4 w-full sm:w-auto pb-2 sm:pb-0">
+                    <label class="flex items-center space-x-2 cursor-pointer group">
+                        <input type="checkbox" id="filterNoConflict" class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 bg-slate-50 dark:bg-slate-900 cursor-pointer">
+                        <span class="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-emerald-600 transition-colors whitespace-nowrap">Without Conflict</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer group">
+                        <input type="checkbox" id="filterWithConflict" class="w-4 h-4 rounded border-slate-300 text-red-500 focus:ring-red-500 bg-slate-50 dark:bg-slate-900 cursor-pointer">
+                        <span class="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-red-500 transition-colors whitespace-nowrap">With Conflict</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- EMPTY STATE MESSAGE (Shown via JS if filters hide everything) -->
+            <div id="no-results-msg" class="hidden text-center py-16 bento-card">
+                <div class="w-20 h-20 bg-[#f0fcf5] dark:bg-[#0a1a12] rounded-full flex items-center justify-center mx-auto mb-5 border border-[#d1f0e0] dark:border-[#123f29]">
+                    <i class="fa-solid fa-ghost text-4xl text-emerald-300 dark:text-emerald-700"></i>
+                </div>
+                <p class="text-xl font-extrabold text-slate-800 dark:text-white mb-2">No matching events</p>
+                <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Try adjusting your search or unchecking filters.</p>
+            </div>
+
+            <div id="events-master-container">
                 <?php if (count($requests) > 0): ?>
                     <?php
                     $currentMonth = '';
@@ -202,11 +234,12 @@ $requests = $stmt->fetchAll();
                         // Print Month Header
                         if ($eventMonth !== $currentMonth) {
                             if ($currentMonth !== '') {
-                                echo '</div>'; // Close previous grid
+                                echo '</div></div>'; // Close previous grid and month-group
                             }
 
+                            echo '<div class="month-group">';
                             echo '
-                            <div class="mt-10 mb-5 border-b border-[#d1f0e0] dark:border-[#123f29] pb-3 flex items-center gap-3">
+                            <div class="month-header mt-8 mb-5 border-b border-[#d1f0e0] dark:border-[#123f29] pb-3 flex items-center gap-3">
                                 <i class="fa-regular fa-calendar-check text-emerald-500 text-lg"></i>
                                 <h2 class="text-lg font-extrabold text-emerald-800 dark:text-emerald-400 tracking-widest uppercase">' . htmlspecialchars($eventMonth) . '</h2>
                             </div>';
@@ -268,9 +301,14 @@ $requests = $stmt->fetchAll();
                         $statusCardBorder = $isStatusHolidayConflict 
                             ? 'border-red-500 ring-2 ring-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.15)] dark:border-red-500' 
                             : 'border-slate-200 dark:border-slate-800';
+                            
+                        // Filter data prep
+                        $searchText = htmlspecialchars(strtolower($req['title'] . ' ' . ($req['category_name'] ?? '') . ' ' . ($req['venue_name'] ?? '')));
+                        $conflictFlag = $isStatusHolidayConflict ? 'true' : 'false';
                         ?>
-                        
-                        <div class="bento-card p-6 flex flex-col hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer relative group <?php echo $statusCardBorder; ?>"
+
+                        <!-- BENTO CARD WITH ALPINE STATE FOR STICKY NOTES -->
+                        <div class="bento-card event-status-card p-6 flex flex-col hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer relative group <?php echo $statusCardBorder; ?>"
                              x-data="{ 
                                 showNoteForm: false, 
                                 noteText: '<?php echo addslashes(htmlspecialchars($req['sticky_note'] ?? '')); ?>', 
@@ -297,6 +335,9 @@ $requests = $stmt->fetchAll();
                                     this.isSaving = false;
                                 }
                              }"
+                             data-search-text="<?php echo $searchText; ?>"
+                             data-status-filter="<?php echo strtolower($req['status']); ?>"
+                             data-conflict-filter="<?php echo $conflictFlag; ?>"
                              data-title="<?php echo $jsTitle; ?>"
                              data-desc="<?php echo $jsDesc; ?>"
                              data-category="<?php echo $jsCategory; ?>" 
@@ -338,6 +379,7 @@ $requests = $stmt->fetchAll();
                                 </div>
                             </div>
 
+                            <!-- Regular Card Content -->
                             <div class="flex justify-between items-start mb-4">
                                 <h3 class="text-lg font-black text-slate-800 dark:text-white leading-tight truncate pr-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                                     <?php echo htmlspecialchars($req['title']); ?>
@@ -400,9 +442,9 @@ $requests = $stmt->fetchAll();
                     <?php endforeach; ?>
 
                     <?php
-                    // Close the very last grid tag if there were events
+                    // Close the very last grid tag and month-group if there were events
                     if ($currentMonth !== '') {
-                        echo '</div>';
+                        echo '</div></div>';
                     }
                     ?>
 
@@ -549,5 +591,62 @@ $requests = $stmt->fetchAll();
             }
         });
     }
+
+    // --- SEARCH AND FILTER LOGIC ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const searchBar = document.getElementById('statusSearchBar');
+        const filterNoConflict = document.getElementById('filterNoConflict');
+        const filterWithConflict = document.getElementById('filterWithConflict');
+        const cards = document.querySelectorAll('.event-status-card');
+        const noResultsMsg = document.getElementById('no-results-msg');
+
+        function applyFilters() {
+            const searchText = searchBar.value.toLowerCase().trim();
+            const showNoConflict = filterNoConflict.checked;
+            const showWithConflict = filterWithConflict.checked;
+            let totalVisibleCards = 0;
+
+            cards.forEach(card => {
+                const cardSearchText = card.getAttribute('data-search-text') || '';
+                const cardConflict = card.getAttribute('data-conflict-filter') === 'true';
+
+                let matchesSearch = cardSearchText.includes(searchText);
+                
+                // Conflict filtering logic
+                let matchesConflictFilter = true;
+                if (showNoConflict && !showWithConflict) {
+                    matchesConflictFilter = !cardConflict; // Show only clean events
+                } else if (!showNoConflict && showWithConflict) {
+                    matchesConflictFilter = cardConflict; // Show only conflicts
+                } 
+                // If both are checked, or neither is checked, we show everything.
+
+                if (matchesSearch && matchesConflictFilter) {
+                    card.style.display = '';
+                    totalVisibleCards++;
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            // Toggle Empty State Message
+            if (totalVisibleCards === 0 && cards.length > 0) {
+                noResultsMsg.classList.remove('hidden');
+            } else {
+                noResultsMsg.classList.add('hidden');
+            }
+
+            // Hide empty month groupings
+            document.querySelectorAll('.month-group').forEach(group => {
+                const groupCards = Array.from(group.querySelectorAll('.event-status-card'));
+                const hasVisible = groupCards.some(c => c.style.display !== 'none');
+                group.style.display = hasVisible ? '' : 'none';
+            });
+        }
+
+        if (searchBar) searchBar.addEventListener('input', applyFilters);
+        if (filterNoConflict) filterNoConflict.addEventListener('change', applyFilters);
+        if (filterWithConflict) filterWithConflict.addEventListener('change', applyFilters);
+    });
 </script>
 </html>
