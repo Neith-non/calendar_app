@@ -362,7 +362,8 @@ function getCategoryColor($categoryName)
 
                 <div class="event-list-container grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
 
-                <?php foreach ($pendingEvents as $event): ?>
+                    <?php if (!$isViewer): ?>
+                        <?php foreach ($pendingEvents as $event): ?>
                     <?php
                     $color = getCategoryColor($event['category_name']);
                     $formattedDate = date('M j, Y', strtotime($event['start_date']));
@@ -373,8 +374,19 @@ function getCategoryColor($categoryName)
                     $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
                     $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
                     
-                    // CONTAINED CHECKS FOR PENDING LOOP
-                    $isPendingLoopConflict = in_array($event['start_date'], $holidaysList);
+                    // Check if this pending event falls within a holiday range
+                    $isPendingLoopConflict = false;
+                    $conflictingHolidaysString = '';
+                    if (!empty($event['start_date']) && !empty($event['end_date'])) {
+                        $hStmt = $pdo->prepare("SELECT title FROM events WHERE category_id = 5 AND start_date BETWEEN ? AND ?");
+                        $hStmt->execute([$event['start_date'], $event['end_date']]);
+                        $allHolidays = $hStmt->fetchAll(PDO::FETCH_COLUMN);
+                        if (!empty($allHolidays)) {
+                            $isPendingLoopConflict = true;
+                            $conflictingHolidaysString = implode(', ', $allHolidays);
+                        }
+                    }
+
                     $pendingBorder = $isPendingLoopConflict 
                         ? 'border-red-500 ring-2 ring-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.15)] dark:border-red-500 dark:ring-red-900/40' 
                         : 'border-[#d1f0e0] dark:border-[#123f29]';
@@ -389,15 +401,16 @@ function getCategoryColor($categoryName)
                          data-end-date="<?php echo date('F j, Y', strtotime($event['end_date'])); ?>" data-end-time="<?php echo $formattedEndTime; ?>"
                          data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
                          data-participants="<?php echo $jsParticipants; ?>"
+                         data-holiday-title="<?php echo htmlspecialchars($conflictingHolidaysString); ?>"
                          onclick="openModal(this)">
                         
                         <?php if ($isPendingLoopConflict): ?>
-                            <div class="absolute -top-3 -right-2 bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 z-10 uppercase tracking-widest" title="This pending event is scheduled on a holiday!">
+                            <div class="absolute -top-3 -right-2 bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 z-10 uppercase tracking-widest">
                                 <i class="fa-solid fa-triangle-exclamation animate-pulse"></i> Holiday Conflict
                             </div>
                         <?php endif; ?>
 
-                        <div class="flex items-start justify-between w-full shrink-0 mb-3 <?php echo $isPendingLoopConflict ? 'mt-1' : ''; ?>">
+                        <div class="flex items-start justify-between w-full shrink-0 mb-3">
                             <div class="w-10 h-10 rounded-xl <?php echo $color['bg']; ?> border <?php echo $color['border']; ?> flex items-center justify-center shrink-0">
                                 <i class="fa-solid <?php echo $color['icon']; ?> <?php echo $color['iconColor']; ?>"></i>
                             </div>
@@ -437,115 +450,117 @@ function getCategoryColor($categoryName)
                         </div>
                     </div>
                 <?php endforeach; ?>
+                    <?php endif; ?>
 
-                <?php foreach ($holidayEvents as $event): ?>
-                    <?php
-                    $color = getCategoryColor($event['category_name']);
-                    $formattedDate = date('M j, Y', strtotime($event['start_date']));
-                    $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
-                    $formattedEndDate = date('M j, Y', strtotime($event['end_date']));
-                    $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
-                    
-                    $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
-                    $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
-                    ?>
-                    
-                    <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px]"
-                         data-status="holiday"
-                         data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
-                         data-title="<?php echo htmlspecialchars($event['title']); ?>"
-                         data-desc="<?php echo htmlspecialchars($event['description'] ?? ''); ?>"
-                         data-date="<?php echo date('F j, Y', strtotime($event['start_date'])); ?>" data-time="<?php echo $formattedTime; ?>"
-                         data-end-date="<?php echo date('F j, Y', strtotime($event['end_date'])); ?>" data-end-time="<?php echo $formattedEndTime; ?>"
-                         data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
-                         data-participants="<?php echo $jsParticipants; ?>"
-                         onclick="openModal(this)">
+                    <?php foreach ($holidayEvents as $event): ?>
+                        <?php
+                        $color = getCategoryColor($event['category_name']);
+                        $formattedDate = date('M j, Y', strtotime($event['start_date']));
+                        $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
+                        $formattedEndDate = date('M j, Y', strtotime($event['end_date']));
+                        $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
                         
-                        <div class="flex items-start justify-between w-full shrink-0 mb-3">
-                            <div class="w-10 h-10 rounded-xl <?php echo $color['bg']; ?> border <?php echo $color['border']; ?> flex items-center justify-center shrink-0">
-                                <i class="fa-solid <?php echo $color['icon']; ?> <?php echo $color['iconColor']; ?>"></i>
-                            </div>
-                            <span class="bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border border-yellow-100 dark:border-yellow-500/20 text-[10px] font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider">Holiday</span>
-                        </div>
+                        $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
+                        $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
+                        ?>
                         
-                        <div class="w-full text-center mb-2 shrink-0">
-                            <h3 class="text-[26px] font-black text-slate-800 dark:text-slate-100 group-hover:text-yellow-500 dark:group-hover:text-yellow-400 transition leading-tight line-clamp-3">
-                                <?php echo htmlspecialchars($event['title']); ?>
-                            </h3>
-                        </div>
-                        
-                        <div class="flex-auto flex flex-col justify-center items-center py-2">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Date</p>
-                            <p class="text-[26px] font-black text-slate-800 dark:text-white leading-none text-center">
-                                <?php echo $formattedDate; ?>
-                            </p>
-                        </div>
-
-                        <div class="mt-auto flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/50">
-                            <div class="flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 font-bold bg-slate-50 dark:bg-slate-900/50 py-2 rounded-lg border border-slate-100 dark:border-slate-800">
-                                <i class="fa-regular fa-clock mr-1.5 opacity-70"></i> <?php echo $formattedTime; ?>
-                            </div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-
-                <?php foreach ($scheduledEvents as $event): ?>
-                    <?php
-                    $color = getCategoryColor($event['category_name']);
-                    $formattedDate = date('M j, Y', strtotime($event['start_date']));
-                    $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
-                    $formattedEndDate = date('M j, Y', strtotime($event['end_date']));
-                    $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
-                    
-                    $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
-                    $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
-                    ?>
-                    
-                    <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px]"
-                         data-status="scheduled"
-                         data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
-                         data-title="<?php echo htmlspecialchars($event['title']); ?>"
-                         data-desc="<?php echo htmlspecialchars($event['description'] ?? ''); ?>"
-                         data-date="<?php echo date('F j, Y', strtotime($event['start_date'])); ?>" data-time="<?php echo $formattedTime; ?>"
-                         data-end-date="<?php echo date('F j, Y', strtotime($event['end_date'])); ?>" data-end-time="<?php echo $formattedEndTime; ?>"
-                         data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
-                         data-participants="<?php echo $jsParticipants; ?>"
-                         onclick="openModal(this)">
-                        
-                        <div class="flex items-start justify-between w-full shrink-0 mb-3">
-                            <div class="w-10 h-10 rounded-xl <?php echo $color['bg']; ?> border <?php echo $color['border']; ?> flex items-center justify-center shrink-0">
-                                <i class="fa-solid <?php echo $color['icon']; ?> <?php echo $color['iconColor']; ?>"></i>
+                        <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px]"
+                             data-status="holiday"
+                             data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
+                             data-title="<?php echo htmlspecialchars($event['title']); ?>"
+                             data-desc="<?php echo htmlspecialchars($event['description'] ?? ''); ?>"
+                             data-date="<?php echo date('F j, Y', strtotime($event['start_date'])); ?>" data-time="<?php echo $formattedTime; ?>"
+                             data-end-date="<?php echo date('F j, Y', strtotime($event['end_date'])); ?>" data-end-time="<?php echo $formattedEndTime; ?>"
+                             data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
+                             data-participants="<?php echo $jsParticipants; ?>"
+                             onclick="openModal(this)">
+                            
+                            <div class="flex items-start justify-between w-full shrink-0 mb-3">
+                                <div class="w-10 h-10 rounded-xl <?php echo $color['bg']; ?> border <?php echo $color['border']; ?> flex items-center justify-center shrink-0">
+                                    <i class="fa-solid <?php echo $color['icon']; ?> <?php echo $color['iconColor']; ?>"></i>
+                                </div>
+                                <span class="bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border border-yellow-100 dark:border-yellow-500/20 text-[10px] font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider">Holiday</span>
                             </div>
                             
-                            <?php if ($event['publish_id'] === null): ?>
-                                <span class="shrink-0 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 text-[10px] font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider">Auto</span>
-                            <?php elseif ($event['status'] === 'Approved'): ?>
-                                <span class="shrink-0 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/30 text-[10px] font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider">Approved</span>
-                            <?php endif; ?>
-                        </div>
-                        
-                        <div class="w-full text-center mb-2 shrink-0">
-                            <h3 class="text-[26px] font-black text-slate-800 dark:text-slate-100 group-hover:text-sjsfi-green dark:group-hover:text-emerald-400 transition leading-tight line-clamp-3">
-                                <?php echo htmlspecialchars($event['title']); ?>
-                            </h3>
-                        </div>
-                        
-                        <div class="flex-auto flex flex-col justify-center items-center py-2">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Date</p>
-                            <p class="text-[26px] font-black text-slate-800 dark:text-white leading-none text-center">
-                                <?php echo $formattedDate; ?>
-                            </p>
-                        </div>
+                            <div class="w-full text-center mb-2 shrink-0">
+                                <h3 class="text-[26px] font-black text-slate-800 dark:text-slate-100 group-hover:text-yellow-500 dark:group-hover:text-yellow-400 transition leading-tight line-clamp-3">
+                                    <?php echo htmlspecialchars($event['title']); ?>
+                                </h3>
+                            </div>
+                            
+                            <div class="flex-auto flex flex-col justify-center items-center py-2">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Date</p>
+                                <p class="text-[26px] font-black text-slate-800 dark:text-white leading-none text-center">
+                                    <?php echo $formattedDate; ?>
+                                </p>
+                            </div>
 
-                        <div class="mt-auto flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/50">
-                            <div class="flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 font-bold bg-slate-50 dark:bg-slate-900/50 py-2 rounded-lg border border-slate-100 dark:border-slate-800">
-                                <i class="fa-regular fa-clock mr-1.5 opacity-70"></i> <?php echo $formattedTime; ?>
+                            <div class="mt-auto flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/50">
+                                <div class="flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 font-bold bg-slate-50 dark:bg-slate-900/50 py-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                    <i class="fa-regular fa-clock mr-1.5 opacity-70"></i> <?php echo $formattedTime; ?>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                <?php endforeach; ?>
+                    <?php endforeach; ?>
 
-            </div>
+
+                    <?php foreach ($scheduledEvents as $event): ?>
+                        <?php
+                        $color = getCategoryColor($event['category_name']);
+                        $formattedDate = date('M j, Y', strtotime($event['start_date']));
+                        $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
+                        $formattedEndDate = date('M j, Y', strtotime($event['end_date']));
+                        $formattedEndTime = ($event['end_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['end_time']));
+                        
+                        $participants_array = $event['publish_id'] ? ($event_participants_map[$event['publish_id']] ?? []) : [];
+                        $jsParticipants = htmlspecialchars(json_encode($participants_array), ENT_QUOTES, 'UTF-8');
+                        ?>
+                        
+                        <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px]"
+                             data-status="scheduled"
+                             data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
+                             data-title="<?php echo htmlspecialchars($event['title']); ?>"
+                             data-desc="<?php echo htmlspecialchars($event['description'] ?? ''); ?>"
+                             data-date="<?php echo date('F j, Y', strtotime($event['start_date'])); ?>" data-time="<?php echo $formattedTime; ?>"
+                             data-end-date="<?php echo date('F j, Y', strtotime($event['end_date'])); ?>" data-end-time="<?php echo $formattedEndTime; ?>"
+                             data-venue="<?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>"
+                             data-participants="<?php echo $jsParticipants; ?>"
+                             onclick="openModal(this)">
+                            
+                            <div class="flex items-start justify-between w-full shrink-0 mb-3">
+                                <div class="w-10 h-10 rounded-xl <?php echo $color['bg']; ?> border <?php echo $color['border']; ?> flex items-center justify-center shrink-0">
+                                    <i class="fa-solid <?php echo $color['icon']; ?> <?php echo $color['iconColor']; ?>"></i>
+                                </div>
+                                
+                                <?php if ($event['publish_id'] === null): ?>
+                                    <span class="shrink-0 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 text-[10px] font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider">Auto</span>
+                                <?php elseif ($event['status'] === 'Approved'): ?>
+                                    <span class="shrink-0 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/30 text-[10px] font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider">Approved</span>
+                                <?php endif; ?>
+                            </div>
+                            
+                            <div class="w-full text-center mb-2 shrink-0">
+                                <h3 class="text-[26px] font-black text-slate-800 dark:text-slate-100 group-hover:text-sjsfi-green dark:group-hover:text-emerald-400 transition leading-tight line-clamp-3">
+                                    <?php echo htmlspecialchars($event['title']); ?>
+                                </h3>
+                            </div>
+                            
+                            <div class="flex-auto flex flex-col justify-center items-center py-2">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Date</p>
+                                <p class="text-[26px] font-black text-slate-800 dark:text-white leading-none text-center">
+                                    <?php echo $formattedDate; ?>
+                                </p>
+                            </div>
+
+                            <div class="mt-auto flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/50">
+                                <div class="flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 font-bold bg-slate-50 dark:bg-slate-900/50 py-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                    <i class="fa-regular fa-clock mr-1.5 opacity-70"></i> <?php echo $formattedTime; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+
+                </div>
             </div> </div>
     </main>
 
