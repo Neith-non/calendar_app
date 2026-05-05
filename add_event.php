@@ -88,7 +88,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         // --- 1. EXTRACT CUSTOM TIMES EARLY ---
-        // We need to know everyone's custom time before we can check for conflicts!
         $custom_times = [];
         if (isset($_POST['custom_blocks']) && is_array($_POST['custom_blocks'])) {
             foreach ($_POST['custom_blocks'] as $block) {
@@ -126,7 +125,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         // --- 3. SMART PARTICIPANT CHECKER ---
-        // Now checks the specific participant's custom schedule against the database!
         if (!$hasConflict) {
             $partConflictStmt = $pdo->prepare("
                 SELECT e.title, pub.status, p.name, ps.start_time AS conflict_start, ps.end_time AS conflict_end
@@ -141,10 +139,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 LIMIT 1
             ");
 
-            $participantConflicts = []; // NEW: Array to collect multiple conflict messages
+            $participantConflicts = []; 
 
             foreach ($participant_ids as $pid) {
-                // Calculate the exact time this participant is being scheduled for
                 if ($is_all_day) {
                     $p_start = '00:00:00';
                     $p_end = '23:59:59';
@@ -161,25 +158,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $p_start_datetime = $start_date . ' ' . $p_start;
                 $p_end_datetime = $end_date . ' ' . $p_end;
 
-                // Test their custom time against the database
                 $partConflictStmt->execute([$pid, $p_end_datetime, $p_start_datetime]);
                 
                 if ($partConflict = $partConflictStmt->fetch()) {
                     $statusText = $partConflict['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
-                    
-                    // Grab the EXACT schedule this participant has from the database
                     $db_start_time = date('g:i A', strtotime($partConflict['conflict_start']));
                     $db_end_time = date('g:i A', strtotime($partConflict['conflict_end']));
                     
-                    // NEW: Add this specific conflict to our collection array instead of overwriting the message
-                    // Secure the variables before putting them in the HTML string
                     $safeName = htmlspecialchars($partConflict['name'], ENT_QUOTES, 'UTF-8');
                     $safeTitle = htmlspecialchars($partConflict['title'], ENT_QUOTES, 'UTF-8');
 
                     $participantConflicts[] = "<strong>{$safeName}</strong> is already scheduled for '{$safeTitle}' ({$statusText}) from {$db_start_time} to {$db_end_time}.";                }
             }
 
-            // NEW: If we found ANY participant conflicts, combine them into a bulleted list!
             if (!empty($participantConflicts)) {
                 $hasConflict = true;
                 $message = "<strong>Participant Conflict(s) Detected:</strong><br><ul class='list-disc pl-5 mt-2 space-y-1 text-xs'>";
@@ -279,6 +270,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </script>
 
     <style>
+        [x-cloak] { display: none !important; }
+        
         body { color: #1e293b; transition: background-color 0.3s ease, color 0.3s ease; }
         .dark body { color: #f1f5f9; }
         .nav-item { color: #64748b; transition: all 0.2s ease; }
@@ -291,13 +284,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .input-premium {
             background-color: #f8faf9; border: 1px solid #e2e8f0; color: #0f172a; transition: all 0.2s ease;
         }
-        .input-premium:focus {
+        .input-premium:focus, .input-premium-focus {
             background-color: #ffffff; border-color: #10b981; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); outline: none;
         }
         .dark .input-premium {
             background-color: rgba(15, 23, 42, 0.6); border-color: #334155; color: #f1f5f9;
         }
-        .dark .input-premium:focus {
+        .dark .input-premium:focus, .dark .input-premium-focus {
             background-color: #0f172a; border-color: #10b981; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
         }
 
@@ -319,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <?php include 'includes/sidebar.php'; ?>
 
-    <main class="flex-1 flex flex-col min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-10 relative custom-scrollbar">
+    <main class="flex-1 flex justify-center items-start overflow-y-auto p-4 sm:p-6 lg:p-10 relative custom-scrollbar">
 
         <div class="lg:hidden flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800 w-full max-w-4xl mx-auto">
             <h2 class="text-lg font-bold text-slate-800 dark:text-white">Menu</h2>
@@ -374,34 +367,143 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                
+                                <!-- SEARCHABLE CATEGORY DROPDOWN -->
                                 <div>
                                     <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Category</label>
-                                    <select name="category_id" required
-                                        class="input-premium w-full px-4 py-3 rounded-lg text-sm font-semibold appearance-none bg-no-repeat cursor-pointer"
-                                        style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%2364748b\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
-                                        <option value="">-- Select Category --</option>
-                                        <?php foreach ($categories as $cat): ?>
-                                            <option value="<?php echo $cat['category_id']; ?>" <?php echo (isset($_POST['category_id']) && $_POST['category_id'] == $cat['category_id']) ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($cat['category_name']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <div x-data="{
+                                            open: false,
+                                            search: '',
+                                            selectedId: '<?php echo $_POST['category_id'] ?? ''; ?>',
+                                            selectedName: '<?php 
+                                                $catName = ''; 
+                                                if(isset($_POST['category_id'])){ 
+                                                    foreach($categories as $c){ 
+                                                        if($c['category_id'] == $_POST['category_id']) { $catName = $c['category_name']; break; }
+                                                    } 
+                                                } 
+                                                echo addslashes($catName); 
+                                            ?>',
+                                            options: [
+                                                <?php foreach($categories as $cat): ?>
+                                                { id: '<?php echo $cat['category_id']; ?>', name: '<?php echo addslashes(htmlspecialchars($cat['category_name'])); ?>' },
+                                                <?php endforeach; ?>
+                                            ],
+                                            get filteredOptions() {
+                                                return this.options.filter(opt => opt.name.toLowerCase().includes(this.search.toLowerCase()));
+                                            },
+                                            selectOption(opt) {
+                                                this.selectedId = opt.id;
+                                                this.selectedName = opt.name;
+                                                this.open = false;
+                                                this.search = '';
+                                            }
+                                        }" class="relative">
+                                        
+                                        <input type="hidden" name="category_id" :value="selectedId" required>
+
+                                        <div @click="open = !open" 
+                                             class="input-premium w-full px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer flex justify-between items-center transition-colors"
+                                             :class="{ 'input-premium-focus': open }">
+                                            <span x-text="selectedName || '-- Select Category --'" :class="{'text-slate-400 dark:text-slate-500': !selectedName}"></span>
+                                            <i class="fa-solid fa-chevron-down text-slate-400 dark:text-slate-500 transition-transform" :class="{'rotate-180': open}"></i>
+                                        </div>
+
+                                        <div x-show="open" @click.away="open = false" x-transition.opacity
+                                             class="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden" x-cloak>
+                                            <div class="p-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                                                <div class="relative">
+                                                    <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                                    <input type="text" x-model="search" placeholder="Search category..." 
+                                                           class="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200">
+                                                </div>
+                                            </div>
+                                            <ul class="max-h-48 overflow-y-auto custom-scrollbar py-1">
+                                                <template x-for="opt in filteredOptions" :key="opt.id">
+                                                    <li @click="selectOption(opt)" 
+                                                        class="px-4 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors" 
+                                                        :class="{'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400': selectedId === opt.id}">
+                                                        <span x-text="opt.name"></span>
+                                                        <i x-show="selectedId === opt.id" class="fa-solid fa-check ml-2"></i>
+                                                    </li>
+                                                </template>
+                                                <li x-show="filteredOptions.length === 0" class="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 italic text-center">No categories found</li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
 
+                                <!-- SEARCHABLE VENUE DROPDOWN -->
                                 <div>
                                     <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Venue Location</label>
-                                    <select name="venue_id" required
-                                        class="input-premium w-full px-4 py-3 rounded-lg text-sm font-semibold appearance-none bg-no-repeat cursor-pointer"
-                                        style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%2364748b\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
-                                        <option value="">-- Select Venue --</option>
-                                        <?php foreach ($venues as $venue): ?>
-                                            <option value="<?php echo $venue['venue_id']; ?>" <?php echo (isset($_POST['venue_id']) && $_POST['venue_id'] == $venue['venue_id']) ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($venue['venue_name']); ?>
-                                                <?php if ($venue['is_off_campus']): ?> (Off-Campus)<?php endif; ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <div x-data="{
+                                            open: false,
+                                            search: '',
+                                            selectedId: '<?php echo $_POST['venue_id'] ?? ''; ?>',
+                                            selectedName: '<?php 
+                                                $venueName = ''; 
+                                                if(isset($_POST['venue_id'])){ 
+                                                    foreach($venues as $v){ 
+                                                        if($v['venue_id'] == $_POST['venue_id']) { 
+                                                            $venueName = $v['venue_name'] . ($v['is_off_campus'] ? ' (Off-Campus)' : ''); 
+                                                            break; 
+                                                        }
+                                                    } 
+                                                } 
+                                                echo addslashes($venueName); 
+                                            ?>',
+                                            options: [
+                                                <?php foreach($venues as $venue): ?>
+                                                { 
+                                                    id: '<?php echo $venue['venue_id']; ?>', 
+                                                    name: '<?php echo addslashes(htmlspecialchars($venue['venue_name'] . ($venue['is_off_campus'] ? ' (Off-Campus)' : ''))); ?>' 
+                                                },
+                                                <?php endforeach; ?>
+                                            ],
+                                            get filteredOptions() {
+                                                return this.options.filter(opt => opt.name.toLowerCase().includes(this.search.toLowerCase()));
+                                            },
+                                            selectOption(opt) {
+                                                this.selectedId = opt.id;
+                                                this.selectedName = opt.name;
+                                                this.open = false;
+                                                this.search = '';
+                                            }
+                                        }" class="relative">
+                                        
+                                        <input type="hidden" name="venue_id" :value="selectedId" required>
+
+                                        <div @click="open = !open" 
+                                             class="input-premium w-full px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer flex justify-between items-center transition-colors"
+                                             :class="{ 'input-premium-focus': open }">
+                                            <span x-text="selectedName || '-- Select Venue --'" :class="{'text-slate-400 dark:text-slate-500': !selectedName}"></span>
+                                            <i class="fa-solid fa-chevron-down text-slate-400 dark:text-slate-500 transition-transform" :class="{'rotate-180': open}"></i>
+                                        </div>
+
+                                        <div x-show="open" @click.away="open = false" x-transition.opacity
+                                             class="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden" x-cloak>
+                                            <div class="p-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                                                <div class="relative">
+                                                    <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                                    <input type="text" x-model="search" placeholder="Search venue..." 
+                                                           class="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200">
+                                                </div>
+                                            </div>
+                                            <ul class="max-h-48 overflow-y-auto custom-scrollbar py-1">
+                                                <template x-for="opt in filteredOptions" :key="opt.id">
+                                                    <li @click="selectOption(opt)" 
+                                                        class="px-4 py-2.5 text-sm font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+                                                        :class="{'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400': selectedId === opt.id}">
+                                                        <span x-text="opt.name"></span>
+                                                        <i x-show="selectedId === opt.id" class="fa-solid fa-check ml-2"></i>
+                                                    </li>
+                                                </template>
+                                                <li x-show="filteredOptions.length === 0" class="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 italic text-center">No venues found</li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
+                                
                             </div>
                         </div>
                     </div>
@@ -719,7 +821,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         document.getElementById(`block-${id}`).remove();
     }
 
-    // Helper function to handle the "Select All" toggle inside a specific custom block
     function toggleAllCustomBlockParticipants(blockId, isChecked) {
         const container = document.querySelector(`.custom-block-participants[data-block-id="${blockId}"]`);
         if (container) {
@@ -742,7 +843,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             container.innerHTML = ''; 
             
-            // Auto-uncheck the specific "Select All" toggle when the main list changes
             const selectAllToggle = container.previousElementSibling.querySelector('input[type="checkbox"]');
             if (selectAllToggle) selectAllToggle.checked = false;
 
