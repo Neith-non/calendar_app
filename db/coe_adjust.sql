@@ -82,6 +82,7 @@ ADD COLUMN end_date DATE NULL AFTER start_date,
 ADD COLUMN end_time TIME NULL AFTER start_time;
 
 ALTER TABLE event_publish ADD COLUMN description TEXT NULL AFTER title;
+ALTER TABLE event_publish ADD COLUMN sticky_note TEXT NULL AFTER description;
 ALTER TABLE events ADD COLUMN description TEXT NULL AFTER title;
 
 -- 1. Add the missing password column to your users table

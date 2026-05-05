@@ -53,7 +53,7 @@ $holidaysList = $holidayStmt->fetchAll(PDO::FETCH_COLUMN);
 
 // Fetch requests and JOIN with events and categories to get all needed data
 $stmt = $pdo->query("
-    SELECT p.id, p.title, p.description, p.status, 
+    SELECT p.id, p.title, p.description, p.status, p.sticky_note, 
            v.venue_name, c.category_name,
            e.start_date, e.start_time, e.end_date, e.end_time
     FROM event_publish p
@@ -269,9 +269,34 @@ $requests = $stmt->fetchAll();
                             ? 'border-red-500 ring-2 ring-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.15)] dark:border-red-500' 
                             : 'border-slate-200 dark:border-slate-800';
                         ?>
-
+                        
                         <div class="bento-card p-6 flex flex-col hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer relative group <?php echo $statusCardBorder; ?>"
-                             x-data="{ showNoteForm: false }"
+                             x-data="{ 
+                                showNoteForm: false, 
+                                noteText: '<?php echo addslashes(htmlspecialchars($req['sticky_note'] ?? '')); ?>', 
+                                tempText: '',
+                                isSaving: false,
+                                async saveNote() {
+                                    this.isSaving = true;
+                                    try {
+                                        let response = await fetch('save_note.php', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ id: <?php echo $req['id']; ?>, note: this.tempText })
+                                        });
+                                        let result = await response.json();
+                                        if (result.success) {
+                                            this.noteText = this.tempText;
+                                            this.showNoteForm = false;
+                                        } else {
+                                            alert('Error saving note: ' + result.error);
+                                        }
+                                    } catch (e) {
+                                        alert('Network error while saving note.');
+                                    }
+                                    this.isSaving = false;
+                                }
+                             }"
                              data-title="<?php echo $jsTitle; ?>"
                              data-desc="<?php echo $jsDesc; ?>"
                              data-category="<?php echo $jsCategory; ?>" 
@@ -282,7 +307,7 @@ $requests = $stmt->fetchAll();
                              data-end-time="<?php echo $endTime; ?>"
                              data-participants="<?php echo $jsParticipants; ?>"
                              data-holiday-title="<?php echo htmlspecialchars($conflictingHolidaysString); ?>"
-                             onclick="openModal(this)">
+                             onclick="if(!showNoteForm) openModal(this)">
 
                             <?php if ($isStatusHolidayConflict): ?>
                                 <div class="absolute -top-3 -right-2 bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 z-10 uppercase tracking-widest">
@@ -290,9 +315,28 @@ $requests = $stmt->fetchAll();
                                 </div>
                             <?php endif; ?>
 
-                            <button @click.stop="showNoteForm = true" class="absolute top-16 right-6 w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-700/50 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 hover:bg-amber-200 dark:hover:bg-amber-800" title="Add Sticky Note">
+                            <!-- Edit Note Button (Appears on Hover) -->
+                            <button @click.stop="tempText = noteText; showNoteForm = true" class="absolute top-16 right-6 w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-700/50 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 hover:bg-amber-200 dark:hover:bg-amber-800" title="Edit Sticky Note">
                                 <i class="fa-regular fa-note-sticky text-sm"></i>
                             </button>
+
+                            <!-- Sticky Note Input Overlay -->
+                            <div x-show="showNoteForm" style="display: none;" @click.stop x-transition.opacity class="absolute inset-0 bg-white/95 dark:bg-[#07160f]/95 backdrop-blur-sm z-20 rounded-[1.5rem] flex flex-col items-center justify-center p-6 cursor-default">
+                                <div class="w-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl shadow-lg p-4 transform transition-transform">
+                                    <h4 class="text-[10px] font-black text-amber-700 dark:text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                                        <i class="fa-solid fa-thumbtack"></i> Sticky Note
+                                    </h4>
+                                    <textarea x-model="tempText" class="w-full bg-white dark:bg-[#04120a] border border-amber-200 dark:border-amber-700/50 rounded-lg p-2.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400 dark:focus:ring-amber-600 resize-none placeholder-slate-400 dark:placeholder-slate-500 mb-3 custom-scrollbar" rows="3" placeholder="Type a note here..."></textarea>
+                                    <div class="flex justify-end gap-2">
+                                        <button @click="showNoteForm = false" :disabled="isSaving" class="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Cancel</button>
+                                        <button @click="saveNote()" :disabled="isSaving" class="px-3 py-1.5 text-xs font-bold bg-amber-400 hover:bg-amber-500 text-amber-900 rounded-lg shadow-sm transition-colors flex items-center gap-1.5">
+                                            <i class="fa-solid fa-check" x-show="!isSaving"></i>
+                                            <i class="fa-solid fa-spinner fa-spin" x-show="isSaving" x-cloak></i>
+                                            <span x-text="isSaving ? 'Saving...' : 'Save'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div class="flex justify-between items-start mb-4">
                                 <h3 class="text-lg font-black text-slate-800 dark:text-white leading-tight truncate pr-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
@@ -302,6 +346,12 @@ $requests = $stmt->fetchAll();
                                     <i class="fa-solid <?php echo $icon; ?>"></i>
                                     <?php echo htmlspecialchars($req['status']); ?>
                                 </span>
+                            </div>
+
+                            <!-- STATIC DISPLAY OF STICKY NOTE (Scrollable if too long) -->
+                            <div x-show="noteText !== ''" style="display: none;" class="mb-4 bg-amber-50/80 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-700/30 rounded-lg p-3 max-h-24 overflow-y-auto custom-scrollbar relative">
+                                <i class="fa-solid fa-thumbtack absolute top-2 right-2 text-amber-300 dark:text-amber-700/50 text-xs transform rotate-45"></i>
+                                <p class="text-xs font-medium text-amber-800 dark:text-amber-200 whitespace-pre-line" x-text="noteText"></p>
                             </div>
 
                             <div class="space-y-2 mb-6 flex-1">
