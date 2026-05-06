@@ -335,6 +335,8 @@ $requests = $stmt->fetchAll();
                                     this.isSaving = false;
                                 }
                              }"
+                             data-publish-id="<?php echo htmlspecialchars($req['id']); ?>"
+                             data-status="<?php echo strtolower($req['status']); ?>"
                              data-search-text="<?php echo $searchText; ?>"
                              data-status-filter="<?php echo strtolower($req['status']); ?>"
                              data-conflict-filter="<?php echo $conflictFlag; ?>"
@@ -527,7 +529,10 @@ $requests = $stmt->fetchAll();
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-[#07160f] px-6 py-4 border-t border-[#d1f0e0] dark:border-[#123f29] flex justify-end">
+            <div class="bg-white dark:bg-[#07160f] px-6 py-4 border-t border-[#d1f0e0] dark:border-[#123f29] flex justify-end gap-3">
+                <a id="modalEditBtn" href="#" class="hidden bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square"></i> Edit Event
+                </a>
                 <button onclick="closeModal()" class="bg-white dark:bg-[#0a1a12] border border-[#d1f0e0] dark:border-[#123f29] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-800 dark:text-emerald-200 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">Close Details</button>
             </div>
         </div>
@@ -539,6 +544,28 @@ $requests = $stmt->fetchAll();
 <script src="assets/js/event_modal.js"></script>
 <script src="assets/js/pdf_modal.js"></script>
 <script>
+    // --- EDIT BUTTON LOGIC ---
+    document.addEventListener('click', function(e) {
+        let card = e.target.closest('.event-status-card');
+        if (card) {
+            let status = card.getAttribute('data-status');
+            let publishId = card.getAttribute('data-publish-id');
+            let editBtn = document.getElementById('modalEditBtn');
+            
+            if (editBtn) {
+                if (status === 'pending' && publishId) {
+                    editBtn.href = 'edit_event.php?id=' + publishId;
+                    editBtn.classList.remove('hidden');
+                    editBtn.classList.add('flex');
+                } else {
+                    editBtn.classList.add('hidden');
+                    editBtn.classList.remove('flex');
+                    editBtn.href = '#';
+                }
+            }
+        }
+    });
+
     // Theme toggle initialization
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleKnob = document.getElementById('theme-toggle-knob');

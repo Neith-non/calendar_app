@@ -393,6 +393,7 @@ function getCategoryColor($categoryName)
                     ?>
                     
                     <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px] relative <?php echo $pendingBorder; ?>"
+                         data-publish-id="<?php echo htmlspecialchars($event['publish_id'] ?? ''); ?>"
                          data-status="pending" 
                          data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                          data-title="<?php echo htmlspecialchars($event['title']); ?>"
@@ -465,6 +466,7 @@ function getCategoryColor($categoryName)
                         ?>
                         
                         <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px]"
+                             data-publish-id="<?php echo htmlspecialchars($event['publish_id'] ?? ''); ?>"
                              data-status="holiday"
                              data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                              data-title="<?php echo htmlspecialchars($event['title']); ?>"
@@ -517,6 +519,7 @@ function getCategoryColor($categoryName)
                         ?>
                         
                         <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px]"
+                             data-publish-id="<?php echo htmlspecialchars($event['publish_id'] ?? ''); ?>"
                              data-status="scheduled"
                              data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                              data-title="<?php echo htmlspecialchars($event['title']); ?>"
@@ -630,7 +633,12 @@ function getCategoryColor($categoryName)
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-[#0b1120] px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <div class="bg-white dark:bg-[#0b1120] px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                <?php if (!$isViewer): ?>
+                    <a id="modalEditBtn" href="#" class="hidden bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square"></i> Edit Event
+                    </a>
+                <?php endif; ?>
                 <button onclick="closeModal()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">Close Details</button>
             </div>
         </div>
@@ -672,6 +680,29 @@ function getCategoryColor($categoryName)
 <script src="assets/js/pdf_modal.js"></script>
 
 <script>
+    // --- EDIT BUTTON LOGIC ---
+    // This perfectly hooks into the click before your event_modal.js runs
+    document.addEventListener('click', function(e) {
+        let card = e.target.closest('.event-card');
+        if (card) {
+            let status = card.getAttribute('data-status');
+            let publishId = card.getAttribute('data-publish-id');
+            let editBtn = document.getElementById('modalEditBtn');
+            
+            if (editBtn) {
+                if (status === 'pending' && publishId) {
+                    editBtn.href = 'edit_event.php?id=' + publishId;
+                    editBtn.classList.remove('hidden');
+                    editBtn.classList.add('flex');
+                } else {
+                    editBtn.classList.add('hidden');
+                    editBtn.classList.remove('flex');
+                    editBtn.href = '#';
+                }
+            }
+        }
+    });
+
     // --- DARK MODE TOGGLE LOGIC ---
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleKnob = document.getElementById('theme-toggle-knob');
