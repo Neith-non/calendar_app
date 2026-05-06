@@ -348,7 +348,7 @@ $requests = $stmt->fetchAll();
                              data-end-time="<?php echo $endTime; ?>"
                              data-participants="<?php echo $jsParticipants; ?>"
                              data-holiday-title="<?php echo htmlspecialchars($conflictingHolidaysString); ?>"
-                             onclick="if(!showNoteForm) openModal(this)">
+                             onclick="openModal(this)">
 
                             <?php if ($isStatusHolidayConflict): ?>
                                 <div class="absolute -top-3 -right-2 bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 z-10 uppercase tracking-widest">
