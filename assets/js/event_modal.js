@@ -3,6 +3,9 @@
 function openModal(element) {
     const eventModal = document.getElementById('eventModal');
     const modalContent = document.getElementById('modalContent');
+    const status = element.dataset.status;
+    const publishId = element.dataset.publishId;
+    const editBtn = document.getElementById('modalEditBtn');
 
     if (!eventModal || !modalContent) return;
 
@@ -23,6 +26,18 @@ function openModal(element) {
     if (document.getElementById('modalCategory')) document.getElementById('modalCategory').innerText = element.dataset.category || 'Not categorized';
     if (document.getElementById('modalVenue')) document.getElementById('modalVenue').innerText = element.dataset.venue || 'Not specified';
 
+
+    if (editBtn) {
+        // Convert status to lowercase to avoid case-sensitivity bugs!
+        if (status && status.toLowerCase() === 'pending' && publishId) {
+            editBtn.href = `edit_event.php?id=${publishId}`;
+            editBtn.classList.remove('hidden');
+            editBtn.classList.add('flex');
+        } else {
+            editBtn.classList.add('hidden');
+            editBtn.classList.remove('flex');
+        }
+    }
     // --- HOLIDAY CONFLICT MODAL NOTIFICATION ---
     const existingAlert = document.getElementById('modalHolidayAlert');
     if (existingAlert) existingAlert.remove();

@@ -393,7 +393,8 @@ function getCategoryColor($categoryName)
                     ?>
                     
                     <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px] relative <?php echo $pendingBorder; ?>"
-                         data-status="pending" 
+                         data-status="pending"
+                         data-publish-id="<?php echo $event['publish_id']; ?>" 
                          data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                          data-title="<?php echo htmlspecialchars($event['title']); ?>"
                          data-desc="<?php echo htmlspecialchars($event['description'] ?? ''); ?>"
@@ -466,6 +467,7 @@ function getCategoryColor($categoryName)
                         
                         <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px]"
                              data-status="holiday"
+                             data-publish-id="<?php echo $event['publish_id']; ?>"
                              data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                              data-title="<?php echo htmlspecialchars($event['title']); ?>"
                              data-desc="<?php echo htmlspecialchars($event['description'] ?? ''); ?>"
@@ -518,6 +520,7 @@ function getCategoryColor($categoryName)
                         
                         <div class="bento-card event-bento event-card cursor-pointer group p-6 flex flex-col min-h-[220px]"
                              data-status="scheduled"
+                             data-publish-id="<?php echo $event['publish_id']; ?>"
                              data-category="<?php echo htmlspecialchars($event['category_name']); ?>"
                              data-title="<?php echo htmlspecialchars($event['title']); ?>"
                              data-desc="<?php echo htmlspecialchars($event['description'] ?? ''); ?>"
@@ -630,9 +633,16 @@ function getCategoryColor($categoryName)
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-[#0b1120] px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-                <button onclick="closeModal()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">Close Details</button>
-            </div>
+            <div class="bg-white dark:bg-[#0b1120] px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+    
+    <a id="modalEditBtn" href="#" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm items-center gap-2">
+        <i class="fa-solid fa-pen-to-square"></i> Edit Event
+    </a>
+
+    <button onclick="closeModal()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">
+        Close 
+    </button>
+</div>
         </div>
     </div>
 
