@@ -146,7 +146,7 @@ function getCategoryColor($categoryName) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SJSFI - Present Schedule</title>
+    <title> Present Schedule - SJSFI</title>
     
     <script>
         if (localStorage.getItem('color-theme') === 'dark') { document.documentElement.classList.add('dark'); } 

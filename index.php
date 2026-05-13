@@ -108,7 +108,7 @@ function getCategoryColor($categoryName)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SJSFI - Calendar of Events</title>
+    <title>Dashboard - SJSFI</title>
     
     <script>
         if (localStorage.getItem('color-theme') === 'dark') {
@@ -439,7 +439,7 @@ function getCategoryColor($categoryName)
 
                             <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler')): ?>
                                 <div class="flex justify-center gap-2 mt-1">
-                                    <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=approve', 'approve')"
+                                    <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=approve', 'approve', '<?php echo addslashes($conflictingHolidaysString); ?>')"
                                         class="w-full h-8 rounded-lg bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center justify-center transition border border-slate-200 dark:border-slate-700 hover:border-emerald-200 dark:hover:border-emerald-500/30 gap-1.5 text-xs font-bold shadow-sm">
                                         <i class="fa-solid fa-check"></i> Approve
                                     </button>

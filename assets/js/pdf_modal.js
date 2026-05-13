@@ -75,8 +75,32 @@ async function openPdfModal() {
               </div>
 
               <p class="text-sm text-slate-600 font-medium mb-3">2. Select Categories to Include:</p>
-              <div class="grid grid-cols-2 gap-3 mb-4">
+              <div class="grid grid-cols-2 gap-3 mb-6">
                   ${categoriesHtml}
+              </div>
+
+              <p class="text-sm text-slate-600 font-medium mb-3">3. Display Columns:</p>
+              <div class="grid grid-cols-2 gap-3 mb-4">
+                  <label class="flex items-center space-x-2 p-2 rounded border border-slate-200 bg-slate-50 opacity-60">
+                      <input type="checkbox" checked disabled class="rounded text-blue-600 w-4 h-4">
+                      <span class="text-sm text-slate-700 font-semibold">Event Name</span>
+                  </label>
+                  <label class="flex items-center space-x-2 p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+                      <input type="checkbox" name="show_date" value="1" checked class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
+                      <span class="text-sm text-slate-700 font-semibold">Date & Time</span>
+                  </label>
+                  <label class="flex items-center space-x-2 p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+                      <input type="checkbox" name="show_details" value="1" checked class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
+                      <span class="text-sm text-slate-700 font-semibold">Event Details</span>
+                  </label>
+                  <label class="flex items-center space-x-2 p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+                      <input type="checkbox" name="show_venue" value="1" checked class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
+                      <span class="text-sm text-slate-700 font-semibold">Venue</span>
+                  </label>
+                  <label class="flex items-center space-x-2 p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer transition col-span-2">
+                      <input type="checkbox" name="show_participants" value="1" checked class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
+                      <span class="text-sm text-slate-700 font-semibold">Participants</span>
+                  </label>
               </div>
 
               <input type="hidden" name="year" value="${currentYear}">

@@ -13,6 +13,12 @@ $selectedMonths = $_GET['months'] ?? [];
 $selectedCategories = $_GET['categories'] ?? [];
 $year = isset($_GET['year']) ? (int) $_GET['year'] : date('Y');
 
+// Display Column Toggles
+$showDate = isset($_GET['show_date']);
+$showDetails = isset($_GET['show_details']);
+$showVenue = isset($_GET['show_venue']);
+$showParticipants = isset($_GET['show_participants']);
+
 // Safety Checks
 if (empty($selectedMonths)) {
     die("<h2 style='font-family:sans-serif; color:red;'>Error: Please select at least one month.</h2> <a href='javascript:history.back()'>Go Back</a>");
@@ -29,6 +35,20 @@ $selectedCategories = array_map('intval', $selectedCategories);
 
 // Create the dynamic "?, ?, ?" placeholders based on how many categories were checked
 $catPlaceholders = implode(',', array_fill(0, count($selectedCategories), '?'));
+
+// Fetch Participants Map if needed
+$event_participants_map = [];
+if ($showParticipants) {
+    $part_stmt = $pdo->query("
+        SELECT ps.event_publish_id AS publish_id, d.name AS department
+        FROM participant_schedule ps
+        JOIN participants p ON ps.participant_id = p.id
+        JOIN department d ON p.department_id = d.id
+    ");
+    while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
+        $event_participants_map[$row['publish_id']][] = $row['department'];
+    }
+}
 
 // 2. Load the Header Image securely using Base64 encoding
 $imagePath = 'assets/img/sjsf_header.png';
@@ -55,11 +75,10 @@ $html = '
         .month-title { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
         .page-break { page-break-after: always; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #000; padding: 10px; vertical-align: middle; }
+        th, td { border: 1px solid #000; padding: 10px; vertical-align: top; }
         th { background-color: #F5F5DC; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 13px; color: #000; }
-        .date-col { width: 12%; text-align: center; font-size: 18px; font-weight: bold; }
-        .activity-col { width: 88%; text-align: left; padding-left: 15px; }
         .ev-title { font-weight: bold; font-size: 14px; margin-bottom: 3px; }
+        .ev-cat { font-size: 11px; color: #444; font-style: italic; margin-top: 3px; }
         .ev-desc { font-size: 13px; line-height: 1.4; }
         .no-events { text-align: center; padding: 40px; font-style: italic; border: 1px solid #000; }
     </style>
@@ -69,12 +88,13 @@ $html = '
 $totalMonths = count($selectedMonths);
 $currentIndex = 0;
 
-// THE EXACT STRICT QUERY: We use the dynamic $catPlaceholders to lock the query to ONLY the checked categories
+// THE EXACT STRICT QUERY: We use the dynamic $catPlaceholders to lock the query to ONLY the checked categories + Join Venues
 $sql = "
-    SELECT e.*, c.category_name, p.status 
+    SELECT e.*, c.category_name, p.status, v.venue_name
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
     LEFT JOIN event_publish p ON e.publish_id = p.id
+    LEFT JOIN venues v ON p.venue_id = v.venue_id
     WHERE MONTH(e.start_date) = ?
     AND YEAR(e.start_date) = ? 
     AND e.category_id IN ($catPlaceholders)
@@ -115,27 +135,58 @@ foreach ($selectedMonths as $month) {
         $html .= '<table>
                     <thead>
                         <tr>
-                            <th class="date-col">Date</th>
-                            <th class="activity-col">Activity / Events</th>
-                        </tr>
+                            <th>Event Name</th>';
+        
+        if ($showDate) $html .= '<th>Date & Time</th>';
+        if ($showDetails) $html .= '<th>Event Details</th>';
+        if ($showVenue) $html .= '<th>Venue</th>';
+        if ($showParticipants) $html .= '<th>Participants</th>';
+
+        $html .= '      </tr>
                     </thead>
                     <tbody>';
 
         foreach ($events as $event) {
-            $dayNum = date('j', strtotime($event['start_date']));
-            $descText = !empty($event['description']) ? nl2br(htmlspecialchars($event['description'])) : '';
+            $formattedDate = date('M j, Y', strtotime($event['start_date']));
+            $formattedTime = ($event['start_time'] == '00:00:00' || $event['start_time'] == '23:59:59') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
+            $descText = !empty($event['description']) ? nl2br(htmlspecialchars($event['description'])) : '-';
+            $venueText = !empty($event['venue_name']) ? htmlspecialchars($event['venue_name']) : 'Unspecified';
 
             $html .= '<tr>
-                        <td class="date-col">' . $dayNum . '</td>
-                        <td class="activity-col">
-                            <div class="ev-title">' . htmlspecialchars($event['title']) . '</div>';
+                        <td>
+                            <div class="ev-title">' . htmlspecialchars($event['title']) . '</div>
+                            <div class="ev-cat">' . htmlspecialchars($event['category_name']) . '</div>
+                        </td>';
 
-            if ($descText !== '') {
-                $html .= '<div class="ev-desc">' . $descText . '</div>';
+            // Date & Time
+            if ($showDate) {
+                $html .= '<td style="text-align:center;"><strong>' . $formattedDate . '</strong><br>' . $formattedTime . '</td>';
+            }
+            
+            // Event Details
+            if ($showDetails) {
+                $html .= '<td><div class="ev-desc">' . $descText . '</div></td>';
             }
 
-            $html .= '  </td>
-                      </tr>';
+            // Venue
+            if ($showVenue) {
+                $html .= '<td style="text-align:center;">' . $venueText . '</td>';
+            }
+
+            // Participants
+            if ($showParticipants) {
+                $html .= '<td>';
+                $pubId = $event['publish_id'];
+                if ($pubId && !empty($event_participants_map[$pubId])) {
+                    $uniqueDepts = array_unique($event_participants_map[$pubId]);
+                    $html .= implode('<br>', array_map('htmlspecialchars', $uniqueDepts));
+                } else {
+                    $html .= '<span style="color:#666; font-style:italic;">Unspecified</span>';
+                }
+                $html .= '</td>';
+            }
+
+            $html .= '</tr>';
         }
         $html .= '</tbody></table>';
     } else {
@@ -159,7 +210,7 @@ $options->set('isRemoteEnabled', true);
 $dompdf = new Dompdf($options);
 $dompdf->loadHtml($html);
 
-// Paper size set to letter
+// Paper size set to letter, kept in portrait as requested
 $dompdf->setPaper('letter', 'portrait');
 
 $dompdf->render();

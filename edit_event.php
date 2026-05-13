@@ -594,6 +594,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <p id="holiday-warning" class="hidden mb-5 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3 rounded-lg text-sm font-bold shadow-sm animate-pulse">
                             <i class="fa-solid fa-triangle-exclamation mr-2"></i> Warning: This date falls on <strong id="holiday-name"></strong>.
                         </p>
+                        <p id="past-date-warning" class="hidden mb-5 text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 p-3 rounded-lg text-sm font-bold shadow-sm animate-pulse">
+                            <i class="fa-solid fa-clock-rotate-left mr-2"></i> Notice: You are scheduling an event in the past.
+                        </p>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div class="bg-slate-50 dark:bg-slate-800/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -1071,8 +1074,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    if (startDateInput) startDateInput.addEventListener('change', checkHolidayRange);
-    if (endDateInput) endDateInput.addEventListener('change', checkHolidayRange);
+    const pastWarningText = document.getElementById('past-date-warning');
+
+    function checkPastDate() {
+        if (!startDateInput || !startDateInput.value) return;
+        
+        // Create dates and strip the exact time for accurate day-to-day comparison
+        const selectedDate = new Date(startDateInput.value);
+        selectedDate.setHours(0, 0, 0, 0);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (selectedDate < today) {
+            pastWarningText.classList.remove('hidden');
+        } else {
+            pastWarningText.classList.add('hidden');
+        }
+    }
+
+    if (startDateInput) {
+        startDateInput.addEventListener('change', () => {
+            checkHolidayRange();
+            checkPastDate();
+        });
+        // Check on initial page load (useful for edit_event.php)
+        checkPastDate();
+    }
+    
+    if (endDateInput) {
+        endDateInput.addEventListener('change', checkHolidayRange);
+    }
 
     eventForm.addEventListener('submit', function (e) {
         const checkboxes = document.querySelectorAll('.participant-cb:checked');
