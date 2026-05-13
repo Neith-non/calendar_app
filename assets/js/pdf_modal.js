@@ -6,7 +6,7 @@ async function openPdfModal() {
   if (!modal) {
     modal = document.createElement("div");
     modal.id = "pdfModal";
-    modal.className = "fixed inset-0 bg-slate-900 bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity p-4";
+    modal.className = "fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[110] backdrop-blur-sm transition-opacity p-4";
     document.body.appendChild(modal);
 
     const currentDate = new Date();
@@ -22,9 +22,9 @@ async function openPdfModal() {
     for (let num = 1; num <= 12; num++) {
       const isChecked = num === currentMonth ? "checked" : "";
       checkboxesHtml += `
-          <label class="flex items-center space-x-2 p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
-              <input type="checkbox" name="months[]" value="${num}" ${isChecked} class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"> 
-              <span class="text-sm text-slate-700 font-semibold">${monthsList[num]}</span>
+          <label class="flex items-center space-x-2 p-2.5 rounded-xl border border-[#d1f0e0] dark:border-[#123f29] bg-white dark:bg-[#07160f] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] cursor-pointer transition shadow-sm">
+              <input type="checkbox" name="months[]" value="${num}" ${isChecked} class="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 bg-white dark:bg-[#04120a]"> 
+              <span class="text-sm text-slate-700 dark:text-slate-300 font-bold">${monthsList[num]}</span>
           </label>
       `;
     }
@@ -38,53 +38,81 @@ async function openPdfModal() {
     }
 
     // Fetch the dynamic categories!
-    let categoriesHtml = '<div class="text-sm text-slate-500 italic col-span-full">Loading categories...</div>';
+    let categoriesHtml = '<div class="text-sm text-slate-400 italic col-span-full">Loading categories...</div>';
     try {
         const response = await fetch(apiUrl);
         if (response.ok) {
             const categories = await response.json();
             if (categories.length > 0) {
-                // By default, we will pre-check all categories
                 categoriesHtml = categories.map(cat => `
-                    <label class="flex items-center space-x-2 p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
-                        <input type="checkbox" name="categories[]" value="${cat.category_id}" checked class="rounded text-purple-600 focus:ring-purple-500 w-4 h-4">
-                        <span class="text-sm text-slate-700 font-semibold truncate" title="${cat.category_name}">${cat.category_name}</span>
+                    <label class="flex items-center space-x-2 p-2.5 rounded-xl border border-[#d1f0e0] dark:border-[#123f29] bg-white dark:bg-[#07160f] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] cursor-pointer transition shadow-sm">
+                        <input type="checkbox" name="categories[]" value="${cat.category_id}" checked class="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 bg-white dark:bg-[#04120a]">
+                        <span class="text-sm text-slate-700 dark:text-slate-300 font-bold truncate" title="${cat.category_name}">${cat.category_name}</span>
                     </label>
                 `).join('');
             } else {
-                categoriesHtml = '<div class="text-sm text-red-500 col-span-full">No categories found.</div>';
+                categoriesHtml = '<div class="text-sm text-red-500 dark:text-red-400 col-span-full font-semibold">No categories found.</div>';
             }
         }
     } catch (error) {
-        categoriesHtml = '<div class="text-sm text-red-500 col-span-full">Error loading categories.</div>';
+        categoriesHtml = '<div class="text-sm text-red-500 dark:text-red-400 col-span-full font-semibold">Error loading categories.</div>';
     }
 
     modal.innerHTML = `
-      <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-          <div class="bg-slate-800 p-4 flex justify-between items-center text-white flex-shrink-0">
-              <h2 class="text-xl font-bold"><i class="fa-solid fa-file-pdf text-red-400 mr-2"></i> Generate Schedule</h2>
-              <button type="button" onclick="closePdfModal()" class="text-slate-300 hover:text-white transition">
-                  <i class="fa-solid fa-xmark text-xl"></i>
+      <div class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-[#d1f0e0] dark:border-[#123f29] flex flex-col max-h-[90vh] transform transition-all scale-95 opacity-0" id="pdfModalContent">
+          
+          <div class="bg-[#f0fcf5] dark:bg-[#0a1a12] p-6 flex justify-between items-start border-b border-[#d1f0e0] dark:border-[#123f29] flex-shrink-0">
+              <h2 class="text-xl font-extrabold text-emerald-900 dark:text-emerald-100 leading-tight pr-4 flex items-center">
+                  <i class="fa-solid fa-file-pdf text-emerald-500 mr-2"></i> Generate Schedule
+              </h2>
+              <button type="button" onclick="closePdfModal()" class="text-emerald-400 hover:text-red-500 transition bg-white dark:bg-[#07160f] border border-[#d1f0e0] dark:border-[#123f29] hover:border-red-200 rounded-full w-8 h-8 flex items-center justify-center shadow-sm shrink-0">
+                  <i class="fa-solid fa-xmark text-sm"></i>
               </button>
           </div>
 
-          <form action="${actionUrl}" method="GET" class="p-6 overflow-y-auto custom-scrollbar">
-              <p class="text-sm text-slate-600 font-medium mb-3">1. Select Months:</p>
+          <form action="${actionUrl}" method="GET" class="p-6 overflow-y-auto custom-scrollbar" target="_blank">
+              
+              <h3 class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-3">1. Select Months</h3>
               <div class="grid grid-cols-3 gap-3 mb-6">
                   ${checkboxesHtml}
               </div>
 
-              <p class="text-sm text-slate-600 font-medium mb-3">2. Select Categories to Include:</p>
-              <div class="grid grid-cols-2 gap-3 mb-4">
+              <h3 class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-3">2. Select Categories</h3>
+              <div class="grid grid-cols-2 gap-3 mb-6">
                   ${categoriesHtml}
               </div>
 
+              <h3 class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-3">3. Display Options</h3>
+              <div class="grid grid-cols-2 gap-2 mb-6 bg-[#f0fcf5] dark:bg-[#0a1a12] p-4 rounded-xl border border-[#d1f0e0] dark:border-[#123f29]">
+                  <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 font-semibold cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition">
+                      <input type="checkbox" name="show_cat" value="1" checked class="w-4 h-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 bg-white dark:bg-[#04120a]"> Category
+                  </label>
+                  <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 font-semibold cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition">
+                      <input type="checkbox" name="show_ven" value="1" checked class="w-4 h-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 bg-white dark:bg-[#04120a]"> Venue
+                  </label>
+                  <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 font-semibold cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition">
+                      <input type="checkbox" name="show_part" value="1" checked class="w-4 h-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 bg-white dark:bg-[#04120a]"> Participants
+                  </label>
+                  <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 font-semibold cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition">
+                      <input type="checkbox" name="show_cust" value="1" checked class="w-4 h-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 bg-white dark:bg-[#04120a]"> Custom Times
+                  </label>
+              </div>
+
+              <h3 class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2">4. Print Size</h3>
+              <select name="paper_size" class="w-full p-3 bg-[#f0fcf5] dark:bg-[#0a1a12] border border-[#d1f0e0] dark:border-[#123f29] rounded-xl text-sm text-emerald-900 dark:text-emerald-100 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-2 shadow-sm">
+                <option value="a4">A4 (8.27" x 11.69")</option>  
+                <option value="letter">Short Bond (Letter - 8.5" x 11")</option>
+                <option value="legal">Long Bond (Legal - 8.5" x 14")</option>
+              </select>
+
               <input type="hidden" name="year" value="${currentYear}">
               
-              <div class="flex justify-end gap-3 pt-5 mt-2 border-t border-slate-100">
-                  <button type="button" onclick="closePdfModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition">Cancel</button>
-                  <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition shadow-md flex items-center gap-2">
-                      Generate PDF
+              <div class="flex justify-end gap-3 pt-6 mt-4 border-t border-[#d1f0e0] dark:border-[#123f29]">
+                  <button type="button" onclick="closePdfModal()" class="bg-white dark:bg-[#0a1a12] border border-[#d1f0e0] dark:border-[#123f29] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-800 dark:text-emerald-200 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">
+                      Cancel
+                  </button>
+                  <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm flex items-center gap-2">
+                      <i class="fa-solid fa-print"></i> Generate PDF
                   </button>
               </div>
           </form>
@@ -92,14 +120,28 @@ async function openPdfModal() {
     `;
   }
 
+  // Animate the modal opening
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  
+  setTimeout(() => {
+      const content = document.getElementById('pdfModalContent');
+      if (content) content.classList.remove('scale-95', 'opacity-0');
+  }, 10);
 }
 
 function closePdfModal() {
   const modal = document.getElementById("pdfModal");
-  if (modal) {
-    modal.classList.add("hidden");
-    modal.classList.remove("flex");
+  const content = document.getElementById("pdfModalContent");
+  
+  if (content) {
+      content.classList.add('scale-95', 'opacity-0');
   }
+  
+  setTimeout(() => {
+      if (modal) {
+          modal.classList.add("hidden");
+          modal.classList.remove("flex");
+      }
+  }, 200);
 }
