@@ -24,7 +24,7 @@ $showVen = isset($_GET['show_ven']) && $_GET['show_ven'] == '1';
 $showPart = isset($_GET['show_part']) && $_GET['show_part'] == '1';
 $showCust = isset($_GET['show_cust']) && $_GET['show_cust'] == '1';
 
-// Capture Paper Size (letter = short bond, legal = long bond, a4 = A4)
+// Capture Paper Size
 $paperSize = $_GET['paper_size'] ?? 'letter';
 $validSizes = ['letter', 'legal', 'a4'];
 if (!in_array(strtolower($paperSize), $validSizes)) {
@@ -60,7 +60,6 @@ $dateWidth = 10;
 $catWidth = $showCat ? 14 : 0;
 $venWidth = $showVen ? 14 : 0;
 $partWidth = $showPart ? 24 : 0; 
-// Title/Description/Time takes up whatever percentage is left over!
 $titleWidth = 100 - ($dateWidth + $catWidth + $venWidth + $partWidth);
 
 // 3. Set up the CSS and HTML structure
@@ -71,7 +70,7 @@ $html = '
     <meta charset="UTF-8">
     <title>School Schedule - ' . $year . '</title>
     <style>
-        /* NARROW MARGINS: Pushes the table to the absolute edges of the paper */
+        /* NARROW MARGINS */
         @page { margin: 0.35in 0.4in; }
         
         body { font-family: "Helvetica", "Arial", sans-serif; color: #000; font-size: 13px; line-height: 1.3; }
@@ -85,7 +84,6 @@ $html = '
         
         .page-break { page-break-after: always; }
         
-        /* Force table to 100% layout */
         table { width: 100%; border-collapse: collapse; margin-top: 5px; }
         th, td { border: 1px solid #000; padding: 6px; vertical-align: top; word-wrap: break-word; }
         th { background-color: #F5F5DC; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 11px; color: #000; }
@@ -98,10 +96,7 @@ $html = '
         .ev-desc { font-size: 11px; line-height: 1.4; color: #222; }
         
         .center-text { text-align: center; font-size: 11px; }
-        
-        /* Modified for inline participants list */
         .part-cell { font-size: 11px; line-height: 1.5; color: #222; text-align: left; }
-        .custom-time { font-size: 10px; color: #6b21a8; font-weight: bold; white-space: nowrap; }
         
         .no-events { text-align: center; padding: 40px; font-style: italic; border: 1px solid #000; }
     </style>
@@ -138,7 +133,6 @@ foreach ($selectedMonths as $month) {
     $stmt->execute($params);
     $events = $stmt->fetchAll();
 
-    // Document Header & Logo 
     $html .= '<div class="header">';
     if ($base64Image !== '') {
         $html .= '<img src="' . $base64Image . '" alt="St. Joseph School Foundation Header">';
@@ -155,7 +149,6 @@ foreach ($selectedMonths as $month) {
     $html .= '<div class="month-title">' . $monthName . ' ' . $year . '</div>';
 
     if (count($events) > 0) {
-        // USING HTML WIDTH ATTRIBUTES DIRECTLY
         $html .= '<table width="100%">
                     <thead>
                         <tr>
@@ -174,7 +167,6 @@ foreach ($selectedMonths as $month) {
             $dayNum = date('j', strtotime($event['start_date']));
             $dayName = date('D', strtotime($event['start_date'])); 
             
-            // Format Time Range (Horizontal)
             $timeStart = formatTimeDisplay($event['start_time']);
             $timeEnd = formatTimeDisplay($event['end_time']);
             if ($timeStart === 'All Day' || $timeEnd === 'All Day') {
@@ -185,15 +177,52 @@ foreach ($selectedMonths as $month) {
             
             $descText = !empty($event['description']) ? nl2br(htmlspecialchars($event['description'])) : '';
 
+            // --- FETCH PARTICIPANTS & CUSTOM TIMES EARLY ---
+            $partNames = [];
+            $customSchedules = [];
+
+            if (($showPart || $showCust) && !empty($event['publish_id'])) {
+                $partStmt = $pdo->prepare("
+                    SELECT p.name, ps.start_time, ps.end_time 
+                    FROM participant_schedule ps 
+                    JOIN participants p ON ps.participant_id = p.id 
+                    WHERE ps.event_publish_id = ?
+                ");
+                $partStmt->execute([$event['publish_id']]);
+                $participants = $partStmt->fetchAll();
+
+                foreach ($participants as $p) {
+                    $pName = htmlspecialchars($p['name']);
+                    $partNames[] = $pName;
+
+                    if ($showCust && !empty($p['start_time'])) {
+                        $pStartStr = date('H:i', strtotime($p['start_time'] ?? '00:00:00'));
+                        $pEndStr   = date('H:i', strtotime($p['end_time'] ?? '00:00:00'));
+                        $eStartStr = date('H:i', strtotime($event['start_time'] ?? '00:00:00'));
+                        $eEndStr   = date('H:i', strtotime($event['end_time'] ?? '00:00:00'));
+
+                        if ($pStartStr !== $eStartStr || $pEndStr !== $eEndStr) {
+                            $cStart = formatTimeDisplay($p['start_time']);
+                            $cEnd = formatTimeDisplay($p['end_time']);
+                            $displayCust = ($cStart === 'All Day' && $cEnd === 'All Day') ? 'All Day' : "$cStart - $cEnd";
+                            
+                            // Save the custom schedule string to display below the description
+                            $customSchedules[] = "<b>" . $pName . "</b>: " . $displayCust;
+                        }
+                    }
+                }
+            }
+
+            // --- START BUILDING THE ROW ---
             $html .= '<tr>';
             
-            // COLUMN 1: Date (Only Date now)
+            // COLUMN 1: Date
             $html .= '<td class="date-col">
                         <span class="day-name">' . $dayName . '</span>
                         ' . $dayNum . '
                       </td>';
                       
-            // COLUMN 2: Title, Time, and Description combined
+            // COLUMN 2: Event Details (Now includes Custom Times at the bottom)
             $html .= '<td>
                         <div class="ev-title">' . htmlspecialchars($event['title']) . '</div>
                         <div class="time-text">Time: ' . $timeFormatted . '</div>';
@@ -201,6 +230,15 @@ foreach ($selectedMonths as $month) {
             if ($descText !== '') {
                 $html .= '<div class="ev-desc">' . $descText . '</div>';
             }
+
+            // Print the custom schedules cleanly below the description
+            if ($showCust && !empty($customSchedules)) {
+                $html .= '<div style="margin-top: 8px; font-size: 10px; color: #333; line-height: 1.4;">';
+                $html .= '<span style="font-style: italic;">* Custom Schedules:</span><br>';
+                $html .= implode('<br>', $customSchedules);
+                $html .= '</div>';
+            }
+
             $html .= '</td>';
 
             // COLUMN 3: Category
@@ -215,43 +253,10 @@ foreach ($selectedMonths as $month) {
                 $html .= '<td class="center-text">' . $venText . '</td>';
             }
 
-            // COLUMN 5: Participants
+            // COLUMN 5: Participants (Now just a tight, comma-separated list of names)
             if ($showPart) {
-                if (!empty($event['publish_id'])) {
-                    $partStmt = $pdo->prepare("
-                        SELECT p.name, ps.start_time, ps.end_time 
-                        FROM participant_schedule ps 
-                        JOIN participants p ON ps.participant_id = p.id 
-                        WHERE ps.event_publish_id = ?
-                    ");
-                    $partStmt->execute([$event['publish_id']]);
-                    $participants = $partStmt->fetchAll();
-
-                    if (!empty($participants)) {
-                        $html .= '<td class="part-cell">';
-                        
-                        $partArray = [];
-                        foreach ($participants as $p) {
-                            $pName = htmlspecialchars($p['name']);
-                            $customStr = '';
-                            
-                            // Check for custom time
-                            if ($showCust && !empty($p['start_time']) && $p['start_time'] !== $event['start_time']) {
-                                $cStart = formatTimeDisplay($p['start_time']);
-                                $cEnd = formatTimeDisplay($p['end_time']);
-                                $displayCust = ($cStart === 'All Day' && $cEnd === 'All Day') ? 'All Day' : "$cStart - $cEnd";
-                                // Add custom time inline without <br>
-                                $customStr = " <span class=\"custom-time\">($displayCust)</span>";
-                            }
-                            
-                            $partArray[] = $pName . $customStr;
-                        }
-                        
-                        $html .= implode(', ', $partArray);
-                        $html .= '</td>';
-                    } else {
-                        $html .= '<td class="center-text" style="color:#777;"><i>N/A</i></td>';
-                    }
+                if (!empty($partNames)) {
+                    $html .= '<td class="part-cell">' . implode(', ', $partNames) . '</td>';
                 } else {
                     $html .= '<td class="center-text" style="color:#777;"><i>N/A</i></td>';
                 }
@@ -280,7 +285,6 @@ $options->set('isRemoteEnabled', true);
 $dompdf = new Dompdf($options);
 $dompdf->loadHtml($html);
 
-// Set Paper Size accurately
 $dompdf->setPaper($paperSize, 'portrait');
 
 $dompdf->render();
