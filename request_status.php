@@ -227,7 +227,7 @@ $requests = $stmt->fetchAll();
                     foreach ($requests as $req):
                         // Group by Month/Year
                         if (empty($req['start_date'])) {
-                            $eventMonth = 'UNSCHEDULED / NO DATE';
+                            $eventMonth = 'REJECTED EVENTS';
                         } else {
                             $eventMonth = strtoupper(date('F Y', strtotime($req['start_date'])));
                         }

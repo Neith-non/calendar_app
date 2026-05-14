@@ -23,27 +23,13 @@ function openModal(element) {
     if (document.getElementById('modalCategory')) document.getElementById('modalCategory').innerText = element.dataset.category || 'Not categorized';
     if (document.getElementById('modalVenue')) document.getElementById('modalVenue').innerText = element.dataset.venue || 'Not specified';
 
-    // --- EDIT BUTTON LOGIC ---
-    let editBtn = document.getElementById('modalEditBtn');
-    let status = element.dataset.status;
-    let publishId = element.dataset.publishId;
-    if (editBtn) {
-        if (status === 'pending' && publishId) {
-            editBtn.href = 'edit_event.php?id=' + publishId;
-            editBtn.classList.remove('hidden');
-            editBtn.classList.add('flex');
-        } else {
-            editBtn.classList.add('hidden');
-            editBtn.classList.remove('flex');
-            editBtn.href = '#';
-        }
-    }
-
     // --- HOLIDAY CONFLICT MODAL NOTIFICATION ---
     const existingAlert = document.getElementById('modalHolidayAlert');
     if (existingAlert) existingAlert.remove();
 
     const holidayName = element.dataset.holidayTitle;
+    let safeHolidayString = holidayName ? holidayName.replace(/'/g, "\\'") : ''; // Safe for JS passing
+
     if (holidayName && holidayName.trim() !== '') {
         const isMultiple = holidayName.includes(',');
         const labelText = isMultiple ? "official holidays" : "an official holiday";
@@ -63,6 +49,40 @@ function openModal(element) {
         if (timingCard) timingCard.parentNode.insertBefore(alertBox, timingCard.nextSibling);
     }
 
+    // --- DYNAMIC BUTTON LOGIC (Edit, Approve, Reject) ---
+    let editBtn = document.getElementById('modalEditBtn');
+    let approveBtn = document.getElementById('modalApproveBtn');
+    let rejectBtn = document.getElementById('modalRejectBtn');
+    
+    let status = element.dataset.status;
+    let publishId = element.dataset.publishId;
+    
+    if (status === 'pending' && publishId) {
+        // Show Edit
+        if (editBtn) {
+            editBtn.href = 'edit_event.php?id=' + publishId;
+            editBtn.classList.remove('hidden');
+            editBtn.classList.add('flex');
+        }
+        // Show Approve
+        if (approveBtn) {
+            approveBtn.setAttribute('onclick', `confirmAction('approve_event.php?id=${publishId}&action=approve', 'approve', '${safeHolidayString}')`);
+            approveBtn.classList.remove('hidden');
+            approveBtn.classList.add('flex');
+        }
+        // Show Reject
+        if (rejectBtn) {
+            rejectBtn.setAttribute('onclick', `confirmAction('approve_event.php?id=${publishId}&action=reject', 'reject')`);
+            rejectBtn.classList.remove('hidden');
+            rejectBtn.classList.add('flex');
+        }
+    } else {
+        // Hide All if not pending
+        if (editBtn) { editBtn.classList.add('hidden'); editBtn.classList.remove('flex'); editBtn.href = '#'; }
+        if (approveBtn) { approveBtn.classList.add('hidden'); approveBtn.classList.remove('flex'); approveBtn.removeAttribute('onclick'); }
+        if (rejectBtn) { rejectBtn.classList.add('hidden'); rejectBtn.classList.remove('flex'); rejectBtn.removeAttribute('onclick'); }
+    }
+
     // 2. Locate the Participants container
     const partsDiv = document.getElementById('modalParticipants');
     
@@ -79,13 +99,10 @@ function openModal(element) {
         if (participants && participants.length > 0) {
             let grouped = {};
 
-            // MATHEMATICAL CONVERTER: Turns ANY time string into raw minutes
             const timeToMinutes = (timeStr) => {
                 if (!timeStr || String(timeStr).toLowerCase() === 'null') return -1;
                 let s = String(timeStr).toLowerCase().trim();
-                
                 if (s === 'all day' || s === '00:00:00' || s === '23:59:59' || s === '11:59 pm' || s === '12:00 am' || s === 'n/a') return -1;
-                
                 let h = 0, m = 0;
                 if (s.includes('am') || s.includes('pm')) { 
                     let isPM = s.includes('pm');
@@ -127,17 +144,13 @@ function openModal(element) {
                 if (p.start_time && String(p.start_time).toLowerCase() !== 'null' && p.start_time !== '') {
                     let pStartMin = timeToMinutes(p.start_time);
                     let pEndMin = timeToMinutes(p.end_time);
-
-                    if (pStartMin !== mStartMin || pEndMin !== mEndMin) {
-                        isCustom = true;
-                    }
+                    if (pStartMin !== mStartMin || pEndMin !== mEndMin) { isCustom = true; }
                 }
 
                 if (isCustom) {
                     let pStartDisplay = formatTimeDisplay(p.start_time);
                     let pEndDisplay = formatTimeDisplay(p.end_time);
                     let displayTime = (pStartDisplay === 'All Day' && pEndDisplay === 'All Day') ? 'All Day' : `${pStartDisplay} - ${pEndDisplay}`;
-                    
                     timeBadge = `<span class="bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-500/30 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ml-2 whitespace-nowrap shadow-sm inline-flex items-center"><i class="fa-solid fa-clock text-[9px] mr-1"></i>Custom: ${displayTime}</span>`;
                 }
 
@@ -150,7 +163,6 @@ function openModal(element) {
                 `);
             });
 
-            // Dynamically assign styling based on theme (index uses slate, calendar uses emerald)
             const isEmeraldTheme = document.body.classList.contains('bg-[#f4fcf7]');
             const cardBg = isEmeraldTheme ? 'bg-white dark:bg-[#07160f]' : 'bg-white dark:bg-[#111827]';
             const cardBorder = isEmeraldTheme ? 'border-[#d1f0e0] dark:border-[#123f29]' : 'border-slate-200 dark:border-slate-800';
@@ -196,10 +208,40 @@ function closeModal() {
     }, 200);
 }
 
-function confirmAction(url, action) {
+// --- TWO-STAGE SWEETALERT LOGIC ---
+function confirmAction(url, action, holidayName = '') {
     let actionText = action === 'approve' ? 'Approve' : 'Reject';
     let confirmColor = action === 'approve' ? '#10b981' : '#ef4444'; 
 
+    // STAGE 1: Holiday Warning Intercept
+    if (action === 'approve' && holidayName && holidayName.trim() !== '') {
+        Swal.fire({
+            title: 'Holiday Conflict Detected!',
+            html: `This event overlaps with: <strong>${holidayName}</strong>.<br><br>Are you sure you want to override this holiday and approve the event anyway?`,
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444', // Red for danger
+            cancelButtonColor: '#64748b', 
+            confirmButtonText: 'Yes, Override Holiday',
+            customClass: {
+                popup: 'dark:bg-slate-900 dark:border dark:border-slate-800 dark:text-white',
+                title: 'dark:text-white text-red-600',
+                htmlContainer: 'dark:text-slate-300'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // If they say yes to the override, immediately fire the standard approval
+                fireStandardAlert(url, actionText, confirmColor);
+            }
+        });
+    } else {
+        // No conflict? Just fire the standard alert normally.
+        fireStandardAlert(url, actionText, confirmColor);
+    }
+}
+
+// STAGE 2: Standard Final Approval
+function fireStandardAlert(url, actionText, confirmColor) {
     Swal.fire({
         title: 'Are you sure?',
         text: `You are about to ${actionText.toLowerCase()} this event request.`,
