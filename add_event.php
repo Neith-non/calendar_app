@@ -1,7 +1,6 @@
 <?php
 session_start();
 
-// Check if user is logged in AND is specifically the Head Scheduler
 $allowed_roles = ['Head Scheduler', 'Admin'];
 
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_roles)) {
@@ -15,7 +14,6 @@ require_once 'functions/get_pending_count.php';
 $message = '';
 $msgType = 'error'; 
 
-// Fetch all holidays to pass to Javascript
 $holidayStmt = $pdo->query("SELECT start_date, title FROM events WHERE category_id = 5");
 $holidays = [];
 while ($row = $holidayStmt->fetch(PDO::FETCH_ASSOC)) {
@@ -23,14 +21,12 @@ while ($row = $holidayStmt->fetch(PDO::FETCH_ASSOC)) {
 }
 $holidaysJson = json_encode($holidays);
 
-// 1. Fetch Categories and Venues
 $stmt_cats = $pdo->query("SELECT * FROM event_categories WHERE category_name != 'Holidays' ORDER BY category_name ASC");
 $categories = $stmt_cats->fetchAll();
 
 $stmt_venues = $pdo->query("SELECT * FROM venues ORDER BY venue_name ASC");
 $venues = $stmt_venues->fetchAll();
 
-// 2. Fetch all participants and group them by your 'department' table dynamically
 $partStmt = $pdo->query("
     SELECT p.id AS participant_id, p.name, d.name AS department 
     FROM participants p
@@ -45,18 +41,13 @@ foreach ($participantsList as $p) {
     $grouped_participants[$p['department']][] = $p;
 }
 
-// 3. Process Form Submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title = trim($_POST['title']);
     $description = trim($_POST['description']);
-    $category_id = (int) $_POST['category_id'];
-    $venue_id = (int) $_POST['venue_id'];
-    $participant_ids = $_POST['participants'] ?? []; 
-
     $start_date = $_POST['start_date'];
     $end_date = $_POST['end_date'];
-
     $is_all_day = isset($_POST['is_all_day']);
+    $is_personal = isset($_POST['is_personal']); // THE NEW PERSONAL FLAG
     
     if ($is_all_day) {
         $start_time = '00:00:00';
@@ -72,153 +63,169 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $start_datetime = $start_date . ' ' . $start_time;
     $end_datetime = $end_date . ' ' . $end_time;
 
-    // Validation
-    if (empty($participant_ids)) {
-        $message = "Oops! You must select at least one participant group.";
-    } elseif (strtotime($end_datetime) <= strtotime($start_datetime)) {
+    if (strtotime($end_datetime) <= strtotime($start_datetime)) {
         $message = "Oops! The End Date/Time must be after the Start Date/Time.";
     } else {
         
-        $is_off_campus = false;
-        foreach ($venues as $v) {
-            if ($v['venue_id'] == $venue_id && $v['is_off_campus']) {
-                $is_off_campus = true;
-                break;
-            }
-        }
-
-        // --- 1. EXTRACT CUSTOM TIMES EARLY ---
-        $custom_times = [];
-        if (isset($_POST['custom_blocks']) && is_array($_POST['custom_blocks'])) {
-            foreach ($_POST['custom_blocks'] as $block) {
-                if (isset($block['pids']) && is_array($block['pids'])) {
-                    foreach ($block['pids'] as $pid) {
-                        $custom_times[$pid] = [
-                            'start' => !empty($block['start_time']) ? $block['start_time'] : $start_time,
-                            'end' => !empty($block['end_time']) ? $block['end_time'] : $end_time
-                        ];
-                    }
-                }
-            }
-        }
-
-        $hasConflict = false;
-
-        // --- 2. SMART VENUE CHECKER ---
-        if (!$is_off_campus) {
-            $venueConflictStmt = $pdo->prepare("
-                SELECT e.title, p.status
-                FROM events e
-                JOIN event_publish p ON e.publish_id = p.id
-                WHERE p.status IN ('Approved', 'Pending') 
-                AND p.venue_id = ?
-                AND CONCAT(e.start_date, ' ', e.start_time) < ? 
-                AND CONCAT(e.end_date, ' ', e.end_time) > ?
-                LIMIT 1
-            ");
-            $venueConflictStmt->execute([$venue_id, $end_datetime, $start_datetime]);
-            if ($venueConflict = $venueConflictStmt->fetch()) {
-                $statusText = $venueConflict['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
-                $message = "Venue Conflict! '{$venueConflict['title']}' {$statusText} at this venue during your selected time.";
-                $hasConflict = true;
-            }
-        }
-
-        // --- 3. SMART PARTICIPANT CHECKER ---
-        if (!$hasConflict) {
-            $partConflictStmt = $pdo->prepare("
-                SELECT e.title, pub.status, p.name, ps.start_time AS conflict_start, ps.end_time AS conflict_end
-                FROM participant_schedule ps
-                JOIN event_publish pub ON ps.event_publish_id = pub.id
-                JOIN events e ON pub.id = e.publish_id
-                JOIN participants p ON ps.participant_id = p.id
-                WHERE ps.participant_id = ?
-                AND pub.status IN ('Approved', 'Pending')
-                AND CONCAT(e.start_date, ' ', ps.start_time) < ?
-                AND CONCAT(e.end_date, ' ', ps.end_time) > ?
-                LIMIT 1
-            ");
-
-            $participantConflicts = []; 
-
-            foreach ($participant_ids as $pid) {
-                if ($is_all_day) {
-                    $p_start = '00:00:00';
-                    $p_end = '23:59:59';
-                } else {
-                    if (isset($custom_times[$pid])) {
-                        $p_start = $custom_times[$pid]['start'];
-                        $p_end = $custom_times[$pid]['end'];
-                    } else {
-                        $p_start = $start_time;
-                        $p_end = $end_time;
-                    }
-                }
-
-                $p_start_datetime = $start_date . ' ' . $p_start;
-                $p_end_datetime = $end_date . ' ' . $p_end;
-
-                $partConflictStmt->execute([$pid, $p_end_datetime, $p_start_datetime]);
-                
-                if ($partConflict = $partConflictStmt->fetch()) {
-                    $statusText = $partConflict['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
-                    $db_start_time = date('g:i A', strtotime($partConflict['conflict_start']));
-                    $db_end_time = date('g:i A', strtotime($partConflict['conflict_end']));
-                    
-                    $safeName = htmlspecialchars($partConflict['name'], ENT_QUOTES, 'UTF-8');
-                    $safeTitle = htmlspecialchars($partConflict['title'], ENT_QUOTES, 'UTF-8');
-
-                    $participantConflicts[] = "<strong>{$safeName}</strong> is already scheduled for '{$safeTitle}' ({$statusText}) from {$db_start_time} to {$db_end_time}.";                }
-            }
-
-            if (!empty($participantConflicts)) {
-                $hasConflict = true;
-                $message = "<strong>Participant Conflict(s) Detected:</strong><br><ul class='list-disc pl-5 mt-2 space-y-1 text-xs'>";
-                foreach ($participantConflicts as $conflictMsg) {
-                    $message .= "<li>{$conflictMsg}</li>";
-                }
-                $message .= "</ul>";
-            }
-        }
-
-        // --- 4. INSERT INTO DATABASE ---
-        if (!$hasConflict) {
+        // --- BRANCH: PERSONAL EVENT vs OFFICIAL EVENT ---
+        if ($is_personal) {
+            // Personal events skip all conflict checks, venues, categories, and participants!
             try {
-                $pdo->beginTransaction();
-
-                $stmt_pub = $pdo->prepare("INSERT INTO event_publish (venue_id, title, description, status) VALUES (?, ?, ?, 'Pending')");
-                $stmt_pub->execute([$venue_id, $title, $description]);
-                $publish_id = $pdo->lastInsertId();
-
-                $stmt_event = $pdo->prepare("INSERT INTO events (publish_id, category_id, title, description, start_date, start_time, end_date, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt_event->execute([$publish_id, $category_id, $title, $description, $start_date, $start_time, $end_date, $end_time]);
-
-                $stmt_link = $pdo->prepare("INSERT INTO participant_schedule (event_publish_id, participant_id, start_time, end_time) VALUES (?, ?, ?, ?)");
+                $stmt_event = $pdo->prepare("INSERT INTO events (title, description, start_date, start_time, end_date, end_time, is_personal, user_id) VALUES (?, ?, ?, ?, ?, ?, 1, ?)");
+                $stmt_event->execute([$title, $description, $start_date, $start_time, $end_date, $end_time, $_SESSION['user_id']]);
                 
-                foreach ($participant_ids as $pid) {
-                    if ($is_all_day) {
-                        $p_start = '00:00:00';
-                        $p_end = '23:59:59';
-                    } else {
-                        if (isset($custom_times[$pid])) {
-                            $p_start = $custom_times[$pid]['start'];
-                            $p_end = $custom_times[$pid]['end'];
-                        } else {
-                            $p_start = $start_time;
-                            $p_end = $end_time;
+                header("Location: calendar.php?sync_status=success&sync_msg=" . urlencode("Personal reminder saved successfully!"));
+                exit();
+            } catch (PDOException $e) {
+                $message = "Database Error: " . $e->getMessage();
+            }
+
+        } else {
+            // OFFICIAL EVENT LOGIC
+            $category_id = (int) $_POST['category_id'];
+            $venue_id = (int) $_POST['venue_id'];
+            $participant_ids = $_POST['participants'] ?? []; 
+
+            if (empty($participant_ids)) {
+                $message = "Oops! You must select at least one participant group for an official event.";
+            } else {
+                $is_off_campus = false;
+                foreach ($venues as $v) {
+                    if ($v['venue_id'] == $venue_id && $v['is_off_campus']) {
+                        $is_off_campus = true;
+                        break;
+                    }
+                }
+
+                $custom_times = [];
+                if (isset($_POST['custom_blocks']) && is_array($_POST['custom_blocks'])) {
+                    foreach ($_POST['custom_blocks'] as $block) {
+                        if (isset($block['pids']) && is_array($block['pids'])) {
+                            foreach ($block['pids'] as $pid) {
+                                $custom_times[$pid] = [
+                                    'start' => !empty($block['start_time']) ? $block['start_time'] : $start_time,
+                                    'end' => !empty($block['end_time']) ? $block['end_time'] : $end_time
+                                ];
+                            }
                         }
                     }
-                    $stmt_link->execute([$publish_id, $pid, $p_start, $p_end]);
                 }
 
-                $pdo->commit();
+                $hasConflict = false;
 
-                header("Location: index.php?sync_status=success&sync_msg=" . urlencode("Event '$title' successfully submitted for approval!"));
-                exit();
+                if (!$is_off_campus) {
+                    $venueConflictStmt = $pdo->prepare("
+                        SELECT e.title, p.status
+                        FROM events e
+                        JOIN event_publish p ON e.publish_id = p.id
+                        WHERE p.status IN ('Approved', 'Pending') 
+                        AND p.venue_id = ?
+                        AND CONCAT(e.start_date, ' ', e.start_time) < ? 
+                        AND CONCAT(e.end_date, ' ', e.end_time) > ?
+                        LIMIT 1
+                    ");
+                    $venueConflictStmt->execute([$venue_id, $end_datetime, $start_datetime]);
+                    if ($venueConflict = $venueConflictStmt->fetch()) {
+                        $statusText = $venueConflict['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
+                        $message = "Venue Conflict! '{$venueConflict['title']}' {$statusText} at this venue during your selected time.";
+                        $hasConflict = true;
+                    }
+                }
 
-            } catch (PDOException $e) {
-                $pdo->rollBack();
-                $message = "Database Error: " . $e->getMessage();
+                if (!$hasConflict) {
+                    $partConflictStmt = $pdo->prepare("
+                        SELECT e.title, pub.status, p.name, ps.start_time AS conflict_start, ps.end_time AS conflict_end
+                        FROM participant_schedule ps
+                        JOIN event_publish pub ON ps.event_publish_id = pub.id
+                        JOIN events e ON pub.id = e.publish_id
+                        JOIN participants p ON ps.participant_id = p.id
+                        WHERE ps.participant_id = ?
+                        AND pub.status IN ('Approved', 'Pending')
+                        AND CONCAT(e.start_date, ' ', ps.start_time) < ?
+                        AND CONCAT(e.end_date, ' ', ps.end_time) > ?
+                        LIMIT 1
+                    ");
+
+                    $participantConflicts = []; 
+
+                    foreach ($participant_ids as $pid) {
+                        if ($is_all_day) {
+                            $p_start = '00:00:00';
+                            $p_end = '23:59:59';
+                        } else {
+                            if (isset($custom_times[$pid])) {
+                                $p_start = $custom_times[$pid]['start'];
+                                $p_end = $custom_times[$pid]['end'];
+                            } else {
+                                $p_start = $start_time;
+                                $p_end = $end_time;
+                            }
+                        }
+
+                        $p_start_datetime = $start_date . ' ' . $p_start;
+                        $p_end_datetime = $end_date . ' ' . $p_end;
+
+                        $partConflictStmt->execute([$pid, $p_end_datetime, $p_start_datetime]);
+                        
+                        if ($partConflict = $partConflictStmt->fetch()) {
+                            $statusText = $partConflict['status'] === 'Pending' ? 'is pending approval' : 'is already approved';
+                            $db_start_time = date('g:i A', strtotime($partConflict['conflict_start']));
+                            $db_end_time = date('g:i A', strtotime($partConflict['conflict_end']));
+                            $safeName = htmlspecialchars($partConflict['name'], ENT_QUOTES, 'UTF-8');
+                            $safeTitle = htmlspecialchars($partConflict['title'], ENT_QUOTES, 'UTF-8');
+                            $participantConflicts[] = "<strong>{$safeName}</strong> is scheduled for '{$safeTitle}' ({$statusText}) from {$db_start_time} to {$db_end_time}.";                
+                        }
+                    }
+
+                    if (!empty($participantConflicts)) {
+                        $hasConflict = true;
+                        $message = "<strong>Participant Conflict(s) Detected:</strong><br><ul class='list-disc pl-5 mt-2 space-y-1 text-xs'>";
+                        foreach ($participantConflicts as $conflictMsg) {
+                            $message .= "<li>{$conflictMsg}</li>";
+                        }
+                        $message .= "</ul>";
+                    }
+                }
+
+                if (!$hasConflict) {
+                    try {
+                        $pdo->beginTransaction();
+
+                        $stmt_pub = $pdo->prepare("INSERT INTO event_publish (venue_id, title, description, status) VALUES (?, ?, ?, 'Pending')");
+                        $stmt_pub->execute([$venue_id, $title, $description]);
+                        $publish_id = $pdo->lastInsertId();
+
+                        $stmt_event = $pdo->prepare("INSERT INTO events (publish_id, category_id, title, description, start_date, start_time, end_date, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt_event->execute([$publish_id, $category_id, $title, $description, $start_date, $start_time, $end_date, $end_time]);
+
+                        $stmt_link = $pdo->prepare("INSERT INTO participant_schedule (event_publish_id, participant_id, start_time, end_time) VALUES (?, ?, ?, ?)");
+                        
+                        foreach ($participant_ids as $pid) {
+                            if ($is_all_day) {
+                                $p_start = '00:00:00';
+                                $p_end = '23:59:59';
+                            } else {
+                                if (isset($custom_times[$pid])) {
+                                    $p_start = $custom_times[$pid]['start'];
+                                    $p_end = $custom_times[$pid]['end'];
+                                } else {
+                                    $p_start = $start_time;
+                                    $p_end = $end_time;
+                                }
+                            }
+                            $stmt_link->execute([$publish_id, $pid, $p_start, $p_end]);
+                        }
+
+                        $pdo->commit();
+
+                        header("Location: index.php?sync_status=success&sync_msg=" . urlencode("Event '$title' successfully submitted for approval!"));
+                        exit();
+
+                    } catch (PDOException $e) {
+                        $pdo->rollBack();
+                        $message = "Database Error: " . $e->getMessage();
+                    }
+                }
             }
         }
     }
@@ -242,9 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="assets/css/styles.css">
 
@@ -255,7 +260,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 extend: {
                     fontFamily: {
                         sans: ['Plus Jakarta Sans', 'sans-serif'],
-                        chinese: ['Noto Sans TC', 'sans-serif'],
                     },
                     colors: {
                         sjsfi: {
@@ -329,11 +333,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-sm">
                             <i class="fa-solid fa-calendar-plus text-lg"></i>
                         </div>
-                        Request New Event
+                        Create Event
                     </h2>
-                    <p class="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium ml-1">Submit a detailed schedule for administrative approval.</p>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium ml-1">Schedule an official school event or a private reminder.</p>
                 </div>
-                <!-- TOP RIGHT CANCEL / BACK BUTTON -->
                 <a href="javascript:history.back()" class="bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 font-bold py-2.5 px-4 rounded-xl transition-colors border border-red-200 dark:border-red-500/30 shadow-sm flex items-center gap-2 text-sm shrink-0">
                     <i class="fa-solid fa-arrow-left"></i> <span class="hidden sm:inline">Cancel</span>
                 </a>
@@ -348,12 +351,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
                 <?php endif; ?>
 
-                <form action="add_event.php" method="POST" id="eventForm" class="space-y-12" x-data="{ selectedDept: '' }">
+                <form action="add_event.php" method="POST" id="eventForm" class="space-y-12" x-data="{ selectedDept: '', isPersonal: false }">
+
+                    <div class="bg-slate-50 dark:bg-slate-800/30 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+                        <div>
+                            <h3 class="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <i class="fa-solid" :class="isPersonal ? 'fa-lock text-slate-600 dark:text-slate-400' : 'fa-building-columns text-emerald-600 dark:text-emerald-400'"></i>
+                                <span x-text="isPersonal ? 'Private Personal Reminder' : 'Official School Event'"></span>
+                            </h3>
+                            <p class="text-xs text-slate-500 font-medium mt-1" x-text="isPersonal ? 'Only you will see this on the calendar. No approval needed.' : 'Requires venue booking, routing, and administrative approval.'"></p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input type="checkbox" name="is_personal" x-model="isPersonal" class="sr-only peer">
+                            <div class="w-14 h-7 bg-emerald-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-slate-700 dark:peer-checked:bg-slate-600"></div>
+                        </label>
+                    </div>
 
                     <div>
                         <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
-                            <span class="bg-sjsfi-green dark:bg-emerald-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black">1</span>
-                            Event Details
+                            <span class="bg-slate-800 dark:bg-slate-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black">1</span>
+                            Details
                         </h3>
 
                         <div class="space-y-5">
@@ -370,9 +387,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     class="input-premium w-full px-4 py-3 rounded-lg font-medium text-sm resize-none"><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5" x-show="!isPersonal" x-collapse>
                                 
-                                <!-- SEARCHABLE CATEGORY DROPDOWN -->
                                 <div>
                                     <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Category</label>
                                     <div x-data="{
@@ -404,7 +420,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                             }
                                         }" class="relative">
                                         
-                                        <input type="hidden" name="category_id" :value="selectedId" required>
+                                        <input type="hidden" name="category_id" :value="selectedId" :required="!isPersonal">
 
                                         <div @click="open = !open" 
                                              class="input-premium w-full px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer flex justify-between items-center transition-colors"
@@ -437,7 +453,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     </div>
                                 </div>
 
-                                <!-- SEARCHABLE VENUE DROPDOWN -->
                                 <div>
                                     <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Venue Location</label>
                                     <div x-data="{
@@ -475,7 +490,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                             }
                                         }" class="relative">
                                         
-                                        <input type="hidden" name="venue_id" :value="selectedId" required>
+                                        <input type="hidden" name="venue_id" :value="selectedId" :required="!isPersonal">
 
                                         <div @click="open = !open" 
                                              class="input-premium w-full px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer flex justify-between items-center transition-colors"
@@ -515,15 +530,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div>
                         <div class="border-b border-slate-100 dark:border-slate-800 pb-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <span class="bg-sjsfi-green dark:bg-emerald-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black">2</span>
+                                <span class="bg-slate-800 dark:bg-slate-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black">2</span>
                                 Schedule
                             </h3>
                             
-                            <label for="is_all_day" class="flex items-center gap-3 cursor-pointer bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 transition-colors shadow-sm">
+                            <label for="is_all_day" class="flex items-center gap-3 cursor-pointer bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 transition-colors shadow-sm" :class="isPersonal ? 'hover:border-slate-500' : 'hover:border-emerald-500'">
                                 <span class="text-xs text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">All-Day Event</span>
                                 <div class="relative">
                                     <input type="checkbox" name="is_all_day" id="is_all_day" class="sr-only-custom peer" <?php echo isset($_POST['is_all_day']) ? 'checked' : ''; ?>>
-                                    <div class="w-10 h-5 bg-slate-300 dark:bg-slate-600 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-5"></div>
+                                    <div class="w-10 h-5 bg-slate-300 dark:bg-slate-600 rounded-full peer transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-5" :class="isPersonal ? 'peer-checked:bg-slate-700' : 'peer-checked:bg-emerald-500'"></div>
                                 </div>
                             </label>
                         </div>
@@ -531,14 +546,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <p id="holiday-warning" class="hidden mb-5 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3 rounded-lg text-sm font-bold shadow-sm animate-pulse">
                             <i class="fa-solid fa-triangle-exclamation mr-2"></i> Warning: This date falls on <strong id="holiday-name"></strong>.
                         </p>
-                        <p id="past-date-warning" class="hidden mb-5 text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 p-3 rounded-lg text-sm font-bold shadow-sm animate-pulse">
-                            <i class="fa-solid fa-clock-rotate-left mr-2"></i> Notice: You are scheduling an event in the past.
-                        </p>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div class="bg-slate-50 dark:bg-slate-800/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
                                 <h4 class="font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[11px] flex items-center mb-4">
-                                    <i class="fa-solid fa-play text-emerald-500 mr-2 text-sm"></i> Starts
+                                    <i class="fa-solid fa-play mr-2 text-sm" :class="isPersonal ? 'text-slate-600' : 'text-emerald-500'"></i> Starts
                                 </h4>
                                 <div class="space-y-4">
                                     <div>
@@ -558,7 +570,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                             <div class="bg-slate-50 dark:bg-slate-800/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
                                 <h4 class="font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[11px] flex items-center mb-4">
-                                    <i class="fa-solid fa-stop text-rose-500 mr-2 text-sm"></i> Ends
+                                    <i class="fa-solid fa-stop text-rose-500 mr-2 text-sm" :class="isPersonal ? 'text-slate-600' : 'text-rose-500'"></i> Ends
                                 </h4>
                                 <div class="space-y-4">
                                     <div>
@@ -578,11 +590,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </div>
                     </div>
 
-                    <div>
+                    <div x-show="!isPersonal" x-collapse>
                         <div class="border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
                             <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <span class="bg-sjsfi-green dark:bg-emerald-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black">3</span>
+                                <span class="bg-slate-800 dark:bg-slate-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black">3</span>
                                 Participants & Routing
+                                <span class="text-xs font-medium text-slate-400 ml-2">(Note: Active participant groups cannot be deleted later)</span>
                             </h3>
                         </div>
 
@@ -662,8 +675,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             Cancel
                         </a>
                         <button type="submit"
-                            class="flex-1 bg-sjsfi-green dark:bg-emerald-500 hover:bg-sjsfi-greenHover dark:hover:bg-emerald-400 text-white font-bold py-3.5 rounded-xl transition-colors shadow-lg flex justify-center items-center gap-2 text-sm">
-                            <i class="fa-solid fa-paper-plane"></i> Submit Request
+                            class="flex-1 text-white font-bold py-3.5 rounded-xl transition-colors shadow-lg flex justify-center items-center gap-2 text-sm"
+                            :class="isPersonal ? 'bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500' : 'bg-sjsfi-green dark:bg-emerald-500 hover:bg-sjsfi-greenHover dark:hover:bg-emerald-400'">
+                            <i class="fa-solid" :class="isPersonal ? 'fa-lock' : 'fa-paper-plane'"></i> 
+                            <span x-text="isPersonal ? 'Save Personal Reminder' : 'Submit Request'"></span>
                         </button>
                     </div>
 
@@ -688,7 +703,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     Cancel
                 </button>
                 <button type="button" onclick="submitFormForce()" class="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition shadow-sm text-sm">
-                    Yes, Add Event
+                    Yes, Save Event
                 </button>
             </div>
         </div>
@@ -698,7 +713,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
 <script>
-    // --- DARK MODE TOGGLE LOGIC ---
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleKnob = document.getElementById('theme-toggle-knob');
     const themeToggleIcon = document.getElementById('theme-toggle-icon');
@@ -729,7 +743,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         });
     }
 
-    // --- FORM LOGIC ---
     const holidays = <?php echo $holidaysJson; ?>;
 
     const startDateInput = document.getElementById('main_start_date');
@@ -747,7 +760,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     let isHolidayBypassed = false; 
     let conflictingHolidays = []; 
 
-    // --- USER FRIENDLY ALL-DAY LOGIC ---
     const allDayToggle = document.getElementById('is_all_day');
 
     function updateTimeFields() {
@@ -776,7 +788,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         updateTimeFields(); 
     }
 
-    // --- CUSTOM SCHEDULE BLOCKS (+ BUTTON LOGIC) ---
     const blocksContainer = document.getElementById('custom-blocks-container');
     let blockCounter = 0;
 
@@ -912,7 +923,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    // --- DEPARTMENTS & HOLIDAYS LOGIC ---
     document.querySelectorAll('.select-all-dept').forEach(selectAllCheckbox => {
         selectAllCheckbox.addEventListener('change', function() {
             const targetId = this.getAttribute('data-target');
@@ -979,39 +989,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    const pastWarningText = document.getElementById('past-date-warning');
-
-    function checkPastDate() {
-        if (!startDateInput || !startDateInput.value) return;
-        
-        // Create dates and strip the exact time for accurate day-to-day comparison
-        const selectedDate = new Date(startDateInput.value);
-        selectedDate.setHours(0, 0, 0, 0);
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (selectedDate < today) {
-            pastWarningText.classList.remove('hidden');
-        } else {
-            pastWarningText.classList.add('hidden');
-        }
-    }
-
-    if (startDateInput) {
-        startDateInput.addEventListener('change', () => {
-            checkHolidayRange();
-            checkPastDate();
-        });
-        // Check on initial page load (useful for edit_event.php)
-        checkPastDate();
-    }
-    
-    if (endDateInput) {
-        endDateInput.addEventListener('change', checkHolidayRange);
-    }
+    if (startDateInput) startDateInput.addEventListener('change', checkHolidayRange);
+    if (endDateInput) endDateInput.addEventListener('change', checkHolidayRange);
 
     eventForm.addEventListener('submit', function (e) {
+        // If it's a personal reminder, we don't care about participants or holidays
+        const isPersonalNode = document.querySelector('input[name="is_personal"]');
+        if (isPersonalNode && isPersonalNode.checked) {
+            return; // Allow standard submission to continue
+        }
+
         const checkboxes = document.querySelectorAll('.participant-cb:checked');
 
         if (checkboxes.length === 0) {
