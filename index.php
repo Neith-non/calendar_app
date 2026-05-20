@@ -60,6 +60,7 @@ $stmt = $pdo->prepare("
     WHERE e.start_date >= DATE_FORMAT(CURDATE(), '%Y-01-01')
       AND e.start_date <= DATE_FORMAT(CURDATE(), '%Y-12-31')
       $statusFilter
+      AND p.is_personal != 1
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
 $stmt->execute();

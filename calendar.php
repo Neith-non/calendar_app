@@ -32,7 +32,7 @@ $nextYear = date('Y', strtotime("+1 month", strtotime($dateString)));
 // 3. Fetch Events (Smart Query based on User Role)
 // Check if the logged-in user is an Admin or Head Scheduler
 $isAdmin = isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin']);
-
+$current_user_id = $_SESSION['user_id'];
 // If they are a normal viewer, ONLY pull Approved events. If Admin, pull everything.
 $statusFilter = $isAdmin ? "" : "AND (p.status != 'Pending' OR e.publish_id IS NULL)";
 
@@ -41,6 +41,8 @@ $stmt = $pdo->prepare("
         e.*, 
         c.category_name, 
         p.status,
+        p.is_personal,
+        p.approved_by,
         v.venue_name 
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
@@ -48,9 +50,17 @@ $stmt = $pdo->prepare("
     LEFT JOIN venues v ON p.venue_id = v.venue_id 
     WHERE DATE_FORMAT(e.start_date, '%Y-%m') = ?
     $statusFilter
+    AND (
+        p.is_personal IS NULL
+        OR p.is_personal = 0
+        OR (
+            p.is_personal = 1
+            AND p.approved_by = ?
+        )
+    )
     ORDER BY e.start_time ASC
 ");
-$stmt->execute(["$year-$month"]);
+$stmt->execute(["$year-$month", $current_user_id]);
 $rawEvents = $stmt->fetchAll();
 
 $stmtCats = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
@@ -279,7 +289,7 @@ function getCategoryColor($categoryName)
     </style>
 </head>
 
-<body x-data="{ sidebarOpen: false }" class="h-screen flex overflow-hidden bg-[#f4fcf7] dark:bg-[#04120a] transition-colors duration-300 <?php echo $isPresenting ? 'presentation-mode' : ''; ?>">
+<body x-data="{ sidebarOpen: false }" data-user-id="<?php echo htmlspecialchars($_SESSION['user_id']); ?>" class="h-screen flex overflow-hidden bg-[#f4fcf7] dark:bg-[#04120a] transition-colors duration-300 <?php echo $isPresenting ? 'presentation-mode' : ''; ?>">
 
     <?php include 'includes/sidebar.php'; ?>
 
@@ -423,6 +433,11 @@ function getCategoryColor($categoryName)
                                 $opacity = ($evt['status'] === 'Pending') ? 'opacity-90 bg-white dark:bg-[#07160f]' : 'shadow-sm shadow-black/5';
                                 $pendingIcon = ($evt['status'] === 'Pending') ? '<i class="fa-solid fa-hourglass-half text-[9px] mr-1 opacity-70"></i><span class="text-[9px] uppercase tracking-wider opacity-80 font-extrabold mr-1">[PENDING]</span> ' : '';
                                 
+                                // Personal event styling - subtle blue highlight with person icon
+                                $isPersonal = $evt['is_personal'] ?? false;
+                                $personalClass = $isPersonal ? 'bg-blue-50 dark:bg-blue-900/20 shadow-sm shadow-blue-200/30 dark:shadow-blue-900/20' : '';
+                                $personalIcon = $isPersonal ? '<i class="fa-solid fa-user text-[9px] text-blue-600 dark:text-blue-400 mr-1"></i>' : '';
+                                
                                 $safeTitle = htmlspecialchars($evt['title']);
                                 $shortTitle = strlen($safeTitle) > ($evt['col_span'] * 15) ? substr($safeTitle, 0, ($evt['col_span'] * 15)) . '...' : $safeTitle;
                                 
@@ -456,13 +471,15 @@ function getCategoryColor($categoryName)
                                 
                                 $timeDisplay = ($evt['is_start_of_event'] && $formattedTime !== 'All Day') ? "<span class='opacity-70 font-semibold mr-1.5 text-[10px]'>{$formattedTime}</span>" : "";
                                 
-                                $finalClasses = "{$color['bg']} {$color['text']} {$borderFix} {$accentBorder} {$color['border']} {$opacity} {$rounded}";
+                                $finalClasses = "{$color['bg']} {$color['text']} {$borderFix} {$accentBorder} {$color['border']} {$opacity} {$rounded} {$personalClass}";
                                 ?>
                                 
                                 <div class="calendar-event-item <?php echo $presentationHideClass; ?> pointer-events-auto col-start-<?php echo $evt['col_start']; ?> col-span-<?php echo $evt['col_span']; ?> <?php echo $finalClasses; ?> flex items-center h-[28px] mt-1 text-xs font-bold truncate cursor-pointer hover:brightness-95 transition-all relative overflow-hidden"
                                     title='<?php echo $safeTitle; ?>'
                                     data-publish-id='<?php echo htmlspecialchars($evt['publish_id'] ?? ''); ?>'
                                     data-status='<?php echo strtolower($evt['status'] ?? ''); ?>'
+                                    data-is-personal='<?php echo $isPersonal ? 'true' : 'false'; ?>'
+                                    data-approved-by='<?php echo htmlspecialchars($evt['approved_by'] ?? ''); ?>'
                                     data-title='<?php echo $safeTitle; ?>'
                                     data-desc='<?php echo $safeDesc; ?>'
                                     data-category='<?php echo htmlspecialchars($evt['category_name']); ?>' 
@@ -474,7 +491,7 @@ function getCategoryColor($categoryName)
                                     data-participants='<?php echo $jsParticipants; ?>'
                                     onclick='openModal(this)'>
                                     <div class="truncate w-full">
-                                        <?php echo $pendingIcon . $timeDisplay . $shortTitle; ?>
+                                        <?php echo $personalIcon . $pendingIcon . $timeDisplay . $shortTitle; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -557,6 +574,15 @@ function getCategoryColor($categoryName)
                     <a id="modalEditBtn" href="#" class="hidden bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
                         <i class="fa-solid fa-pen-to-square"></i> Edit Event
                     </a>
+                    <button id="modalDeleteBtn" class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
+                        <i class="fa-solid fa-trash"></i> Delete Event
+                    </button>
+                    <button id="modalApproveBtn" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
+                        <i class="fa-solid fa-check-circle"></i> Approve
+                    </button>
+                    <button id="modalRejectBtn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
+                        <i class="fa-solid fa-circle-xmark"></i> Reject
+                    </button>
                 <?php endif; ?>
                 <button onclick="closeModal()" class="bg-white dark:bg-[#0a1a12] border border-[#d1f0e0] dark:border-[#123f29] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-800 dark:text-emerald-200 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">Close Details</button>
             </div>
