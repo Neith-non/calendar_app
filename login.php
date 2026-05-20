@@ -32,20 +32,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->execute([$username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // 2. Check if the user exists AND the password matches
-        if ($user && $password === $user['password']) {
+        // 2. Check if the user exists AND the password matches (supports hashed and legacy plaintext)
+        if ($user) {
+            $stored = $user['password'];
+            $password_ok = false;
 
-            // 3. Success! Give them their Session Wristband with all the correct info
-            $_SESSION['user_id'] = $user['user_id'];
-            $_SESSION['role_id'] = $user['role_id'];
-            $_SESSION['full_name'] = $user['full_name'];
+            // First try modern password verification (bcrypt/argon etc.)
+            if (!empty($stored) && password_verify($password, $stored)) {
+                $password_ok = true;
+                // If hashing algo changed, rehash to current default
+                if (password_needs_rehash($stored, PASSWORD_DEFAULT)) {
+                    $newHash = password_hash($password, PASSWORD_DEFAULT);
+                    $upd = $pdo->prepare("UPDATE users SET password = ? WHERE user_id = ?");
+                    $upd->execute([$newHash, $user['user_id']]);
+                }
+            } elseif ($password === $stored) {
+                // Legacy plaintext password matched — upgrade to hashed password
+                $newHash = password_hash($password, PASSWORD_DEFAULT);
+                $upd = $pdo->prepare("UPDATE users SET password = ? WHERE user_id = ?");
+                $upd->execute([$newHash, $user['user_id']]);
+                $password_ok = true;
+            }
 
-            // --> THE MAGIC LINE: Grab the word 'Admin' from the database!
-            $_SESSION['role_name'] = $user['role_name'];
+            if ($password_ok) {
+                // 3. Success! Give them their Session Wristband with all the correct info
+                $_SESSION['user_id'] = $user['user_id'];
+                $_SESSION['role_id'] = $user['role_id'];
+                $_SESSION['full_name'] = $user['full_name'];
+                $_SESSION['role_name'] = $user['role_name'];
 
-            // Send them to the dashboard
-            header("Location: index.php");
-            exit;
+                // Send them to the dashboard
+                header("Location: index.php");
+                exit;
+            } else {
+                $error = "Invalid username or password.";
+            }
         } else {
             $error = "Invalid username or password.";
         }

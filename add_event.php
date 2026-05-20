@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_r
 
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php'; 
+require_once 'functions/logs.php';
 
 $message = '';
 $msgType = 'error'; 
@@ -215,6 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                 $stmt_event = $pdo->prepare("INSERT INTO events (publish_id, category_id, title, description, start_date, start_time, end_date, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt_event->execute([$publish_id, $category_id, $title, $description, $start_date, $start_time, $end_date, $end_time]);
+                $event_id = $pdo->lastInsertId();
 
                 // Insert participants (Even for personal events, if they chose to add them for their own tracking)
                 if (!empty($participant_ids)) {
@@ -233,9 +235,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
 
                 $pdo->commit();
-                
-                $successMsg = $is_personal ? "Personal Event '$title' successfully added to your calendar!" : "Event '$title' successfully submitted for approval!";
-                header("Location: index.php?sync_status=success&sync_msg=" . urlencode($successMsg));
+
+                // Log creation
+                if (function_exists('write_event_log')) {
+                    $details = json_encode([
+                        'title' => $title,
+                        'category_id' => $category_id,
+                        'venue_id' => $venue_id,
+                        'start_date' => $start_date,
+                        'start_time' => $start_time,
+                        'end_date' => $end_date,
+                        'end_time' => $end_time
+                    ]);
+                    write_event_log($pdo, $_SESSION['user_id'] ?? null, 'create_event', $publish_id, $event_id ?? null, $details);
+                }
+
+                header("Location: index.php?sync_status=success&sync_msg=" . urlencode("Event '$title' successfully submitted for approval!"));
                 exit();
 
             } catch (PDOException $e) {
