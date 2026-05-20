@@ -173,3 +173,5 @@ INSERT INTO participants (name, department_id) VALUES
 
 ('Faculty & Staff', (SELECT id FROM department WHERE name = 'Institutional')),
 ('Everyone / School-Wide', (SELECT id FROM department WHERE name = 'Institutional'));
+
+INSERT INTO department (name) VALUES ('Others');
