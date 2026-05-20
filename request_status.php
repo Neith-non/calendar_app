@@ -9,6 +9,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_r
     exit();
 }
 
+// 2. Define Admin Variable to prevent PHP warnings
+$isAdmin = true; 
+
 require_once 'functions/database.php';
 
 // --- Handle Deletion of Rejected Requests ---
@@ -188,7 +191,6 @@ $requests = $stmt->fetchAll();
                 </a>
             </div>
 
-            <!-- SEARCH AND FILTER BAR -->
             <div class="bento-card p-2 pl-4 flex flex-col sm:flex-row items-center gap-2 relative z-20">
                 <div class="relative w-full flex-1 group">
                     <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none">
@@ -209,7 +211,6 @@ $requests = $stmt->fetchAll();
                 </div>
             </div>
 
-            <!-- EMPTY STATE MESSAGE (Shown via JS if filters hide everything) -->
             <div id="no-results-msg" class="hidden text-center py-16 bento-card">
                 <div class="w-20 h-20 bg-[#f0fcf5] dark:bg-[#0a1a12] rounded-full flex items-center justify-center mx-auto mb-5 border border-[#d1f0e0] dark:border-[#123f29]">
                     <i class="fa-solid fa-ghost text-4xl text-emerald-300 dark:text-emerald-700"></i>
@@ -307,7 +308,6 @@ $requests = $stmt->fetchAll();
                         $conflictFlag = $isStatusHolidayConflict ? 'true' : 'false';
                         ?>
 
-                        <!-- BENTO CARD WITH ALPINE STATE FOR STICKY NOTES -->
                         <div class="bento-card event-status-card p-6 flex flex-col hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer relative group <?php echo $statusCardBorder; ?>"
                              x-data="{ 
                                 showNoteForm: false, 
@@ -358,12 +358,10 @@ $requests = $stmt->fetchAll();
                                 </div>
                             <?php endif; ?>
 
-                            <!-- Edit Note Button (Appears on Hover) -->
                             <button @click.stop="tempText = noteText; showNoteForm = true" class="absolute top-16 right-6 w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-700/50 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 hover:bg-amber-200 dark:hover:bg-amber-800" title="Edit Sticky Note">
                                 <i class="fa-regular fa-note-sticky text-sm"></i>
                             </button>
 
-                            <!-- Sticky Note Input Overlay -->
                             <div x-show="showNoteForm" style="display: none;" @click.stop x-transition.opacity class="absolute inset-0 bg-white/95 dark:bg-[#07160f]/95 backdrop-blur-sm z-20 rounded-[1.5rem] flex flex-col items-center justify-center p-6 cursor-default">
                                 <div class="w-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl shadow-lg p-4 transform transition-transform">
                                     <h4 class="text-[10px] font-black text-amber-700 dark:text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
@@ -381,7 +379,6 @@ $requests = $stmt->fetchAll();
                                 </div>
                             </div>
 
-                            <!-- Regular Card Content -->
                             <div class="flex justify-between items-start mb-4">
                                 <h3 class="text-lg font-black text-slate-800 dark:text-white leading-tight truncate pr-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                                     <?php echo htmlspecialchars($req['title']); ?>
@@ -392,7 +389,6 @@ $requests = $stmt->fetchAll();
                                 </span>
                             </div>
 
-                            <!-- STATIC DISPLAY OF STICKY NOTE (Scrollable if too long) -->
                             <div x-show="noteText !== ''" style="display: none;" class="mb-4 bg-amber-50/80 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-700/30 rounded-lg p-3 max-h-24 overflow-y-auto custom-scrollbar relative">
                                 <i class="fa-solid fa-thumbtack absolute top-2 right-2 text-amber-300 dark:text-amber-700/50 text-xs transform rotate-45"></i>
                                 <p class="text-xs font-medium text-amber-800 dark:text-amber-200 whitespace-pre-line" x-text="noteText"></p>
@@ -422,7 +418,7 @@ $requests = $stmt->fetchAll();
 
                                 <div class="flex gap-2">
                                     <?php if ($req['status'] === 'Pending'): ?>
-                                        <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $req['id']; ?>&action=approve', 'approve');"
+                                        <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $req['id']; ?>&action=approve', 'approve', '<?php echo addslashes($conflictingHolidaysString); ?>');"
                                             class="w-8 h-8 rounded-lg bg-[#f0fcf5] dark:bg-[#0a1a12] border border-[#bbf2d1] dark:border-[#1a4d33] hover:bg-emerald-50 dark:hover:bg-[#103322] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 transition flex items-center justify-center shadow-sm z-10 relative">
                                             <i class="fa-solid fa-check text-sm"></i>
                                         </button>
@@ -529,10 +525,18 @@ $requests = $stmt->fetchAll();
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-[#07160f] px-6 py-4 border-t border-[#d1f0e0] dark:border-[#123f29] flex justify-end gap-3">
-                <a id="modalEditBtn" href="#" class="hidden bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
-                    <i class="fa-solid fa-pen-to-square"></i> Edit Event
-                </a>
+            <div class="bg-white dark:bg-[#07160f] px-6 py-4 border-t border-[#d1f0e0] dark:border-[#123f29] flex justify-end gap-3 flex-wrap">
+                <?php if ($isAdmin): ?>
+                    <button id="modalApproveBtn" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
+                        <i class="fa-solid fa-check"></i> Approve
+                    </button>
+                    <button id="modalRejectBtn" class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
+                        <i class="fa-solid fa-xmark"></i> Reject
+                    </button>
+                    <a id="modalEditBtn" href="#" class="hidden bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square"></i> Edit Event
+                    </a>
+                <?php endif; ?>
                 <button onclick="closeModal()" class="bg-white dark:bg-[#0a1a12] border border-[#d1f0e0] dark:border-[#123f29] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-800 dark:text-emerald-200 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">Close Details</button>
             </div>
         </div>
@@ -541,31 +545,9 @@ $requests = $stmt->fetchAll();
 </body>
 
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<script src="assets/js/event_modal.js"></script>
+<script src="assets/js/event_modal.js?v=<?php echo time(); ?>"></script>
 <script src="assets/js/pdf_modal.js"></script>
 <script>
-    // --- EDIT BUTTON LOGIC ---
-    document.addEventListener('click', function(e) {
-        let card = e.target.closest('.event-status-card');
-        if (card) {
-            let status = card.getAttribute('data-status');
-            let publishId = card.getAttribute('data-publish-id');
-            let editBtn = document.getElementById('modalEditBtn');
-            
-            if (editBtn) {
-                if (status === 'pending' && publishId) {
-                    editBtn.href = 'edit_event.php?id=' + publishId;
-                    editBtn.classList.remove('hidden');
-                    editBtn.classList.add('flex');
-                } else {
-                    editBtn.classList.add('hidden');
-                    editBtn.classList.remove('flex');
-                    editBtn.href = '#';
-                }
-            }
-        }
-    });
-
     // Theme toggle initialization
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleKnob = document.getElementById('theme-toggle-knob');

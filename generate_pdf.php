@@ -18,19 +18,6 @@ $selectedMonths = $_GET['months'] ?? [];
 $selectedCategories = $_GET['categories'] ?? [];
 $year = isset($_GET['year']) ? (int) $_GET['year'] : date('Y');
 
-// Capture the Display Options toggles
-$showCat = isset($_GET['show_cat']) && $_GET['show_cat'] == '1';
-$showVen = isset($_GET['show_ven']) && $_GET['show_ven'] == '1';
-$showPart = isset($_GET['show_part']) && $_GET['show_part'] == '1';
-$showCust = isset($_GET['show_cust']) && $_GET['show_cust'] == '1';
-
-// Capture Paper Size
-$paperSize = $_GET['paper_size'] ?? 'letter';
-$validSizes = ['letter', 'legal', 'a4'];
-if (!in_array(strtolower($paperSize), $validSizes)) {
-    $paperSize = 'letter'; 
-}
-
 // Safety Checks
 if (empty($selectedMonths)) {
     die("<h2 style='font-family:sans-serif; color:red;'>Error: Please select at least one month.</h2> <a href='javascript:history.back()'>Go Back</a>");
@@ -45,6 +32,20 @@ sort($selectedMonths);
 
 $selectedCategories = array_map('intval', $selectedCategories);
 $catPlaceholders = implode(',', array_fill(0, count($selectedCategories), '?'));
+
+// Fetch Participants Map if needed
+$event_participants_map = [];
+if ($showParticipants) {
+    $part_stmt = $pdo->query("
+        SELECT ps.event_publish_id AS publish_id, d.name AS department
+        FROM participant_schedule ps
+        JOIN participants p ON ps.participant_id = p.id
+        JOIN department d ON p.department_id = d.id
+    ");
+    while ($row = $part_stmt->fetch(PDO::FETCH_ASSOC)) {
+        $event_participants_map[$row['publish_id']][] = $row['department'];
+    }
+}
 
 // Load the Header Image securely using Base64 encoding
 $imagePath = 'assets/img/sjsf_header.png';
@@ -83,21 +84,13 @@ $html = '
         .month-title { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
         
         .page-break { page-break-after: always; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
-        th, td { border: 1px solid #000; padding: 6px; vertical-align: top; word-wrap: break-word; }
-        th { background-color: #F5F5DC; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 11px; color: #000; }
-        
-        .date-col { text-align: center; font-size: 16px; font-weight: bold; }
-        .day-name { font-size: 11px; font-weight: normal; display: block; margin-bottom: 2px; text-transform: uppercase; }
-        
-        .ev-title { font-weight: bold; font-size: 13px; margin-bottom: 2px; }
-        .time-text { font-size: 11px; font-weight: bold; color: #444; margin-bottom: 5px; }
-        .ev-desc { font-size: 11px; line-height: 1.4; color: #222; }
-        
-        .center-text { text-align: center; font-size: 11px; }
-        .part-cell { font-size: 11px; line-height: 1.5; color: #222; text-align: left; }
-        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #000; padding: 10px; vertical-align: middle; }
+        th { background-color: #F5F5DC; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 13px; color: #000; }
+        .date-col { width: 12%; text-align: center; font-size: 18px; font-weight: bold; }
+        .activity-col { width: 88%; text-align: left; padding-left: 15px; }
+        .ev-title { font-weight: bold; font-size: 14px; margin-bottom: 3px; }
+        .ev-desc { font-size: 13px; line-height: 1.4; }
         .no-events { text-align: center; padding: 40px; font-style: italic; border: 1px solid #000; }
     </style>
 </head>
@@ -106,8 +99,9 @@ $html = '
 $totalMonths = count($selectedMonths);
 $currentIndex = 0;
 
+// THE EXACT STRICT QUERY: We use the dynamic $catPlaceholders to lock the query to ONLY the checked categories
 $sql = "
-    SELECT e.*, c.category_name, p.status, v.venue_name 
+    SELECT e.*, c.category_name, p.status 
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
     LEFT JOIN event_publish p ON e.publish_id = p.id
@@ -152,117 +146,27 @@ foreach ($selectedMonths as $month) {
         $html .= '<table width="100%">
                     <thead>
                         <tr>
-                            <th width="' . $dateWidth . '%">Date</th>
-                            <th width="' . $titleWidth . '%">Event Details</th>';
-                            
-        if ($showCat) $html .= '<th width="' . $catWidth . '%">Category</th>';
-        if ($showVen) $html .= '<th width="' . $venWidth . '%">Venue</th>';
-        if ($showPart) $html .= '<th width="' . $partWidth . '%">Participants</th>';
-                            
-        $html .= '      </tr>
+                            <th class="date-col">Date</th>
+                            <th class="activity-col">Activity / Events</th>
+                        </tr>
                     </thead>
                     <tbody>';
 
         foreach ($events as $event) {
             $dayNum = date('j', strtotime($event['start_date']));
-            $dayName = date('D', strtotime($event['start_date'])); 
-            
-            $timeStart = formatTimeDisplay($event['start_time']);
-            $timeEnd = formatTimeDisplay($event['end_time']);
-            if ($timeStart === 'All Day' || $timeEnd === 'All Day') {
-                $timeFormatted = 'All Day';
-            } else {
-                $timeFormatted = $timeStart . ' - ' . $timeEnd;
-            }
-            
             $descText = !empty($event['description']) ? nl2br(htmlspecialchars($event['description'])) : '';
 
-            // --- FETCH PARTICIPANTS & CUSTOM TIMES EARLY ---
-            $partNames = [];
-            $customSchedules = [];
+            $html .= '<tr>
+                        <td class="date-col">' . $dayNum . '</td>
+                        <td class="activity-col">
+                            <div class="ev-title">' . htmlspecialchars($event['title']) . '</div>';
 
-            if (($showPart || $showCust) && !empty($event['publish_id'])) {
-                $partStmt = $pdo->prepare("
-                    SELECT p.name, ps.start_time, ps.end_time 
-                    FROM participant_schedule ps 
-                    JOIN participants p ON ps.participant_id = p.id 
-                    WHERE ps.event_publish_id = ?
-                ");
-                $partStmt->execute([$event['publish_id']]);
-                $participants = $partStmt->fetchAll();
-
-                foreach ($participants as $p) {
-                    $pName = htmlspecialchars($p['name']);
-                    $partNames[] = $pName;
-
-                    if ($showCust && !empty($p['start_time'])) {
-                        $pStartStr = date('H:i', strtotime($p['start_time'] ?? '00:00:00'));
-                        $pEndStr   = date('H:i', strtotime($p['end_time'] ?? '00:00:00'));
-                        $eStartStr = date('H:i', strtotime($event['start_time'] ?? '00:00:00'));
-                        $eEndStr   = date('H:i', strtotime($event['end_time'] ?? '00:00:00'));
-
-                        if ($pStartStr !== $eStartStr || $pEndStr !== $eEndStr) {
-                            $cStart = formatTimeDisplay($p['start_time']);
-                            $cEnd = formatTimeDisplay($p['end_time']);
-                            $displayCust = ($cStart === 'All Day' && $cEnd === 'All Day') ? 'All Day' : "$cStart - $cEnd";
-                            
-                            // Save the custom schedule string to display below the description
-                            $customSchedules[] = "<b>" . $pName . "</b>: " . $displayCust;
-                        }
-                    }
-                }
-            }
-
-            // --- START BUILDING THE ROW ---
-            $html .= '<tr>';
-            
-            // COLUMN 1: Date
-            $html .= '<td class="date-col">
-                        <span class="day-name">' . $dayName . '</span>
-                        ' . $dayNum . '
-                      </td>';
-                      
-            // COLUMN 2: Event Details (Now includes Custom Times at the bottom)
-            $html .= '<td>
-                        <div class="ev-title">' . htmlspecialchars($event['title']) . '</div>
-                        <div class="time-text">Time: ' . $timeFormatted . '</div>';
-                        
             if ($descText !== '') {
                 $html .= '<div class="ev-desc">' . $descText . '</div>';
             }
 
-            // Print the custom schedules cleanly below the description
-            if ($showCust && !empty($customSchedules)) {
-                $html .= '<div style="margin-top: 8px; font-size: 10px; color: #333; line-height: 1.4;">';
-                $html .= '<span style="font-style: italic;">* Custom Schedules:</span><br>';
-                $html .= implode('<br>', $customSchedules);
-                $html .= '</div>';
-            }
-
-            $html .= '</td>';
-
-            // COLUMN 3: Category
-            if ($showCat) {
-                $catText = !empty($event['category_name']) ? htmlspecialchars($event['category_name']) : 'N/A';
-                $html .= '<td class="center-text">' . $catText . '</td>';
-            }
-
-            // COLUMN 4: Venue
-            if ($showVen) {
-                $venText = !empty($event['venue_name']) ? htmlspecialchars($event['venue_name']) : 'N/A';
-                $html .= '<td class="center-text">' . $venText . '</td>';
-            }
-
-            // COLUMN 5: Participants (Now just a tight, comma-separated list of names)
-            if ($showPart) {
-                if (!empty($partNames)) {
-                    $html .= '<td class="part-cell">' . implode(', ', $partNames) . '</td>';
-                } else {
-                    $html .= '<td class="center-text" style="color:#777;"><i>N/A</i></td>';
-                }
-            }
-
-            $html .= '</tr>';
+            $html .= '  </td>
+                      </tr>';
         }
         $html .= '</tbody></table>';
     } else {
@@ -285,7 +189,8 @@ $options->set('isRemoteEnabled', true);
 $dompdf = new Dompdf($options);
 $dompdf->loadHtml($html);
 
-$dompdf->setPaper($paperSize, 'portrait');
+// Paper size set to letter
+$dompdf->setPaper('letter', 'portrait');
 
 $dompdf->render();
 

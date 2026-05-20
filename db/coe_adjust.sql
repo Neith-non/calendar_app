@@ -135,6 +135,13 @@ CREATE TABLE participant_schedule (
     FOREIGN KEY (event_publish_id) REFERENCES event_publish(id) ON DELETE CASCADE
 );
 
+ALTER TABLE events 
+ADD COLUMN is_personal TINYINT(1) DEFAULT 0,
+ADD COLUMN user_id INT DEFAULT NULL;
+
+-- Make category_id nullable so personal events don't require a school category
+ALTER TABLE events MODIFY category_id INT NULL;
+
 -- 1. Insert the unique departments first
 INSERT INTO department (name) VALUES 
 ('Preschool'), 

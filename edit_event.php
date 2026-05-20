@@ -34,16 +34,45 @@ $stmt_event = $pdo->prepare("
 $stmt_event->execute([$publish_id]);
 $eventData = $stmt_event->fetch(PDO::FETCH_ASSOC);
 
-// If event doesn't exist or isn't Pending, bounce them back
 if (!$eventData || $eventData['status'] !== 'Pending') {
     header("Location: index.php?error=cannot_edit");
     exit;
 }
 
-// 3. Fetch existing participants
-$stmt_parts = $pdo->prepare("SELECT participant_id FROM participant_schedule WHERE event_publish_id = ?");
+$is_all_day_check = ($eventData['start_time'] == '00:00:00' && $eventData['end_time'] == '23:59:59');
+
+// 3. Fetch existing participants AND group custom time blocks
+$stmt_parts = $pdo->prepare("SELECT participant_id, start_time, end_time FROM participant_schedule WHERE event_publish_id = ?");
 $stmt_parts->execute([$publish_id]);
-$existing_participants = $stmt_parts->fetchAll(PDO::FETCH_COLUMN);
+$participant_data = $stmt_parts->fetchAll(PDO::FETCH_ASSOC);
+
+$existing_participants = [];
+$custom_blocks_data = [];
+
+foreach ($participant_data as $row) {
+    $existing_participants[] = $row['participant_id'];
+    
+    // Compare participant time to main event time to identify custom blocks
+    $p_start = $row['start_time'];
+    $p_end = $row['end_time'];
+    $m_start = $is_all_day_check ? '00:00:00' : $eventData['start_time'];
+    $m_end = $is_all_day_check ? '23:59:59' : $eventData['end_time'];
+
+    if ($p_start !== $m_start || $p_end !== $m_end) {
+        $block_key = $p_start . '_' . $p_end;
+        if (!isset($custom_blocks_data[$block_key])) {
+            $custom_blocks_data[$block_key] = [
+                'start_time' => date('H:i', strtotime($p_start)),
+                'end_time' => date('H:i', strtotime($p_end)),
+                'pids' => []
+            ];
+        }
+        $custom_blocks_data[$block_key]['pids'][] = $row['participant_id'];
+    }
+}
+
+// Pass this JSON to Javascript to redraw the boxes
+$custom_blocks_json = json_encode(array_values($custom_blocks_data));
 
 // Fetch all holidays to pass to Javascript
 $holidayStmt = $pdo->query("SELECT start_date, title FROM events WHERE category_id = 5");
@@ -379,7 +408,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
                 <?php endif; ?>
 
-                <form action="edit_event.php?id=<?php echo $publish_id; ?>" method="POST" id="eventForm" class="space-y-12" x-data="{ selectedDept: '' }">
+                <form action="edit_event.php?id=<?php echo $publish_id; ?>" method="POST" id="eventForm" class="space-y-12" x-data="{ selectedDept: 'all' }">
 
                     <div>
                         <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
@@ -559,6 +588,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <p id="holiday-warning" class="hidden mb-5 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3 rounded-lg text-sm font-bold shadow-sm animate-pulse">
                             <i class="fa-solid fa-triangle-exclamation mr-2"></i> Warning: This date falls on <strong id="holiday-name"></strong>.
                         </p>
+                        <p id="past-date-warning" class="hidden mb-5 text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 p-3 rounded-lg text-sm font-bold shadow-sm animate-pulse">
+                            <i class="fa-solid fa-clock-rotate-left mr-2"></i> Notice: You are scheduling an event in the past.
+                        </p>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div class="bg-slate-50 dark:bg-slate-800/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -616,8 +648,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             
                             <select x-model="selectedDept" class="input-premium w-full px-4 py-3 rounded-lg text-sm font-semibold appearance-none bg-no-repeat cursor-pointer"
                                 style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%2364748b\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.75rem center; background-size: 1.25em;">
-                                <option value="" disabled selected>-- Select Department Category --</option>
-                                <option value="all">Show All Departments</option>
+                                <option value="" disabled>-- Select Department Category --</option>
+                                <option value="all" selected>Show All Departments</option>
                                 <?php foreach (array_keys($grouped_participants) as $deptName): ?>
                                     <option value="<?php echo htmlspecialchars($deptName); ?>">
                                         <?php echo htmlspecialchars($deptName); ?>
@@ -653,9 +685,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                         <div class="space-y-1.5 dept-group" id="dept-<?php echo $dept_id; ?>">
                                             <?php foreach ($parts as $p): ?>
                                                 <?php 
-                                                    // Check if it was submitted via POST, or if it exists in the database
-                                                    $isChecked = (isset($_POST['participants']) && in_array($p['participant_id'], $_POST['participants'])) 
-                                                                || (!isset($_POST['participants']) && in_array($p['participant_id'], $existing_participants)) ? 'checked' : ''; 
+                                                    // Foolproof integer check to ensure database matching works perfectly
+                                                    $p_id = (int)$p['participant_id'];
+                                                    $post_parts = isset($_POST['participants']) ? array_map('intval', $_POST['participants']) : [];
+                                                    $db_parts = array_map('intval', $existing_participants);
+
+                                                    $isChecked = (isset($_POST['participants']) && in_array($p_id, $post_parts)) 
+                                                                || (!isset($_POST['participants']) && in_array($p_id, $db_parts)) ? 'checked' : ''; 
                                                 ?>
                                                 <label class="flex items-center space-x-3 cursor-pointer group p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                                                     <input type="checkbox" name="participants[]" value="<?php echo $p['participant_id']; ?>" data-name="<?php echo $p['display_name']; ?>" <?php echo $isChecked; ?>
@@ -681,8 +717,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
                             
                             <div id="custom-blocks-container" class="space-y-4">
-                                <!-- Note: For editing, custom blocks are reset visually and must be rebuilt if needed. -->
-                            </div>
+                                </div>
                         </div>
                     </div>
 
@@ -702,7 +737,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
     </main>
 
-    <!-- Holiday Conflict Modal -->
     <div id="holidayConfirmModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 backdrop-blur-sm p-4 transition-opacity">
         <div class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800">
             <div class="p-8 text-center space-y-4">
@@ -762,6 +796,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // --- FORM LOGIC ---
     const holidays = <?php echo $holidaysJson; ?>;
+    const preloadedBlocks = <?php echo $custom_blocks_json; ?>;
 
     const startDateInput = document.getElementById('main_start_date');
     const endDateInput = document.getElementById('main_end_date');
@@ -811,12 +846,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     const blocksContainer = document.getElementById('custom-blocks-container');
     let blockCounter = 0;
 
-    function addScheduleBlock() {
+    function addScheduleBlock(initialStart = '', initialEnd = '', initialPids = []) {
         blockCounter++;
         const blockId = blockCounter;
         
-        const defaultStart = mainStartTimeInput && !mainStartTimeInput.disabled ? mainStartTimeInput.value : '';
-        const defaultEnd = mainEndTimeInput && !mainEndTimeInput.disabled ? mainEndTimeInput.value : '';
+        const defaultStart = initialStart || (mainStartTimeInput && !mainStartTimeInput.disabled ? mainStartTimeInput.value : '');
+        const defaultEnd = initialEnd || (mainEndTimeInput && !mainEndTimeInput.disabled ? mainEndTimeInput.value : '');
 
         const blockHTML = `
             <div class="bg-white dark:bg-[#111827] border border-violet-200 dark:border-violet-800 rounded-xl p-5 relative shadow-sm" id="block-${blockId}">
@@ -852,6 +887,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         `;
         
         blocksContainer.insertAdjacentHTML('beforeend', blockHTML);
+        
+        // If this block was preloaded from the database, attach the IDs to it so we can check them later
+        if (initialPids && initialPids.length > 0) {
+            const container = document.querySelector(`.custom-block-participants[data-block-id="${blockId}"]`);
+            if(container) container.dataset.preloadedPids = JSON.stringify(initialPids);
+        }
+        
         updateCustomBlockParticipants(); 
     }
 
@@ -880,7 +922,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         document.querySelectorAll('.custom-block-participants').forEach(container => {
             const blockId = container.getAttribute('data-block-id');
-            const currentlyChecked = Array.from(container.querySelectorAll('input:checked')).map(cb => cb.value);
+            let currentlyChecked = Array.from(container.querySelectorAll('input:checked')).map(cb => cb.value);
+
+            // Consume preloaded database checks so they visually appear checked on first load
+            if (container.dataset.preloadedPids) {
+                currentlyChecked = JSON.parse(container.dataset.preloadedPids).map(String);
+                delete container.dataset.preloadedPids; 
+            }
 
             container.innerHTML = ''; 
             
@@ -896,7 +944,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if (selectAllToggle) selectAllToggle.disabled = false;
 
             checkedMain.forEach(p => {
-                const isChecked = currentlyChecked.includes(p.id) ? 'checked' : '';
+                const isChecked = currentlyChecked.includes(String(p.id)) ? 'checked' : '';
                 container.innerHTML += `
                     <label class="custom-part-label flex items-center space-x-2 text-xs bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition-colors border border-slate-200 dark:border-slate-700 shadow-sm">
                         <input type="checkbox" onchange="syncCustomBlockParticipants()" name="custom_blocks[${blockId}][pids][]" value="${p.id}" ${isChecked} class="w-3.5 h-3.5 text-violet-500 rounded border-slate-300 dark:border-slate-600 focus:ring-violet-500 bg-transparent cursor-pointer">
@@ -954,6 +1002,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     document.querySelectorAll('.participant-cb').forEach(cb => {
         cb.addEventListener('change', updateCustomBlockParticipants);
+    });
+    
+    // --- TRIGGER PRE-LOAD ON STARTUP ---
+    document.addEventListener('DOMContentLoaded', () => {
+        if (preloadedBlocks && preloadedBlocks.length > 0) {
+            preloadedBlocks.forEach(block => {
+                addScheduleBlock(block.start_time, block.end_time, block.pids);
+            });
+        }
+        updateCustomBlockParticipants();
     });
 
     function formatTo12Hour(time24) {
@@ -1058,8 +1116,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    if (startDateInput) startDateInput.addEventListener('change', checkHolidayRange);
-    if (endDateInput) endDateInput.addEventListener('change', checkHolidayRange);
+    const pastWarningText = document.getElementById('past-date-warning');
+
+    function checkPastDate() {
+        if (!startDateInput || !startDateInput.value) return;
+        
+        // Create dates and strip the exact time for accurate day-to-day comparison
+        const selectedDate = new Date(startDateInput.value);
+        selectedDate.setHours(0, 0, 0, 0);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (selectedDate < today) {
+            pastWarningText.classList.remove('hidden');
+        } else {
+            pastWarningText.classList.add('hidden');
+        }
+    }
+
+    if (startDateInput) {
+        startDateInput.addEventListener('change', () => {
+            checkHolidayRange();
+            checkPastDate();
+        });
+        // Check on initial page load (useful for edit_event.php)
+        checkPastDate();
+    }
+    
+    if (endDateInput) {
+        endDateInput.addEventListener('change', checkHolidayRange);
+    }
 
     eventForm.addEventListener('submit', function (e) {
         const checkboxes = document.querySelectorAll('.participant-cb:checked');

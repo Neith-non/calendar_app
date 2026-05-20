@@ -15,13 +15,29 @@ function openModal(element) {
 
     // Populate Top Header
     if (document.getElementById('modalTitle')) document.getElementById('modalTitle').innerText = element.dataset.title;
-    if (document.getElementById('modalDesc')) document.getElementById('modalDesc').innerText = element.dataset.desc || 'No description provided.';
+    if (document.getElementById('modalDesc')) document.getElementById('modalDesc').innerHTML = element.dataset.desc ? element.dataset.desc.replace(/\n/g, '<br>') : '<em class="text-slate-400">No description provided.</em>';
     if (document.getElementById('modalDate')) document.getElementById('modalDate').innerText = element.dataset.date;
     if (document.getElementById('modalTime')) document.getElementById('modalTime').innerText = mainStartTime;
     if (document.getElementById('modalEndDate')) document.getElementById('modalEndDate').innerText = element.dataset.endDate;
     if (document.getElementById('modalEndTime')) document.getElementById('modalEndTime').innerText = mainEndTime; 
     if (document.getElementById('modalCategory')) document.getElementById('modalCategory').innerText = element.dataset.category || 'Not categorized';
     if (document.getElementById('modalVenue')) document.getElementById('modalVenue').innerText = element.dataset.venue || 'Not specified';
+
+    // --- EDIT BUTTON LOGIC ---
+    let editBtn = document.getElementById('modalEditBtn');
+    let status = element.dataset.status;
+    let publishId = element.dataset.publishId;
+    if (editBtn) {
+        if (status === 'pending' && publishId) {
+            editBtn.href = 'edit_event.php?id=' + publishId;
+            editBtn.classList.remove('hidden');
+            editBtn.classList.add('flex');
+        } else {
+            editBtn.classList.add('hidden');
+            editBtn.classList.remove('flex');
+            editBtn.href = '#';
+        }
+    }
 
     // --- HOLIDAY CONFLICT MODAL NOTIFICATION ---
     const existingAlert = document.getElementById('modalHolidayAlert');
@@ -112,9 +128,6 @@ function openModal(element) {
                     let pStartMin = timeToMinutes(p.start_time);
                     let pEndMin = timeToMinutes(p.end_time);
 
-                    // Debug Log - Open your browser console (F12) to see this math in action!
-                    console.log(`Checking ${p.name}: Main(${mStartMin} to ${mEndMin}) vs Part(${pStartMin} to ${pEndMin})`);
-
                     if (pStartMin !== mStartMin || pEndMin !== mEndMin) {
                         isCustom = true;
                     }
@@ -137,11 +150,18 @@ function openModal(element) {
                 `);
             });
 
+            // Dynamically assign styling based on theme (index uses slate, calendar uses emerald)
+            const isEmeraldTheme = document.body.classList.contains('bg-[#f4fcf7]');
+            const cardBg = isEmeraldTheme ? 'bg-white dark:bg-[#07160f]' : 'bg-white dark:bg-[#111827]';
+            const cardBorder = isEmeraldTheme ? 'border-[#d1f0e0] dark:border-[#123f29]' : 'border-slate-200 dark:border-slate-800';
+            const headText = isEmeraldTheme ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400';
+            const headBorder = isEmeraldTheme ? 'border-[#d1f0e0] dark:border-[#123f29]' : 'border-slate-100 dark:border-slate-800';
+
             for (const [dept, namesHTML] of Object.entries(grouped)) {
                 const badge = document.createElement('div');
-                badge.className = "bg-white dark:bg-[#07160f] border border-[#d1f0e0] dark:border-[#123f29] rounded-xl p-4 w-full shadow-sm mb-3";
+                badge.className = `${cardBg} border ${cardBorder} rounded-xl p-4 w-full shadow-sm mb-3`;
                 badge.innerHTML = `
-                    <div class="text-emerald-700 dark:text-emerald-400 font-extrabold mb-3 text-[11px] uppercase tracking-widest border-b border-[#d1f0e0] dark:border-[#123f29] pb-2">${dept}</div>
+                    <div class="${headText} font-extrabold mb-3 text-[11px] uppercase tracking-widest border-b ${headBorder} pb-2">${dept}</div>
                     <div class="flex flex-wrap items-center mt-2">
                         ${namesHTML.join('')}
                     </div>
@@ -176,8 +196,6 @@ function closeModal() {
     }, 200);
 }
 
-
-// --- Approve/Reject SweetAlert Confirmation ---
 function confirmAction(url, action) {
     let actionText = action === 'approve' ? 'Approve' : 'Reject';
     let confirmColor = action === 'approve' ? '#10b981' : '#ef4444'; 

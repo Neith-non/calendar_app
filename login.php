@@ -208,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
 
             <button type="submit" class="btn-premium w-full py-4 rounded-xl flex justify-center items-center gap-3 text-sm">
-                <span>Secure Sign In</span>
+                <span>Sign In</span>
                 <i class="fa-solid fa-arrow-right-to-bracket"></i>
             </button>
             
@@ -217,6 +217,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="mt-8 text-center border-t border-green-200/60 pt-6">
             <p class="text-sjsfi-green/60 text-xs font-medium tracking-wide">© <?php echo date('Y'); ?> Saint Joseph School Foundation Incorporated</p>
         </div>
+        <div class="mt-8 text-center ">
+            <p class="text-sjsfi-green/60 text-xs font-medium"><?php echo date('Y'); ?> Developed by: Gula, Neithan Deniel B. | Buenaventura, Johan C. | Payopelin, Mathew JG S. | Garcia, Paolo S. | Reyes, Aljon V.</p>
+            <p class="text-sjsfi-green/60 text-xs font-medium">Western Mindanao State University</p>
     </div>
 
 </body>

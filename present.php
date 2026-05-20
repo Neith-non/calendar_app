@@ -146,7 +146,7 @@ function getCategoryColor($categoryName) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SJSFI - Present Schedule</title>
+    <title> Present Schedule - SJSFI</title>
     
     <script>
         if (localStorage.getItem('color-theme') === 'dark') { document.documentElement.classList.add('dark'); } 
@@ -356,19 +356,23 @@ function getCategoryColor($categoryName) {
                 
                 <div class="w-48"></div> </div>
 
-            <div x-show="presentTab === 'table'" x-transition.opacity class="flex-1 overflow-y-auto p-8 lg:p-12">
-                <div class="max-w-[1600px] mx-auto bg-white dark:bg-[#111827] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-slate-50 dark:bg-[#1e293b] border-b border-slate-200 dark:border-slate-700">
-                                <th class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Event Name</th>
-                                <th x-show="colDate" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Date & Time</th>
-                                <th x-show="colDetails" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[30%]">Event Details</th>
-                                <th x-show="colVenue" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Venue</th>
-                                <th x-show="colParticipants" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Participants</th>
-                            </tr>
-                        </thead>
-                        <tbody id="events-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/50 text-base">
+            <div x-show="presentTab === 'table'" x-transition.opacity class="flex-1 p-8 lg:p-12 flex flex-col overflow-hidden">
+                <div class="max-w-[1600px] w-full mx-auto bg-white dark:bg-[#111827] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col flex-1 overflow-hidden">
+                    
+                    <div class="overflow-y-auto custom-scrollbar flex-1 w-full relative">
+                        <table class="w-full text-left border-collapse">
+                            
+                            <thead class="sticky top-0 z-20 bg-slate-50 dark:bg-[#1e293b] shadow-sm">
+                                <tr>
+                                    <th class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Event Name</th>
+                                    <th x-show="colDate" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Date & Time</th>
+                                    <th x-show="colDetails" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[30%]">Event Details</th>
+                                    <th x-show="colVenue" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Venue</th>
+                                    <th x-show="colParticipants" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Participants</th>
+                                </tr>
+                            </thead>
+                            
+                            <tbody id="events-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/50 text-base">
                             <?php if (count($rawEvents) > 0): ?>
                                 <?php foreach ($rawEvents as $event): ?>
                                     <?php 
