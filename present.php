@@ -21,7 +21,7 @@ $daysInMonth = date('t', strtotime($dateString));
 $firstDayOfWeek = date('w', strtotime($dateString));
 $monthName = date('F', strtotime($dateString));
 
-// Calculate Prev and Next Months for Traversal
+// --- FIX: Calculate Prev and Next Months for Traversal ---
 $prevMonth = date('Y-m', strtotime("-1 month", strtotime($dateString)));
 $nextMonth = date('Y-m', strtotime("+1 month", strtotime($dateString)));
 
@@ -29,29 +29,22 @@ $nextMonth = date('Y-m', strtotime("+1 month", strtotime($dateString)));
 $stmtCats = $pdo->query("SELECT * FROM event_categories ORDER BY category_name ASC");
 $categories = $stmtCats->fetchAll();
 
+// Generate an array of category names to pre-fill Alpine.js (so all boxes are checked by default)
 $defaultCheckedCategories = array_map(function($c) { return "'" . addslashes($c['category_name']) . "'"; }, $categories);
 $alpineCategoriesArray = implode(',', $defaultCheckedCategories);
 
-// 3. Fetch Events (STRICTLY APPROVED EVENTS & HOLIDAYS ONLY)
-$monthStart = "$year-$month-01";
-$monthEnd = date('Y-m-t', strtotime($monthStart));
-
+// 3. Fetch Events for the Table & Calendar
 $stmt = $pdo->prepare("
     SELECT e.*, c.category_name, p.status, v.venue_name 
     FROM events e
     JOIN event_categories c ON e.category_id = c.category_id
     LEFT JOIN event_publish p ON e.publish_id = p.id
     LEFT JOIN venues v ON p.venue_id = v.venue_id 
-    WHERE e.start_date <= ? 
-    AND (
-        (e.end_date IS NOT NULL AND e.end_date != '0000-00-00' AND e.end_date >= ?)
-        OR 
-        ((e.end_date IS NULL OR e.end_date = '0000-00-00') AND e.start_date >= ?)
-    )
+    WHERE DATE_FORMAT(e.start_date, '%Y-%m') = ?
     AND (p.status = 'Approved' OR e.publish_id IS NULL)
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
-$stmt->execute([$monthEnd, $monthStart, $monthStart]);
+$stmt->execute(["$year-$month"]);
 $rawEvents = $stmt->fetchAll();
 
 // Fetch Participants Map
@@ -138,7 +131,7 @@ foreach ($rawEvents as $evt) {
 }
 
 function getCategoryColor($categoryName) {
-    $name = strtolower($categoryName ?? '');
+    $name = strtolower($categoryName);
     if (strpos($name, 'curricular') !== false && strpos($name, 'extra') === false) return ['text' => 'text-sky-800 dark:text-sky-200', 'bg' => 'bg-gradient-to-r from-sky-100 to-sky-50 dark:from-sky-900/50 dark:to-sky-800/20', 'border' => 'border-sky-200 dark:border-sky-700', 'accent' => 'border-sky-500 dark:border-sky-400'];
     if (strpos($name, 'extra-curricular') !== false || strpos($name, 'sports') !== false) return ['text' => 'text-emerald-800 dark:text-emerald-200', 'bg' => 'bg-gradient-to-r from-emerald-100 to-emerald-50 dark:from-emerald-900/50 dark:to-emerald-800/20', 'border' => 'border-emerald-200 dark:border-emerald-700', 'accent' => 'border-emerald-500 dark:border-emerald-400'];
     if (strpos($name, 'mass') !== false) return ['text' => 'text-violet-800 dark:text-violet-200', 'bg' => 'bg-gradient-to-r from-violet-100 to-violet-50 dark:from-violet-900/50 dark:to-violet-800/20', 'border' => 'border-violet-200 dark:border-violet-700', 'accent' => 'border-violet-500 dark:border-violet-400'];
@@ -153,7 +146,7 @@ function getCategoryColor($categoryName) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> Present Schedule - SJSFI</title>
+    <title>SJSFI - Present Schedule</title>
     
     <script>
         if (localStorage.getItem('color-theme') === 'dark') { document.documentElement.classList.add('dark'); } 
@@ -178,7 +171,6 @@ function getCategoryColor($categoryName) {
     </script>
 
     <style>
-        [x-cloak] { display: none !important; }
         body { color: #1e293b; transition: background-color 0.3s ease, color 0.3s ease; }
         .dark body { color: #f1f5f9; }
         .nav-item { color: #64748b; transition: all 0.2s ease; }
@@ -278,9 +270,13 @@ function getCategoryColor($categoryName) {
                     <div class="space-y-3">
                         <select id="timeline-select" onchange="window.location.href='?timeline='+this.value" class="w-full px-4 py-3 text-sm font-bold border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-sjsfi-green text-slate-800 dark:text-slate-200 cursor-pointer">
                             <?php
+                            // Generate exactly 12 months strictly for the currently selected year
                             for ($m = 1; $m <= 12; $m++) {
+                                // Format the value as YYYY-MM (e.g., "2026-04")
                                 $val = sprintf("%04d-%02d", $year, $m);
+                                // Format the label as "Month Year" (e.g., "April 2026")
                                 $lbl = date('F', mktime(0, 0, 0, $m, 10));
+                                
                                 $sel = ($val === $timeline) ? 'selected' : '';
                                 echo "<option value='$val' $sel>$lbl</option>";
                             }
@@ -339,7 +335,8 @@ function getCategoryColor($categoryName) {
             </div>
         </div>
 
-        <div id="presentation-layer" x-show="isPresenting" x-transition.opacity.duration.500ms x-cloak class="absolute inset-0 z-50 bg-[#f8faf9] dark:bg-[#030712] flex flex-col h-screen w-screen overflow-hidden">
+
+        <div id="presentation-layer" x-show="isPresenting" x-transition.opacity.duration.500ms style="display: none;" class="absolute inset-0 z-50 bg-[#f8faf9] dark:bg-[#030712] flex flex-col h-screen w-screen overflow-hidden">
             
             <div class="bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800 shadow-sm shrink-0 flex items-center justify-between px-6">
                 <div class="flex items-center gap-2">
@@ -357,26 +354,21 @@ function getCategoryColor($categoryName) {
                     </button>
                 </div>
                 
-                <div class="w-48"></div> 
-            </div>
+                <div class="w-48"></div> </div>
 
-            <div x-show="presentTab === 'table'" x-transition.opacity class="flex-1 p-8 lg:p-12 flex flex-col overflow-hidden">
-                <div class="max-w-[1600px] w-full mx-auto bg-white dark:bg-[#111827] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col flex-1 overflow-hidden">
-                    
-                    <div class="overflow-y-auto custom-scrollbar flex-1 w-full relative">
-                        <table class="w-full text-left border-collapse">
-                            
-                            <thead class="sticky top-0 z-20 bg-slate-50 dark:bg-[#1e293b] shadow-sm">
-                                <tr>
-                                    <th class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Event Name</th>
-                                    <th x-show="colDate" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Date & Time</th>
-                                    <th x-show="colDetails" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[30%]">Event Details</th>
-                                    <th x-show="colVenue" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Venue</th>
-                                    <th x-show="colParticipants" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Participants</th>
-                                </tr>
-                            </thead>
-                            
-                            <tbody id="events-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/50 text-base">
+            <div x-show="presentTab === 'table'" x-transition.opacity class="flex-1 overflow-y-auto p-8 lg:p-12">
+                <div class="max-w-[1600px] mx-auto bg-white dark:bg-[#111827] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 dark:bg-[#1e293b] border-b border-slate-200 dark:border-slate-700">
+                                <th class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Event Name</th>
+                                <th x-show="colDate" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Date & Time</th>
+                                <th x-show="colDetails" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[30%]">Event Details</th>
+                                <th x-show="colVenue" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Venue</th>
+                                <th x-show="colParticipants" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Participants</th>
+                            </tr>
+                        </thead>
+                        <tbody id="events-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/50 text-base">
                             <?php if (count($rawEvents) > 0): ?>
                                 <?php foreach ($rawEvents as $event): ?>
                                     <?php 
@@ -384,7 +376,7 @@ function getCategoryColor($categoryName) {
                                         $formattedDate = date('M j, Y', strtotime($event['start_date']));
                                         $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
                                     ?>
-                                    <tr x-show="selectedCategories.includes('<?php echo addslashes(htmlspecialchars($event['category_name'] ?? '')); ?>')" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                    <tr x-show="selectedCategories.includes('<?php echo addslashes($event['category_name']); ?>')" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                                         <td class="py-6 px-6 align-top">
                                             <h3 class="text-lg font-black text-slate-800 dark:text-white mb-2"><?php echo htmlspecialchars($event['title']); ?></h3>
                                             <span class="<?php echo $color['bg'].' '.$color['text'].' '.$color['border']; ?> border text-xs font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider"><?php echo htmlspecialchars($event['category_name']); ?></span>
@@ -411,6 +403,7 @@ function getCategoryColor($categoryName) {
                                             <div class="flex flex-col gap-1.5">
                                                 <?php 
                                                     if (!empty($event_participants_map[$event['publish_id']])) {
+                                                        // Group by department to keep the table clean
                                                         $depts = array_unique(array_column($event_participants_map[$event['publish_id']], 'department'));
                                                         foreach ($depts as $dept) {
                                                             echo "<span class='bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 inline-block w-max'>" . htmlspecialchars($dept) . "</span>";
@@ -424,16 +417,14 @@ function getCategoryColor($categoryName) {
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="5" class="py-12 text-center text-slate-500 font-medium">No approved events found for this month. (If testing, remember to approve events first).</td></tr>
+                                <tr><td colspan="5" class="py-12 text-center text-slate-500 font-medium">No approved events found for this month.</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <div x-show="presentTab === 'calendar'" x-cloak class="flex-1 p-8 lg:p-12 flex flex-col" style="min-height: 800px;">
-                <div class="text-xs text-red-500 font-bold mb-2">Events Found: <?php echo count($rawEvents); ?></div>
-                
+            <div x-show="presentTab === 'calendar'" x-transition.opacity style="display: none;" class="flex-1 overflow-hidden p-8 lg:p-12 flex flex-col">
                 <div class="max-w-[1600px] w-full mx-auto bg-white dark:bg-[#07160f] border border-slate-200 dark:border-[#123f29] rounded-[2rem] shadow-xl flex flex-col flex-1 overflow-hidden transition-all">
                     
                     <div id="calendar-grid-wrapper" class="flex flex-col flex-1">
@@ -485,9 +476,8 @@ function getCategoryColor($categoryName) {
                                             $timeDisplay = ($evt['is_start_of_event'] && $formattedTime !== '') ? "<span class='opacity-70 font-semibold mr-1.5 text-[10px]'>{$formattedTime}</span>" : "";
                                             $finalClasses = "{$color['bg']} {$color['text']} {$borderFix} {$accentBorder} {$color['border']} {$rounded}";
                                             ?>
-                                            <div x-show="selectedCategories.includes('<?php echo addslashes(htmlspecialchars($evt['category_name'] ?? '')); ?>')" 
-                                                class="<?php echo $finalClasses; ?> flex items-center h-[28px] mt-1 text-xs font-bold truncate overflow-hidden"
-                                                style="grid-column-start: <?php echo $evt['col_start']; ?>; grid-column-end: span <?php echo $evt['col_span']; ?>;">
+                                            <div x-show="selectedCategories.includes('<?php echo addslashes($evt['category_name']); ?>')" 
+                                                class="col-start-<?php echo $evt['col_start']; ?> col-span-<?php echo $evt['col_span']; ?> <?php echo $finalClasses; ?> flex items-center h-[28px] mt-1 text-xs font-bold truncate overflow-hidden">
                                                 <div class="truncate w-full"><?php echo $timeDisplay . htmlspecialchars($evt['title']); ?></div>
                                             </div>
                                         <?php endforeach; ?>
@@ -500,14 +490,14 @@ function getCategoryColor($categoryName) {
                 </div>
             </div>
 
-            <button x-show="isPresenting" @click="showQuitModal = true" title="Exit Presentation (ESC)" class="fixed top-6 right-6 z-[100] bg-red-600/90 backdrop-blur-md text-white px-5 h-12 rounded-xl font-extrabold shadow-2xl flex items-center justify-center gap-2 hover:bg-red-700 transition-all duration-500 transform hover:scale-105 border border-red-500">
-                <i class="fa-solid fa-right-from-bracket text-lg"></i> <span class="hidden md:inline text-sm">Exit</span>
+            <button x-show="isPresenting" @click="showQuitModal = true" title="Exit Presentation (ESC)" class="fixed top-6 right-6 z-[100] bg-red-600/90 backdrop-blur-md text-white w-12 h-12 rounded-full font-bold shadow-2xl flex items-center justify-center hover:bg-red-700 transition-all duration-500 transform hover:scale-105 border border-red-500">
+                <i class="fa-solid fa-right-from-bracket text-lg"></i>
             </button>
         </div>
         
     </main>
 
-    <div x-show="showQuitModal" x-cloak class="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div x-show="showQuitModal" style="display: none;" class="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
         <div @click.away="showQuitModal = false" x-show="showQuitModal" x-transition.scale.origin.center class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md overflow-hidden transform transition-all">
             <div class="p-8 text-center">
                 <div class="w-20 h-20 bg-red-50 dark:bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-100 dark:border-red-500/20">
@@ -573,50 +563,53 @@ function getCategoryColor($categoryName) {
             }
         });
 
-        // --- AJAX NAVIGATION TO PREVENT FULL-SCREEN EXIT ---
-        let isNavigating = false; 
+        // --- FIX: AJAX NAVIGATION TO PREVENT FULL-SCREEN EXIT ---
+async function navigatePresentation(url) {
+    try {
+        document.body.style.cursor = 'wait';
+        
+        const response = await fetch(url);
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
 
-        async function navigatePresentation(url) {
-            if (isNavigating) return; 
-            isNavigating = true;
+        // 1. Swap the Table & Calendar Grids
+        const idsToReplace = ['events-table-body', 'calendar-grid-wrapper', 'presentMonthTitle', 'timeline-select'];
+        
+        idsToReplace.forEach(id => {
+            const currentEl = document.getElementById(id);
+            const newEl = doc.getElementById(id);
+            if (currentEl && newEl) {
+                currentEl.innerHTML = newEl.innerHTML;
 
-            try {
-                document.body.style.cursor = 'wait';
-                
-                const response = await fetch(url);
-                const html = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-
-                const idsToReplace = ['events-table-body', 'calendar-grid-wrapper', 'presentMonthTitle', 'timeline-select'];
-                
-                idsToReplace.forEach(id => {
-                    const currentEl = document.getElementById(id);
-                    const newEl = doc.getElementById(id);
-                    if (currentEl && newEl) {
-                        currentEl.innerHTML = newEl.innerHTML;
-                    }
-                });
-
-                const prevBtn = document.getElementById('presentPrevBtn');
-                const nextBtn = document.getElementById('presentNextBtn');
-                const newPrev = doc.getElementById('presentPrevBtn');
-                const newNext = doc.getElementById('presentNextBtn');
-                
-                if (prevBtn && newPrev) prevBtn.href = newPrev.href;
-                if (nextBtn && newNext) nextBtn.href = newNext.href;
-
-                window.history.pushState({}, '', url);
-
-            } catch (error) {
-                console.error('Seamless traversal failed:', error);
-                window.location.href = url; 
-            } finally {
-                isNavigating = false; 
-                document.body.style.cursor = 'default';
+                // === ADD THIS FIX HERE ===
+                // Re-initialize Alpine.js on the newly injected DOM elements
+                if (window.Alpine) {
+                    Alpine.initTree(currentEl);
+                }
             }
-        }
+        });
 
+        // 2. Update the hidden URLs on the navigation arrows
+        const prevBtn = document.getElementById('presentPrevBtn');
+        const nextBtn = document.getElementById('presentNextBtn');
+        const newPrev = doc.getElementById('presentPrevBtn');
+        const newNext = doc.getElementById('presentNextBtn');
+        
+        if (prevBtn && newPrev) prevBtn.href = newPrev.href;
+        if (nextBtn && newNext) nextBtn.href = newNext.href;
+
+        window.history.pushState({}, '', url);
+
+    } catch (error) {
+        console.error('Seamless traversal failed:', error);
+        window.location.href = url; // Fallback to normal load
+    } finally {
+        document.body.style.cursor = 'default';
+    }
+}
+
+        // Intercept Mouse Clicks on the Arrows
         document.addEventListener('click', (e) => {
             const prevBtn = document.getElementById('presentPrevBtn');
             const nextBtn = document.getElementById('presentNextBtn');
@@ -630,9 +623,11 @@ function getCategoryColor($categoryName) {
             }
         });
 
+        // Intercept Keyboard Left/Right Arrows for Months and ESC for Exit
         document.addEventListener('keydown', (e) => {
             const presentingLayer = document.getElementById('presentation-layer');
             
+            // Only trigger if we are actively presenting
             if (presentingLayer && presentingLayer.style.display !== 'none') {
                 if (e.key === 'ArrowLeft') {
                     const prevBtn = document.getElementById('presentPrevBtn');
@@ -641,6 +636,7 @@ function getCategoryColor($categoryName) {
                     const nextBtn = document.getElementById('presentNextBtn');
                     if (nextBtn) navigatePresentation(nextBtn.href);
                 } 
+                // Note: Up, Down, and Escape are handled perfectly by Alpine on the body tag!
             }
         });
     </script>
