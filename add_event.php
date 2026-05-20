@@ -142,17 +142,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $participantConflicts = []; 
 
             foreach ($participant_ids as $pid) {
-                if ($is_all_day) {
-                    $p_start = '00:00:00';
-                    $p_end = '23:59:59';
+                // If they have a custom time, ALWAYS use it. 
+                // Otherwise, fall back to the main event time (which automatically handles All-Day!)
+                if (isset($custom_times[$pid])) {
+                    $p_start = $custom_times[$pid]['start'];
+                    $p_end = $custom_times[$pid]['end'];
                 } else {
-                    if (isset($custom_times[$pid])) {
-                        $p_start = $custom_times[$pid]['start'];
-                        $p_end = $custom_times[$pid]['end'];
-                    } else {
-                        $p_start = $start_time;
-                        $p_end = $end_time;
-                    }
+                    $p_start = $start_time;
+                    $p_end = $end_time;
                 }
 
                 $p_start_datetime = $start_date . ' ' . $p_start;
@@ -196,18 +193,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt_link = $pdo->prepare("INSERT INTO participant_schedule (event_publish_id, participant_id, start_time, end_time) VALUES (?, ?, ?, ?)");
                 
                 foreach ($participant_ids as $pid) {
-                    if ($is_all_day) {
-                        $p_start = '00:00:00';
-                        $p_end = '23:59:59';
+                    // Apply the exact same fix here to successfully save the data to the database
+                    if (isset($custom_times[$pid])) {
+                        $p_start = $custom_times[$pid]['start'];
+                        $p_end = $custom_times[$pid]['end'];
                     } else {
-                        if (isset($custom_times[$pid])) {
-                            $p_start = $custom_times[$pid]['start'];
-                            $p_end = $custom_times[$pid]['end'];
-                        } else {
-                            $p_start = $start_time;
-                            $p_end = $end_time;
-                        }
+                        $p_start = $start_time;
+                        $p_end = $end_time;
                     }
+                    
                     $stmt_link->execute([$publish_id, $pid, $p_start, $p_end]);
                 }
 
@@ -530,6 +524,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                         <p id="holiday-warning" class="hidden mb-5 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3 rounded-lg text-sm font-bold shadow-sm animate-pulse">
                             <i class="fa-solid fa-triangle-exclamation mr-2"></i> Warning: This date falls on <strong id="holiday-name"></strong>.
+                        </p>
+                        <p id="past-date-warning" class="hidden mb-5 text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 p-3 rounded-lg text-sm font-bold shadow-sm animate-pulse">
+                            <i class="fa-solid fa-clock-rotate-left mr-2"></i> Notice: You are scheduling an event in the past.
                         </p>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -976,8 +973,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    if (startDateInput) startDateInput.addEventListener('change', checkHolidayRange);
-    if (endDateInput) endDateInput.addEventListener('change', checkHolidayRange);
+    const pastWarningText = document.getElementById('past-date-warning');
+
+    function checkPastDate() {
+        if (!startDateInput || !startDateInput.value) return;
+        
+        // Create dates and strip the exact time for accurate day-to-day comparison
+        const selectedDate = new Date(startDateInput.value);
+        selectedDate.setHours(0, 0, 0, 0);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (selectedDate < today) {
+            pastWarningText.classList.remove('hidden');
+        } else {
+            pastWarningText.classList.add('hidden');
+        }
+    }
+
+    if (startDateInput) {
+        startDateInput.addEventListener('change', () => {
+            checkHolidayRange();
+            checkPastDate();
+        });
+        // Check on initial page load (useful for edit_event.php)
+        checkPastDate();
+    }
+    
+    if (endDateInput) {
+        endDateInput.addEventListener('change', checkHolidayRange);
+    }
 
     eventForm.addEventListener('submit', function (e) {
         const checkboxes = document.querySelectorAll('.participant-cb:checked');

@@ -325,7 +325,7 @@ function getCategoryColor($categoryName)
                 
                 <a href="calendar.php" class="bg-white dark:bg-[#0a1a12] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-700 dark:text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-bold border border-[#d1f0e0] dark:border-[#123f29] shadow-sm transition">Today</a>
                 
-                <?php if (isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin'])): ?>
+                <?php if ($isAdmin): ?>
                     <button onclick="enterPresentationMode()" class="bg-[#ebfbf3] dark:bg-[#103322] hover:bg-[#d1f0e0] dark:hover:bg-[#1a4d33] text-emerald-700 dark:text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-bold border border-[#bbf2d1] dark:border-[#215c3d] shadow-sm transition flex items-center gap-2">
                         <i class="fa-solid fa-desktop"></i> <span>Present</span>
                     </button>
@@ -401,7 +401,7 @@ function getCategoryColor($categoryName)
                                     ?>
                                     <div class="p-3 <?php echo $dayClass; ?> hover:bg-[#fafdfb] dark:hover:bg-[#0a1a12] transition-colors relative group h-full">
                                         <div class="flex justify-between items-start">
-                                            <?php if (isset($_SESSION['role_name']) && in_array($_SESSION['role_name'], ['Head Scheduler', 'Admin'])): ?>
+                                            <?php if ($isAdmin): ?>
                                                 <a href="add_event.php?date=<?php echo $day['date']; ?>" class="action-btn text-xs <?php echo $numberClass; ?> z-20 relative"><?php echo $day['day']; ?></a>
                                                 <a href="add_event.php?date=<?php echo $day['date']; ?>" class="action-btn opacity-0 group-hover:opacity-100 text-emerald-300 hover:text-emerald-600 transition p-1 z-20 relative"><i class="fa-solid fa-plus text-xs"></i></a>
                                             <?php else: ?>
@@ -461,6 +461,8 @@ function getCategoryColor($categoryName)
                                 
                                 <div class="calendar-event-item <?php echo $presentationHideClass; ?> pointer-events-auto col-start-<?php echo $evt['col_start']; ?> col-span-<?php echo $evt['col_span']; ?> <?php echo $finalClasses; ?> flex items-center h-[28px] mt-1 text-xs font-bold truncate cursor-pointer hover:brightness-95 transition-all relative overflow-hidden"
                                     title='<?php echo $safeTitle; ?>'
+                                    data-publish-id='<?php echo htmlspecialchars($evt['publish_id'] ?? ''); ?>'
+                                    data-status='<?php echo strtolower($evt['status'] ?? ''); ?>'
                                     data-title='<?php echo $safeTitle; ?>'
                                     data-desc='<?php echo $safeDesc; ?>'
                                     data-category='<?php echo htmlspecialchars($evt['category_name']); ?>' 
@@ -550,7 +552,12 @@ function getCategoryColor($categoryName)
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-[#07160f] px-6 py-4 border-t border-[#d1f0e0] dark:border-[#123f29] flex justify-end">
+            <div class="bg-white dark:bg-[#07160f] px-6 py-4 border-t border-[#d1f0e0] dark:border-[#123f29] flex justify-end gap-3">
+                <?php if ($isAdmin): ?>
+                    <a id="modalEditBtn" href="#" class="hidden bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square"></i> Edit Event
+                    </a>
+                <?php endif; ?>
                 <button onclick="closeModal()" class="bg-white dark:bg-[#0a1a12] border border-[#d1f0e0] dark:border-[#123f29] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-800 dark:text-emerald-200 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">Close Details</button>
             </div>
         </div>
@@ -559,7 +566,7 @@ function getCategoryColor($categoryName)
 </body>
 
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<script src="assets/js/event_modal.js"></script>
+<script src="assets/js/event_modal.js?v=<?php echo time(); ?>"></script>
 <script src="assets/js/calendar.js?v=<?php echo time(); ?>"></script>
 <script src="assets/js/pdf_modal.js"></script>
 <script src="assets/js/theme_toggle.js"></script>

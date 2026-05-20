@@ -49,6 +49,7 @@ $holidayStmt = $pdo->query("
     WHERE c.category_name = 'Holidays'
 "); 
 $holidaysList = $holidayStmt->fetchAll(PDO::FETCH_COLUMN);
+
 // Fetch Events (Showing current month's past events + all future events)
 $stmt = $pdo->prepare("
     SELECT e.*, c.category_name, p.status, v.venue_name 
@@ -107,7 +108,7 @@ function getCategoryColor($categoryName)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SJSFI - Calendar of Events</title>
+    <title>Dashboard - SJSFI</title>
     
     <script>
         if (localStorage.getItem('color-theme') === 'dark') {
@@ -438,7 +439,7 @@ function getCategoryColor($categoryName)
 
                             <?php if (isset($_SESSION['role_name']) && ($_SESSION['role_name'] === 'Admin' || $_SESSION['role_name'] === 'Head Scheduler')): ?>
                                 <div class="flex justify-center gap-2 mt-1">
-                                    <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=approve', 'approve')"
+                                    <button onclick="event.stopPropagation(); confirmAction('approve_event.php?id=<?php echo $event['publish_id']; ?>&action=approve', 'approve', '<?php echo addslashes($conflictingHolidaysString); ?>')"
                                         class="w-full h-8 rounded-lg bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center justify-center transition border border-slate-200 dark:border-slate-700 hover:border-emerald-200 dark:hover:border-emerald-500/30 gap-1.5 text-xs font-bold shadow-sm">
                                         <i class="fa-solid fa-check"></i> Approve
                                     </button>
@@ -567,18 +568,18 @@ function getCategoryColor($categoryName)
             </div> </div>
     </main>
 
-    <div id="eventModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity p-4">
-        <div class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 dark:border-slate-700 transform transition-all scale-95 opacity-0" id="modalContent">
+    <div id="eventModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[110] backdrop-blur-sm transition-opacity p-4">
+        <div class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 dark:border-slate-700 transform transition-all scale-95 opacity-0 flex flex-col max-h-full" id="modalContent">
             
-            <div class="bg-slate-50 dark:bg-slate-900 p-6 flex justify-between items-start border-b border-slate-100 dark:border-slate-800">
+            <div class="bg-slate-50 dark:bg-slate-900 p-6 flex justify-between items-start border-b border-slate-100 dark:border-slate-800 shrink-0">
                 <h2 id="modalTitle" class="text-xl font-extrabold text-slate-800 dark:text-slate-100 leading-tight pr-4">Event Title</h2>
                 <button onclick="closeModal()" class="text-slate-400 hover:text-red-500 transition bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-red-200 rounded-full w-8 h-8 flex items-center justify-center shadow-sm shrink-0">
                     <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
             </div>
 
-            <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
-                <div class="bg-white dark:bg-[#111827] p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+            <div class="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                <div id="modalTimingCard" class="bg-white dark:bg-[#111827] p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
                     <div class="flex items-center gap-3 text-slate-700 dark:text-slate-300 font-semibold text-sm">
                         <span class="w-10 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Start</span>
                         <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
@@ -633,7 +634,7 @@ function getCategoryColor($categoryName)
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-[#0b1120] px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+            <div class="bg-white dark:bg-[#0b1120] px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 shrink-0">
                 <?php if (!$isViewer): ?>
                     <a id="modalEditBtn" href="#" class="hidden bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
                         <i class="fa-solid fa-pen-to-square"></i> Edit Event
@@ -676,33 +677,10 @@ function getCategoryColor($categoryName)
 </body>
 
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<script src="assets/js/event_modal.js"></script>
+<script src="assets/js/event_modal.js?v=<?php echo time(); ?>"></script>
 <script src="assets/js/pdf_modal.js"></script>
 
 <script>
-    // --- EDIT BUTTON LOGIC ---
-    // This perfectly hooks into the click before your event_modal.js runs
-    document.addEventListener('click', function(e) {
-        let card = e.target.closest('.event-card');
-        if (card) {
-            let status = card.getAttribute('data-status');
-            let publishId = card.getAttribute('data-publish-id');
-            let editBtn = document.getElementById('modalEditBtn');
-            
-            if (editBtn) {
-                if (status === 'pending' && publishId) {
-                    editBtn.href = 'edit_event.php?id=' + publishId;
-                    editBtn.classList.remove('hidden');
-                    editBtn.classList.add('flex');
-                } else {
-                    editBtn.classList.add('hidden');
-                    editBtn.classList.remove('flex');
-                    editBtn.href = '#';
-                }
-            }
-        }
-    });
-
     // --- DARK MODE TOGGLE LOGIC ---
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleKnob = document.getElementById('theme-toggle-knob');

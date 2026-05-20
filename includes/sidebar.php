@@ -122,7 +122,7 @@ $path_prefix = $in_admin_folder ? '../' : '';
 
         <a href="<?php echo $path_prefix; ?>logout.php" class="flex items-center justify-center gap-2 w-full py-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition font-bold text-sm border border-transparent hover:border-red-100 dark:hover:border-red-500/30">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
-            <span>Secure Logout</span>
+            <span>Logout</span>
         </a>
     </div>
 </aside>

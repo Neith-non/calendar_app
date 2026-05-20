@@ -208,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
 
             <button type="submit" class="btn-premium w-full py-4 rounded-xl flex justify-center items-center gap-3 text-sm">
-                <span>Secure Sign In</span>
+                <span>Sign In</span>
                 <i class="fa-solid fa-arrow-right-to-bracket"></i>
             </button>
             
