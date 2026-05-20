@@ -49,16 +49,40 @@ function openModal(element) {
         if (timingCard) timingCard.parentNode.insertBefore(alertBox, timingCard.nextSibling);
     }
 
-    // --- DYNAMIC BUTTON LOGIC (Edit, Approve, Reject) ---
+    // --- DYNAMIC BUTTON LOGIC (Edit, Approve, Reject, Delete) ---
     let editBtn = document.getElementById('modalEditBtn');
     let approveBtn = document.getElementById('modalApproveBtn');
     let rejectBtn = document.getElementById('modalRejectBtn');
+    let deleteBtn = document.getElementById('modalDeleteBtn');
     
     let status = element.dataset.status;
     let publishId = element.dataset.publishId;
-    
-    if (status === 'pending' && publishId) {
-        // Show Edit
+    let isPersonal = element.dataset.isPersonal === 'true';
+    let approvedBy = element.dataset.approvedBy;
+    let currentUserId = document.body.dataset.userId || '';
+
+    // Hide all buttons by default
+    if (editBtn) { editBtn.classList.add('hidden'); editBtn.classList.remove('flex'); }
+    if (approveBtn) { approveBtn.classList.add('hidden'); approveBtn.classList.remove('flex'); }
+    if (rejectBtn) { rejectBtn.classList.add('hidden'); rejectBtn.classList.remove('flex'); }
+    if (deleteBtn) { deleteBtn.classList.add('hidden'); deleteBtn.classList.remove('flex'); }
+
+    // Personal event logic (owned by current user via approved_by)
+    if (isPersonal && approvedBy == currentUserId && publishId) {
+        // Show Edit button for personal events
+        if (editBtn) {
+            editBtn.href = 'edit_event.php?id=' + publishId;
+            editBtn.classList.remove('hidden');
+            editBtn.classList.add('flex');
+        }
+        // Show Delete button for personal events
+        if (deleteBtn) {
+            deleteBtn.setAttribute('onclick', `confirmDelete(${publishId})`);
+            deleteBtn.classList.remove('hidden');
+            deleteBtn.classList.add('flex');
+        }
+    } else if (status === 'pending' && publishId) {
+        // Show Edit for pending events (approval workflow)
         if (editBtn) {
             editBtn.href = 'edit_event.php?id=' + publishId;
             editBtn.classList.remove('hidden');
@@ -76,12 +100,8 @@ function openModal(element) {
             rejectBtn.classList.remove('hidden');
             rejectBtn.classList.add('flex');
         }
-    } else {
-        // Hide All if not pending
-        if (editBtn) { editBtn.classList.add('hidden'); editBtn.classList.remove('flex'); editBtn.href = '#'; }
-        if (approveBtn) { approveBtn.classList.add('hidden'); approveBtn.classList.remove('flex'); approveBtn.removeAttribute('onclick'); }
-        if (rejectBtn) { rejectBtn.classList.add('hidden'); rejectBtn.classList.remove('flex'); rejectBtn.removeAttribute('onclick'); }
     }
+
 
     // 2. Locate the Participants container
     const partsDiv = document.getElementById('modalParticipants');
@@ -258,6 +278,29 @@ function fireStandardAlert(url, actionText, confirmColor) {
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = url;
+        }
+    });
+}
+
+// Delete personal event function
+function confirmDelete(publishId) {
+    Swal.fire({
+        title: 'Delete Personal Event?',
+        text: 'This action cannot be undone. Are you sure you want to permanently delete this personal event?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b', 
+        confirmButtonText: 'Yes, Delete Permanently',
+        customClass: {
+            popup: 'dark:bg-slate-900 dark:border dark:border-slate-800 dark:text-white',
+            title: 'dark:text-white text-red-600',
+            htmlContainer: 'dark:text-slate-300'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Send delete request to server
+            window.location.href = 'delete_event.php?id=' + publishId;
         }
     });
 }

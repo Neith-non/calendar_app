@@ -175,3 +175,12 @@ INSERT INTO participants (name, department_id) VALUES
 ('Everyone / School-Wide', (SELECT id FROM department WHERE name = 'Institutional'));
 
 INSERT INTO department (name) VALUES ('Others');
+
+-- 1. Add the is_personal flag
+ALTER TABLE event_publish ADD COLUMN is_personal BOOLEAN NOT NULL DEFAULT FALSE AFTER status;
+
+-- 2. Make venue_id optional (nullable)
+ALTER TABLE event_publish MODIFY venue_id INT NULL;
+
+-- 3. Create the 'Personal' Category
+INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Personal', 'Personal');
