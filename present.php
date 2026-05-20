@@ -563,45 +563,51 @@ function getCategoryColor($categoryName) {
             }
         });
 
-        // --- NEW: AJAX NAVIGATION TO PREVENT FULL-SCREEN EXIT ---
-        async function navigatePresentation(url) {
-            try {
-                document.body.style.cursor = 'wait';
-                
-                const response = await fetch(url);
-                const html = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
+        // --- FIX: AJAX NAVIGATION TO PREVENT FULL-SCREEN EXIT ---
+async function navigatePresentation(url) {
+    try {
+        document.body.style.cursor = 'wait';
+        
+        const response = await fetch(url);
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
 
-                // 1. Swap the Table & Calendar Grids
-                const idsToReplace = ['events-table-body', 'calendar-grid-wrapper', 'presentMonthTitle', 'timeline-select'];
-                
-                idsToReplace.forEach(id => {
-                    const currentEl = document.getElementById(id);
-                    const newEl = doc.getElementById(id);
-                    if (currentEl && newEl) {
-                        currentEl.innerHTML = newEl.innerHTML;
-                    }
-                });
+        // 1. Swap the Table & Calendar Grids
+        const idsToReplace = ['events-table-body', 'calendar-grid-wrapper', 'presentMonthTitle', 'timeline-select'];
+        
+        idsToReplace.forEach(id => {
+            const currentEl = document.getElementById(id);
+            const newEl = doc.getElementById(id);
+            if (currentEl && newEl) {
+                currentEl.innerHTML = newEl.innerHTML;
 
-                // 2. Update the hidden URLs on the navigation arrows
-                const prevBtn = document.getElementById('presentPrevBtn');
-                const nextBtn = document.getElementById('presentNextBtn');
-                const newPrev = doc.getElementById('presentPrevBtn');
-                const newNext = doc.getElementById('presentNextBtn');
-                
-                if (prevBtn && newPrev) prevBtn.href = newPrev.href;
-                if (nextBtn && newNext) nextBtn.href = newNext.href;
-
-                window.history.pushState({}, '', url);
-
-            } catch (error) {
-                console.error('Seamless traversal failed:', error);
-                window.location.href = url; // Fallback to normal load
-            } finally {
-                document.body.style.cursor = 'default';
+                // === ADD THIS FIX HERE ===
+                // Re-initialize Alpine.js on the newly injected DOM elements
+                if (window.Alpine) {
+                    Alpine.initTree(currentEl);
+                }
             }
-        }
+        });
+
+        // 2. Update the hidden URLs on the navigation arrows
+        const prevBtn = document.getElementById('presentPrevBtn');
+        const nextBtn = document.getElementById('presentNextBtn');
+        const newPrev = doc.getElementById('presentPrevBtn');
+        const newNext = doc.getElementById('presentNextBtn');
+        
+        if (prevBtn && newPrev) prevBtn.href = newPrev.href;
+        if (nextBtn && newNext) nextBtn.href = newNext.href;
+
+        window.history.pushState({}, '', url);
+
+    } catch (error) {
+        console.error('Seamless traversal failed:', error);
+        window.location.href = url; // Fallback to normal load
+    } finally {
+        document.body.style.cursor = 'default';
+    }
+}
 
         // Intercept Mouse Clicks on the Arrows
         document.addEventListener('click', (e) => {
