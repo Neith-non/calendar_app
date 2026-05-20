@@ -899,15 +899,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     function removeBlock(id) {
         document.getElementById(`block-${id}`).remove();
+        syncCustomBlockParticipants(); // Free up participants when a block is deleted!
     }
 
     function toggleAllCustomBlockParticipants(blockId, isChecked) {
         const container = document.querySelector(`.custom-block-participants[data-block-id="${blockId}"]`);
         if (container) {
-            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+            // ONLY toggle checkboxes that are NOT disabled by the lock function
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:not(:disabled)');
             checkboxes.forEach(cb => {
                 cb.checked = isChecked;
             });
+            syncCustomBlockParticipants(); // Lock them globally after selecting all
         }
     }
 
@@ -943,11 +946,56 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             checkedMain.forEach(p => {
                 const isChecked = currentlyChecked.includes(String(p.id)) ? 'checked' : '';
                 container.innerHTML += `
-                    <label class="flex items-center space-x-2 text-xs bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition-colors border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <input type="checkbox" name="custom_blocks[${blockId}][pids][]" value="${p.id}" ${isChecked} class="w-3.5 h-3.5 text-violet-500 rounded border-slate-300 dark:border-slate-600 focus:ring-violet-500 bg-transparent cursor-pointer">
+                    <label class="custom-part-label flex items-center space-x-2 text-xs bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition-colors border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <input type="checkbox" onchange="syncCustomBlockParticipants()" name="custom_blocks[${blockId}][pids][]" value="${p.id}" ${isChecked} class="w-3.5 h-3.5 text-violet-500 rounded border-slate-300 dark:border-slate-600 focus:ring-violet-500 bg-transparent cursor-pointer">
                         <span class="text-slate-700 dark:text-slate-200 font-bold">${p.name}</span>
                     </label>
                 `;
+            });
+        });
+        
+        // Re-apply the locks every time the main list changes
+        syncCustomBlockParticipants(); 
+    }
+
+    // --- NEW: SYNC FUNCTION TO PREVENT DUPLICATES ACROSS BLOCKS ---
+    function syncCustomBlockParticipants() {
+        const allBlocks = document.querySelectorAll('.custom-block-participants');
+        let claimedParticipants = {}; 
+
+        // 1. Map who is checked and in which block they are checked
+        allBlocks.forEach(block => {
+            const blockId = block.getAttribute('data-block-id');
+            const checkedBoxes = block.querySelectorAll('input[type="checkbox"]:checked');
+            checkedBoxes.forEach(cb => {
+                claimedParticipants[cb.value] = blockId;
+            });
+        });
+
+        // 2. Lock out claimed participants in all OTHER blocks
+        allBlocks.forEach(block => {
+            const blockId = block.getAttribute('data-block-id');
+            const allBoxes = block.querySelectorAll('input[type="checkbox"]');
+            
+            allBoxes.forEach(cb => {
+                const pid = cb.value;
+                const label = cb.closest('label'); 
+                
+                // If it's claimed by another block
+                if (claimedParticipants[pid] && claimedParticipants[pid] !== blockId) {
+                    cb.disabled = true;
+                    cb.checked = false; 
+                    // Dim the button and make it unclickable
+                    label.classList.add('opacity-40', 'cursor-not-allowed', 'bg-slate-100', 'dark:bg-slate-900/50');
+                    label.classList.remove('bg-white', 'dark:bg-slate-800', 'hover:bg-slate-50', 'dark:hover:bg-slate-700', 'cursor-pointer');
+                    label.title = "Already assigned to another custom block";
+                } else {
+                    // Free to use or already checked in THIS block
+                    cb.disabled = false;
+                    label.classList.remove('opacity-40', 'cursor-not-allowed', 'bg-slate-100', 'dark:bg-slate-900/50');
+                    label.classList.add('bg-white', 'dark:bg-slate-800', 'hover:bg-slate-50', 'dark:hover:bg-slate-700', 'cursor-pointer');
+                    label.title = "";
+                }
             });
         });
     }

@@ -165,68 +165,13 @@ foreach ($selectedMonths as $month) {
 
         foreach ($events as $event) {
             $dayNum = date('j', strtotime($event['start_date']));
-            $dayName = date('D', strtotime($event['start_date'])); 
-            
-            $timeStart = formatTimeDisplay($event['start_time']);
-            $timeEnd = formatTimeDisplay($event['end_time']);
-            if ($timeStart === 'All Day' || $timeEnd === 'All Day') {
-                $timeFormatted = 'All Day';
-            } else {
-                $timeFormatted = $timeStart . ' - ' . $timeEnd;
-            }
-            
             $descText = !empty($event['description']) ? nl2br(htmlspecialchars($event['description'])) : '';
 
-            // --- FETCH PARTICIPANTS & CUSTOM TIMES EARLY ---
-            $partNames = [];
-            $customSchedules = [];
+            $html .= '<tr>
+                        <td class="date-col">' . $dayNum . '</td>
+                        <td class="activity-col">
+                            <div class="ev-title">' . htmlspecialchars($event['title']) . '</div>';
 
-            if (($showPart || $showCust) && !empty($event['publish_id'])) {
-                $partStmt = $pdo->prepare("
-                    SELECT p.name, ps.start_time, ps.end_time 
-                    FROM participant_schedule ps 
-                    JOIN participants p ON ps.participant_id = p.id 
-                    WHERE ps.event_publish_id = ?
-                ");
-                $partStmt->execute([$event['publish_id']]);
-                $participants = $partStmt->fetchAll();
-
-                foreach ($participants as $p) {
-                    $pName = htmlspecialchars($p['name']);
-                    $partNames[] = $pName;
-
-                    if ($showCust && !empty($p['start_time'])) {
-                        $pStartStr = date('H:i', strtotime($p['start_time'] ?? '00:00:00'));
-                        $pEndStr   = date('H:i', strtotime($p['end_time'] ?? '00:00:00'));
-                        $eStartStr = date('H:i', strtotime($event['start_time'] ?? '00:00:00'));
-                        $eEndStr   = date('H:i', strtotime($event['end_time'] ?? '00:00:00'));
-
-                        if ($pStartStr !== $eStartStr || $pEndStr !== $eEndStr) {
-                            $cStart = formatTimeDisplay($p['start_time']);
-                            $cEnd = formatTimeDisplay($p['end_time']);
-                            $displayCust = ($cStart === 'All Day' && $cEnd === 'All Day') ? 'All Day' : "$cStart - $cEnd";
-                            
-                            // Save the custom schedule string to display below the description
-                            $customSchedules[] = "<b>" . $pName . "</b>: " . $displayCust;
-                        }
-                    }
-                }
-            }
-
-            // --- START BUILDING THE ROW ---
-            $html .= '<tr>';
-            
-            // COLUMN 1: Date
-            $html .= '<td class="date-col">
-                        <span class="day-name">' . $dayName . '</span>
-                        ' . $dayNum . '
-                      </td>';
-                      
-            // COLUMN 2: Event Details (Now includes Custom Times at the bottom)
-            $html .= '<td>
-                        <div class="ev-title">' . htmlspecialchars($event['title']) . '</div>
-                        <div class="time-text">Time: ' . $timeFormatted . '</div>';
-                        
             if ($descText !== '') {
                 $html .= '<div class="ev-desc">' . $descText . '</div>';
             }
