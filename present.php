@@ -336,162 +336,168 @@ function getCategoryColor($categoryName) {
         </div>
 
 
-        <div id="presentation-layer" x-show="isPresenting" x-transition.opacity.duration.500ms style="display: none;" class="absolute inset-0 z-50 bg-[#f8faf9] dark:bg-[#030712] flex flex-col h-screen w-screen overflow-hidden">
+        <div id="presentation-layer" x-show="isPresenting" x-transition.opacity.duration.500ms x-cloak class="fixed inset-0 z-[100] bg-[#f8faf9] dark:bg-[#030712] flex flex-col h-screen w-screen">
             
-            <div class="bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800 shadow-sm shrink-0 flex items-center justify-between px-6">
+            <div class="shrink-0 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between px-6 h-[80px] z-50 w-full">
                 <div class="flex items-center gap-2">
                     <a id="presentPrevBtn" href="?timeline=<?php echo $prevMonth; ?>" class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-sjsfi-green dark:hover:bg-emerald-600 hover:text-white text-slate-500 transition"><i class="fa-solid fa-chevron-left"></i></a>
                     <h2 id="presentMonthTitle" class="text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest w-48 text-center"><?php echo "$monthName $year"; ?></h2>
                     <a id="presentNextBtn" href="?timeline=<?php echo $nextMonth; ?>" class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-sjsfi-green dark:hover:bg-emerald-600 hover:text-white text-slate-500 transition"><i class="fa-solid fa-chevron-right"></i></a>
                 </div>
 
-                <div class="flex items-center justify-center gap-8">
-                    <button @click="presentTab = 'table'" :class="presentTab === 'table' ? 'border-sjsfi-green dark:border-emerald-500 text-sjsfi-green dark:text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'" class="py-6 px-4 border-b-4 font-black text-xl transition-colors duration-300 flex items-center gap-3 tracking-tight">
+                <div class="flex items-center justify-center gap-8 h-full">
+                    <button @click="presentTab = 'table'" :class="presentTab === 'table' ? 'border-sjsfi-green dark:border-emerald-500 text-sjsfi-green dark:text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'" class="h-full px-4 border-b-4 font-black text-xl transition-colors duration-300 flex items-center gap-3 tracking-tight">
                         <i class="fa-solid fa-table-list"></i> Table of Events
                     </button>
-                    <button @click="presentTab = 'calendar'" :class="presentTab === 'calendar' ? 'border-sjsfi-green dark:border-emerald-500 text-sjsfi-green dark:text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'" class="py-6 px-4 border-b-4 font-black text-xl transition-colors duration-300 flex items-center gap-3 tracking-tight">
+                    <button @click="presentTab = 'calendar'" :class="presentTab === 'calendar' ? 'border-sjsfi-green dark:border-emerald-500 text-sjsfi-green dark:text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'" class="h-full px-4 border-b-4 font-black text-xl transition-colors duration-300 flex items-center gap-3 tracking-tight">
                         <i class="fa-regular fa-calendar-days"></i> Calendar View
                     </button>
                 </div>
                 
-                <div class="w-48"></div> </div>
-
-            <div x-show="presentTab === 'table'" x-transition.opacity class="flex-1 overflow-y-auto p-8 lg:p-12">
-                <div class="max-w-[1600px] mx-auto bg-white dark:bg-[#111827] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-slate-50 dark:bg-[#1e293b] border-b border-slate-200 dark:border-slate-700">
-                                <th class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Event Name</th>
-                                <th x-show="colDate" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Date & Time</th>
-                                <th x-show="colDetails" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[30%]">Event Details</th>
-                                <th x-show="colVenue" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Venue</th>
-                                <th x-show="colParticipants" class="py-5 px-6 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%]">Participants</th>
-                            </tr>
-                        </thead>
-                        <tbody id="events-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/50 text-base">
-                            <?php if (count($rawEvents) > 0): ?>
-                                <?php foreach ($rawEvents as $event): ?>
-                                    <?php 
-                                        $color = getCategoryColor($event['category_name']); 
-                                        $formattedDate = date('M j, Y', strtotime($event['start_date']));
-                                        $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
-                                    ?>
-                                    <tr x-show="selectedCategories.includes('<?php echo addslashes($event['category_name']); ?>')" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                                        <td class="py-6 px-6 align-top">
-                                            <h3 class="text-lg font-black text-slate-800 dark:text-white mb-2"><?php echo htmlspecialchars($event['title']); ?></h3>
-                                            <span class="<?php echo $color['bg'].' '.$color['text'].' '.$color['border']; ?> border text-xs font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider"><?php echo htmlspecialchars($event['category_name']); ?></span>
-                                        </td>
-                                        
-                                        <td x-show="colDate" class="py-6 px-6 align-top">
-                                            <div class="flex flex-col gap-2 font-bold text-slate-700 dark:text-slate-300">
-                                                <div class="flex items-center gap-2"><i class="fa-regular fa-calendar text-slate-400 w-5"></i> <?php echo $formattedDate; ?></div>
-                                                <div class="flex items-center gap-2"><i class="fa-regular fa-clock text-slate-400 w-5"></i> <?php echo $formattedTime; ?></div>
-                                            </div>
-                                        </td>
-                                        
-                                        <td x-show="colDetails" class="py-6 px-6 align-top">
-                                            <p class="font-medium text-slate-600 dark:text-slate-400 leading-relaxed"><?php echo nl2br(htmlspecialchars($event['description'] ?? 'No description provided.')); ?></p>
-                                        </td>
-                                        
-                                        <td x-show="colVenue" class="py-6 px-6 align-top">
-                                            <div class="font-bold text-slate-800 dark:text-slate-200 flex items-start gap-2">
-                                                <i class="fa-solid fa-location-dot text-red-500 mt-1"></i> <?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>
-                                            </div>
-                                        </td>
-                                        
-                                        <td x-show="colParticipants" class="py-6 px-6 align-top">
-                                            <div class="flex flex-col gap-1.5">
-                                                <?php 
-                                                    if (!empty($event_participants_map[$event['publish_id']])) {
-                                                        // Group by department to keep the table clean
-                                                        $depts = array_unique(array_column($event_participants_map[$event['publish_id']], 'department'));
-                                                        foreach ($depts as $dept) {
-                                                            echo "<span class='bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 inline-block w-max'>" . htmlspecialchars($dept) . "</span>";
-                                                        }
-                                                    } else {
-                                                        echo "<span class='text-slate-400 italic text-sm'>Unspecified</span>";
-                                                    }
-                                                ?>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr><td colspan="5" class="py-12 text-center text-slate-500 font-medium">No approved events found for this month.</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
+                <div class="w-48"></div> 
             </div>
 
-            <div x-show="presentTab === 'calendar'" x-transition.opacity style="display: none;" class="flex-1 overflow-hidden p-8 lg:p-12 flex flex-col">
-                <div class="max-w-[1600px] w-full mx-auto bg-white dark:bg-[#07160f] border border-slate-200 dark:border-[#123f29] rounded-[2rem] shadow-xl flex flex-col flex-1 overflow-hidden transition-all">
-                    
-                    <div id="calendar-grid-wrapper" class="flex flex-col flex-1">
-                        <div class="grid grid-cols-7 border-b border-slate-200 dark:border-[#123f29] bg-slate-50 dark:bg-[#0a1a12] shrink-0">
-                            <?php
-                            $days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                            foreach ($days as $day): ?>
-                                <div class="py-4 text-center text-[11px] font-extrabold text-slate-500 dark:text-emerald-400 uppercase tracking-widest">
-                                    <?php echo $day; ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
+            <div class="flex-1 overflow-y-auto custom-scrollbar relative z-40 w-full">
+                <div class="w-full max-w-[1600px] mx-auto p-6 lg:p-10">
 
-                        <div class="flex-1 flex flex-col bg-slate-200 dark:bg-[#123f29] gap-[1px]">
-                            <?php foreach ($calendarWeeks as $weekIdx => $week): ?>
-                                <div class="relative flex-1 min-h-[120px] flex flex-col bg-white dark:bg-[#07160f]">
-                                    
-                                    <div class="absolute inset-0 grid grid-cols-7 divide-x divide-slate-100 dark:divide-[#123f29]">
-                                        <?php foreach ($week['days'] as $colIdx => $day): ?>
-                                            <?php if ($day['type'] === 'blank'): ?>
-                                                <div class="bg-slate-50/50 dark:bg-[#05140b] h-full"></div>
-                                            <?php else: ?>
-                                                <?php 
-                                                $dayClass = $day['isToday'] ? "bg-emerald-50 dark:bg-[#0a1a12]" : "";
-                                                $numberClass = $day['isToday'] ? "bg-emerald-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-black shadow-md ring-4 ring-emerald-100 dark:ring-emerald-900" : "text-slate-600 dark:text-slate-400 font-bold p-1 inline-flex items-center justify-center w-8 h-8";
-                                                ?>
-                                                <div class="p-3 <?php echo $dayClass; ?> h-full">
-                                                    <span class="text-xs <?php echo $numberClass; ?> z-20 relative"><?php echo $day['day']; ?></span>
-                                                </div>
-                                            <?php endif; ?>
-                                        <?php endforeach; ?>
-                                    </div>
-
-                                    <div class="relative z-10 grid grid-cols-7 gap-x-0 gap-y-1.5 pt-12 pb-2 px-1 pointer-events-none">
-                                        <?php foreach ($week['events'] as $evt): ?>
-                                            <?php
-                                            $color = getCategoryColor($evt['category_name']);
-                                            $accentBorder = $evt['is_start_of_event'] ? "border-l-[4px] {$color['accent']}" : "border-l border-l-transparent";
+                    <div x-show="presentTab === 'table'" x-transition.opacity class="w-full bg-white dark:bg-[#111827] rounded-[2rem] shadow-xl border border-slate-200 dark:border-slate-800 pt-2 px-2 pb-8">
+                        <table class="w-full text-left border-separate border-spacing-0">
+                            
+                            <thead class="sticky top-0 z-30 bg-slate-50 dark:bg-[#1e293b] shadow-md rounded-2xl">
+                                <tr>
+                                    <th class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%] rounded-tl-2xl">Event Name</th>
+                                    <th x-show="colDate" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Date & Time</th>
+                                    <th x-show="colDetails" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[30%]">Event Details</th>
+                                    <th x-show="colVenue" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[15%]">Venue</th>
+                                    <th x-show="colParticipants" class="py-5 px-6 border-b border-slate-200 dark:border-slate-700 text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest w-[20%] rounded-tr-2xl">Participants</th>
+                                </tr>
+                            </thead>
+                            
+                            <tbody id="events-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/50 text-base">
+                                <?php if (count($rawEvents) > 0): ?>
+                                    <?php foreach ($rawEvents as $event): ?>
+                                        <?php 
+                                            $color = getCategoryColor($event['category_name']); 
+                                            $formattedDate = date('M j, Y', strtotime($event['start_date']));
+                                            $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
+                                        ?>
+                                        <tr x-show="selectedCategories.includes('<?php echo addslashes(htmlspecialchars($event['category_name'] ?? '')); ?>')" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                            <td class="py-6 px-6 align-top">
+                                                <h3 class="text-lg font-black text-slate-800 dark:text-white mb-2"><?php echo htmlspecialchars($event['title']); ?></h3>
+                                                <span class="<?php echo $color['bg'].' '.$color['text'].' '.$color['border']; ?> border text-xs font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider"><?php echo htmlspecialchars($event['category_name']); ?></span>
+                                            </td>
                                             
-                                            $rounded = 'rounded-md';
-                                            $borderFix = 'border mx-1 px-2.5';
-                                            if ($evt['col_span'] > 1) {
-                                                if ($evt['is_start_of_event'] && !$evt['is_end_of_event']) { $rounded = 'rounded-l-md rounded-r-none'; $borderFix = 'border-y border-r-0 ml-1 -mr-1 pr-3'; } 
-                                                elseif (!$evt['is_start_of_event'] && $evt['is_end_of_event']) { $rounded = 'rounded-r-md rounded-l-none'; $borderFix = 'border-y border-r -ml-1 mr-1 pl-3'; $accentBorder = "border-l-0"; } 
-                                                elseif (!$evt['is_start_of_event'] && !$evt['is_end_of_event']) { $rounded = 'rounded-none'; $borderFix = 'border-y border-x-0 -mx-1 px-3'; $accentBorder = ""; }
-                                            }
+                                            <td x-show="colDate" class="py-6 px-6 align-top">
+                                                <div class="flex flex-col gap-2 font-bold text-slate-700 dark:text-slate-300">
+                                                    <div class="flex items-center gap-2"><i class="fa-regular fa-calendar text-slate-400 w-5"></i> <?php echo $formattedDate; ?></div>
+                                                    <div class="flex items-center gap-2"><i class="fa-regular fa-clock text-slate-400 w-5"></i> <?php echo $formattedTime; ?></div>
+                                                </div>
+                                            </td>
+                                            
+                                            <td x-show="colDetails" class="py-6 px-6 align-top">
+                                                <p class="font-medium text-slate-600 dark:text-slate-400 leading-relaxed"><?php echo nl2br(htmlspecialchars($event['description'] ?? 'No description provided.')); ?></p>
+                                            </td>
+                                            
+                                            <td x-show="colVenue" class="py-6 px-6 align-top">
+                                                <div class="font-bold text-slate-800 dark:text-slate-200 flex items-start gap-2">
+                                                    <i class="fa-solid fa-location-dot text-red-500 mt-1"></i> <?php echo htmlspecialchars($event['venue_name'] ?? 'Not specified'); ?>
+                                                </div>
+                                            </td>
+                                            
+                                            <td x-show="colParticipants" class="py-6 px-6 align-top">
+                                                <div class="flex flex-col gap-1.5">
+                                                    <?php 
+                                                        if (!empty($event_participants_map[$event['publish_id']])) {
+                                                            $depts = array_unique(array_column($event_participants_map[$event['publish_id']], 'department'));
+                                                            foreach ($depts as $dept) {
+                                                                echo "<span class='bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 inline-block w-max'>" . htmlspecialchars($dept) . "</span>";
+                                                            }
+                                                        } else {
+                                                            echo "<span class='text-slate-400 italic text-sm'>Unspecified</span>";
+                                                        }
+                                                    ?>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="5" class="py-12 text-center text-slate-500 font-medium bg-white dark:bg-[#111827]">No approved events found for this month. (If testing, remember to approve events first).</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
 
-                                            $formattedTime = ($evt['start_time'] == '00:00:00' || $evt['start_time'] == '23:59:59') ? '' : date('g:i', strtotime($evt['start_time']));
-                                            $timeDisplay = ($evt['is_start_of_event'] && $formattedTime !== '') ? "<span class='opacity-70 font-semibold mr-1.5 text-[10px]'>{$formattedTime}</span>" : "";
-                                            $finalClasses = "{$color['bg']} {$color['text']} {$borderFix} {$accentBorder} {$color['border']} {$rounded}";
-                                            ?>
-                                            <div x-show="selectedCategories.includes('<?php echo addslashes($evt['category_name']); ?>')" 
-                                                class="col-start-<?php echo $evt['col_start']; ?> col-span-<?php echo $evt['col_span']; ?> <?php echo $finalClasses; ?> flex items-center h-[28px] mt-1 text-xs font-bold truncate overflow-hidden">
-                                                <div class="truncate w-full"><?php echo $timeDisplay . htmlspecialchars($evt['title']); ?></div>
-                                            </div>
-                                        <?php endforeach; ?>
+                    <div x-show="presentTab === 'calendar'" x-transition.opacity x-cloak class="w-full bg-white dark:bg-[#07160f] border border-slate-200 dark:border-[#123f29] rounded-[2rem] shadow-xl pt-2 px-2 pb-8">
+                        
+                        <div id="calendar-grid-wrapper">
+                            
+                            <div class="sticky top-0 z-30 grid grid-cols-7 border-b border-slate-200 dark:border-[#123f29] bg-slate-50 dark:bg-[#0a1a12] shadow-sm rounded-t-[1.5rem]">
+                                <?php
+                                $days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                foreach ($days as $day): ?>
+                                    <div class="py-4 text-center text-[11px] font-extrabold text-slate-500 dark:text-emerald-400 uppercase tracking-widest">
+                                        <?php echo $day; ?>
                                     </div>
+                                <?php endforeach; ?>
+                            </div>
 
-                                </div>
-                            <?php endforeach; ?>
+                            <div class="flex flex-col bg-slate-200 dark:bg-[#123f29] gap-[1px]">
+                                <?php foreach ($calendarWeeks as $weekIdx => $week): ?>
+                                    <div class="relative w-full min-h-[140px] bg-white dark:bg-[#07160f]">
+                                        
+                                        <div class="absolute inset-0 grid grid-cols-7 divide-x divide-slate-100 dark:divide-[#123f29]">
+                                            <?php foreach ($week['days'] as $colIdx => $day): ?>
+                                                <?php if ($day['type'] === 'blank'): ?>
+                                                    <div class="bg-slate-50/50 dark:bg-[#05140b] h-full"></div>
+                                                <?php else: ?>
+                                                    <?php 
+                                                    $dayClass = $day['isToday'] ? "bg-emerald-50 dark:bg-[#0a1a12]" : "";
+                                                    $numberClass = $day['isToday'] ? "bg-emerald-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-black shadow-md ring-4 ring-emerald-100 dark:ring-emerald-900" : "text-slate-600 dark:text-slate-400 font-bold p-1 inline-flex items-center justify-center w-8 h-8";
+                                                    ?>
+                                                    <div class="p-3 <?php echo $dayClass; ?> h-full border-b border-slate-50 dark:border-[#05140b]">
+                                                        <span class="text-xs <?php echo $numberClass; ?> z-20 relative"><?php echo $day['day']; ?></span>
+                                                    </div>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
+                                        </div>
+
+                                        <div class="relative z-10 grid grid-cols-7 gap-x-0 gap-y-1.5 pt-12 pb-3 px-1 pointer-events-auto">
+                                            <?php foreach ($week['events'] as $evt): ?>
+                                                <?php
+                                                $color = getCategoryColor($evt['category_name']);
+                                                $accentBorder = $evt['is_start_of_event'] ? "border-l-[4px] {$color['accent']}" : "border-l border-l-transparent";
+                                                
+                                                $rounded = 'rounded-md';
+                                                $borderFix = 'border mx-1 px-2.5';
+                                                if ($evt['col_span'] > 1) {
+                                                    if ($evt['is_start_of_event'] && !$evt['is_end_of_event']) { $rounded = 'rounded-l-md rounded-r-none'; $borderFix = 'border-y border-r-0 ml-1 -mr-1 pr-3'; } 
+                                                    elseif (!$evt['is_start_of_event'] && $evt['is_end_of_event']) { $rounded = 'rounded-r-md rounded-l-none'; $borderFix = 'border-y border-r -ml-1 mr-1 pl-3'; $accentBorder = "border-l-0"; } 
+                                                    elseif (!$evt['is_start_of_event'] && !$evt['is_end_of_event']) { $rounded = 'rounded-none'; $borderFix = 'border-y border-x-0 -mx-1 px-3'; $accentBorder = ""; }
+                                                }
+
+                                                $formattedTime = ($evt['start_time'] == '00:00:00' || $evt['start_time'] == '23:59:59') ? '' : date('g:i', strtotime($evt['start_time']));
+                                                $timeDisplay = ($evt['is_start_of_event'] && $formattedTime !== '') ? "<span class='opacity-70 font-semibold mr-1.5 text-[10px]'>{$formattedTime}</span>" : "";
+                                                $finalClasses = "{$color['bg']} {$color['text']} {$borderFix} {$accentBorder} {$color['border']} {$rounded}";
+                                                ?>
+                                                <div x-show="selectedCategories.includes('<?php echo addslashes(htmlspecialchars($evt['category_name'] ?? '')); ?>')" 
+                                                    class="<?php echo $finalClasses; ?> flex items-center h-[28px] mt-1 text-xs font-bold truncate overflow-hidden pointer-events-auto shadow-sm"
+                                                    style="grid-column: <?php echo $evt['col_start']; ?> / span <?php echo $evt['col_span']; ?>;">
+                                                    <div class="truncate w-full"><?php echo $timeDisplay . htmlspecialchars($evt['title']); ?></div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
                         </div>
                     </div>
+
                 </div>
             </div>
 
-            <button x-show="isPresenting" @click="showQuitModal = true" title="Exit Presentation (ESC)" class="fixed top-6 right-6 z-[100] bg-red-600/90 backdrop-blur-md text-white w-12 h-12 rounded-full font-bold shadow-2xl flex items-center justify-center hover:bg-red-700 transition-all duration-500 transform hover:scale-105 border border-red-500">
-                <i class="fa-solid fa-right-from-bracket text-lg"></i>
+            <button x-show="isPresenting" @click="showQuitModal = true" title="Exit Presentation (ESC)" class="fixed top-4 right-6 z-[110] bg-red-600/90 backdrop-blur-md text-white px-5 h-12 rounded-xl font-extrabold shadow-2xl flex items-center justify-center gap-2 hover:bg-red-700 transition-all duration-500 transform hover:scale-105 border border-red-500">
+                <i class="fa-solid fa-right-from-bracket text-lg"></i> <span class="hidden md:inline text-sm">Exit</span>
             </button>
         </div>
         
