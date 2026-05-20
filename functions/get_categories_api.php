@@ -4,7 +4,7 @@ require_once 'database.php';
 
 try {
     // Fetch ALL categories, including Holidays
-    $stmt = $pdo->query("SELECT category_id, category_name FROM event_categories ORDER BY category_name ASC");
+    $stmt = $pdo->query("SELECT category_id, category_name FROM event_categories WHERE category_name!='Personal' ORDER BY category_name ASC");
     $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     header('Content-Type: application/json');
