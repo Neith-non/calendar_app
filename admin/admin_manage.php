@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role_name'] !== 'Admin') {
 
 require_once '../functions/database.php';
 require_once '../functions/get_pending_count.php';
+require_once '../functions/logs.php';
 $msg = '';
 $error = '';
 
@@ -44,15 +45,25 @@ try {
     // Delete Event 
     if (isset($_GET['delete_event'])) {
         $eventId = (int) $_GET['delete_event'];
-        $stmt = $pdo->prepare("SELECT publish_id FROM events WHERE event_id = ?");
+        $stmt = $pdo->prepare("SELECT publish_id, title FROM events WHERE event_id = ?");
         $stmt->execute([$eventId]);
         $event = $stmt->fetch();
         
-        if ($event && !empty($event['publish_id'])) {
-            $pdo->prepare("DELETE FROM event_publish WHERE id = ?")->execute([$event['publish_id']]);
+        $publish_id = $event['publish_id'] ?? null;
+        $title = $event['title'] ?? null;
+
+        if ($publish_id) {
+            $pdo->prepare("DELETE FROM event_publish WHERE id = ?")->execute([$publish_id]);
         }
         
         $pdo->prepare("DELETE FROM events WHERE event_id = ?")->execute([$eventId]);
+
+        // Log deletion
+        if (function_exists('write_event_log')) {
+            $details = json_encode(['title' => $title]);
+            write_event_log($pdo, $_SESSION['user_id'] ?? null, 'delete_event', $publish_id, $eventId, $details);
+        }
+
         header("Location: admin_manage.php?msg=Event+successfully+deleted");
         exit();
     }
@@ -122,6 +133,22 @@ $venues = $pdo->query("SELECT venue_id, venue_name, is_off_campus FROM venues OR
 $categories = $pdo->query("SELECT category_id, category_name, category_type FROM event_categories ORDER BY category_type, category_name")->fetchAll(PDO::FETCH_ASSOC);
 $participants = $pdo->query("SELECT p.id AS participant_id, p.name, d.name AS department FROM participants p JOIN department d ON p.department_id = d.id ORDER BY d.id ASC, p.id ASC")->fetchAll(PDO::FETCH_ASSOC);
 
+// Fetch distinct actions for filter dropdown (safe if table missing)
+try {
+    $actionsList = $pdo->query("SELECT DISTINCT action FROM event_logs ORDER BY action")->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    $actionsList = [];
+}
+
+// Detect whether `level` column exists and provide level options
+try {
+    $col = $pdo->query("SHOW COLUMNS FROM event_logs LIKE 'level'");
+    $hasLevel = ($col && $col->rowCount() > 0);
+} catch (PDOException $e) {
+    $hasLevel = false;
+}
+$levelsList = ['debug','info','warn','error'];
+
 // Fetch all Events to manage
 $events_list = $pdo->query("
     SELECT e.event_id, e.title, e.category_id, p.id AS publish_id,
@@ -133,6 +160,115 @@ $events_list = $pdo->query("
     LEFT JOIN event_publish p ON e.publish_id = p.id
     ORDER BY e.start_date DESC
 ")->fetchAll(PDO::FETCH_ASSOC);
+
+// Logs: grouped summary to avoid flooding. Admin can drill down per publish_id via ?logs_for=<id> (use 0 for system/null)
+$selected_logs_for = isset($_GET['logs_for']) ? $_GET['logs_for'] : null;
+
+// Filters from query string
+$filter_user = (isset($_GET['filter_user']) && $_GET['filter_user'] !== '') ? (int) $_GET['filter_user'] : null;
+$filter_action = (isset($_GET['filter_action']) && $_GET['filter_action'] !== '') ? trim($_GET['filter_action']) : null;
+$filter_from = (isset($_GET['filter_from']) && $_GET['filter_from'] !== '') ? $_GET['filter_from'] : null;
+$filter_to = (isset($_GET['filter_to']) && $_GET['filter_to'] !== '') ? $_GET['filter_to'] : null;
+$filter_level = (isset($_GET['filter_level']) && $_GET['filter_level'] !== '') ? trim($_GET['filter_level']) : null;
+
+$whereParts = [];
+$params = [];
+if ($filter_user) { $whereParts[] = 'l.user_id = ?'; $params[] = $filter_user; }
+if ($filter_action) { $whereParts[] = 'l.action = ?'; $params[] = $filter_action; }
+if ($filter_from) { $whereParts[] = 'l.created_at >= ?'; $params[] = $filter_from . ' 00:00:00'; }
+if ($filter_to) { $whereParts[] = 'l.created_at <= ?'; $params[] = $filter_to . ' 23:59:59'; }
+if ($filter_level && $hasLevel) { $whereParts[] = 'l.level = ?'; $params[] = $filter_level; }
+// Exclude logs created by users with the Viewer role from Recent Activity
+$whereParts[] = "(l.user_id IS NULL OR EXISTS (SELECT 1 FROM users uu JOIN roles rr ON uu.role_id = rr.role_id WHERE uu.user_id = l.user_id AND rr.role_name <> 'Viewer'))";
+$whereSql = count($whereParts) ? ('WHERE ' . implode(' AND ', $whereParts)) : '';
+
+try {
+    $sqlGroups = "SELECT l.event_publish_id AS publish_id, COUNT(*) AS cnt, MAX(l.created_at) AS last_at FROM event_logs l $whereSql GROUP BY l.event_publish_id ORDER BY last_at DESC LIMIT 50";
+    $stmt_groups = $pdo->prepare($sqlGroups);
+    $stmt_groups->execute($params);
+    $groups_raw = $stmt_groups->fetchAll(PDO::FETCH_ASSOC);
+    $log_groups = [];
+    foreach ($groups_raw as $g) {
+        $publish_id = $g['publish_id'];
+
+        $rowWhere = $whereParts; // copy
+        $rowParams = $params;
+        if ($publish_id === null) {
+            $rowWhere[] = 'l.event_publish_id IS NULL';
+        } else {
+            $rowWhere[] = 'l.event_publish_id = ?';
+            $rowParams[] = $publish_id;
+        }
+
+        $rowSql = 'SELECT l.*, u.username, u.full_name FROM event_logs l LEFT JOIN users u ON l.user_id = u.user_id';
+        if (count($rowWhere)) $rowSql .= ' WHERE ' . implode(' AND ', $rowWhere);
+        $rowSql .= ' ORDER BY l.created_at DESC LIMIT 1';
+
+        $stmt = $pdo->prepare($rowSql);
+        $stmt->execute($rowParams);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $row['cnt'] = $g['cnt'];
+            $row['publish_id'] = $publish_id;
+            $log_groups[] = $row;
+        }
+    }
+} catch (PDOException $e) {
+    $log_groups = [];
+}
+
+// If admin requested drilldown for a group, fetch full entries for that publish_id
+$selected_group_logs = [];
+if ($selected_logs_for !== null) {
+    try {
+        // Pagination params
+        $log_page = isset($_GET['log_page']) ? max(1, (int)$_GET['log_page']) : 1;
+        $per_page = 50; // entries per page
+        $offset = ($log_page - 1) * $per_page;
+        $show_all = isset($_GET['show_all']) && $_GET['show_all'] === '1';
+
+        $selWhere = $whereParts; // copy filters
+        $selParams = $params;
+        if ($selected_logs_for === '0') {
+            $selWhere[] = 'l.event_publish_id IS NULL';
+        } else {
+            $selWhere[] = 'l.event_publish_id = ?';
+            $selParams[] = (int)$selected_logs_for;
+        }
+
+        $selSqlBase = 'FROM event_logs l LEFT JOIN users u ON l.user_id = u.user_id';
+        if (count($selWhere)) $selSqlBase .= ' WHERE ' . implode(' AND ', $selWhere);
+
+        // total count for pagination
+        $countSql = 'SELECT COUNT(*) ' . $selSqlBase;
+        $stmtCount = $pdo->prepare($countSql);
+        $stmtCount->execute($selParams);
+        $total_count = (int)$stmtCount->fetchColumn();
+        $total_pages = $per_page > 0 ? (int) ceil($total_count / $per_page) : 1;
+
+        $selSql = 'SELECT l.*, u.username, u.full_name ' . $selSqlBase . ' ORDER BY l.created_at DESC';
+        if (!$show_all) {
+            $selSql .= ' LIMIT ' . (int)$per_page . ' OFFSET ' . (int)$offset;
+        }
+
+        $stmt = $pdo->prepare($selSql);
+        $stmt->execute($selParams);
+        $selected_group_logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $selected_group_logs = [];
+        $total_count = 0;
+        $total_pages = 0;
+        $log_page = 1;
+    }
+}
+
+// Build current filter query params to preserve state when navigating
+$filterQueryParams = [];
+if ($filter_user) $filterQueryParams['filter_user'] = $filter_user;
+if ($filter_action) $filterQueryParams['filter_action'] = $filter_action;
+if ($filter_from) $filterQueryParams['filter_from'] = $filter_from;
+if ($filter_to) $filterQueryParams['filter_to'] = $filter_to;
+if ($filter_level && $hasLevel) $filterQueryParams['filter_level'] = $filter_level;
 
 // Define current logged in user ID so we can't delete ourselves
 $current_user_id = $_SESSION['user_id'];
@@ -172,13 +308,8 @@ $current_user_id = $_SESSION['user_id'];
         .nav-item.active { background-color: #004731; color: #ffffff; box-shadow: 0 4px 12px rgba(0, 71, 49, 0.15); }
         .dark .nav-item.active { background-color: #10b981; }
 
-        .bento-card { background: #ffffff; border: 1px solid #d1f0e0; border-radius: 1.5rem; box-shadow: 0 4px 12px rgba(209, 240, 224, 0.2); transition: all 0.3s ease; }
-        .dark .bento-card { background: #07160f; border-color: #123f29; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
-
-        .input-premium { background-color: #f8faf9; border: 1px solid #e2e8f0; color: #0f172a; transition: all 0.2s ease; }
-        .input-premium:focus { background-color: #ffffff; border-color: #10b981; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); outline: none; }
-        .dark .input-premium { background-color: rgba(15, 23, 42, 0.6); border-color: #334155; color: #f1f5f9; }
-        .dark .input-premium:focus { background-color: #0f172a; border-color: #10b981; }
+          /* Converted to Tailwind utilities: removed .bento-card and .input-premium rules to avoid conflicts.
+              Card and input styles are applied inline via Tailwind utility classes for consistency. */
 
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -207,7 +338,7 @@ $current_user_id = $_SESSION['user_id'];
                 </button>
             </div>
 
-            <div class="flex items-center justify-between bento-card p-6 sm:p-8">
+            <div class="flex items-center justify-between bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm p-6 sm:p-8">
                 <div class="flex items-center gap-4">
                     <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 flex items-center justify-center shadow-sm">
                         <i class="fa-solid fa-screwdriver-wrench text-xl text-blue-500"></i>
@@ -240,7 +371,7 @@ $current_user_id = $_SESSION['user_id'];
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-                <div class="bento-card overflow-hidden flex flex-col h-[600px]">
+                <div class="bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm overflow-hidden flex flex-col h-[600px]">
                     <div class="bg-slate-50/50 dark:bg-slate-900/50 p-5 border-b border-[#d1f0e0] dark:border-[#123f29]">
                         <h2 class="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
                             <i class="fa-solid fa-users text-purple-500"></i> Users
@@ -250,10 +381,10 @@ $current_user_id = $_SESSION['user_id'];
                     <div class="p-5 border-b border-slate-100 dark:border-[#123f29] bg-slate-50/30 dark:bg-transparent">
                         <form method="POST" class="grid grid-cols-2 gap-3">
                             <input type="hidden" name="action" value="add_user">
-                            <input type="text" name="full_name" placeholder="Full Name" required class="input-premium px-3 py-2 rounded-lg text-sm font-semibold col-span-2">
-                            <input type="text" name="username" placeholder="Username" required class="input-premium px-3 py-2 rounded-lg text-sm font-semibold">
-                            <input type="password" name="password" placeholder="Password" required class="input-premium px-3 py-2 rounded-lg text-sm font-semibold">
-                            <select name="role_id" required class="input-premium px-3 py-2 rounded-lg text-sm font-bold cursor-pointer col-span-2">
+                            <input type="text" name="full_name" placeholder="Full Name" required class="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:ring-emerald-100 px-3 py-2 rounded-lg text-sm font-semibold col-span-2">
+                            <input type="text" name="username" placeholder="Username" required class="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:ring-emerald-100 px-3 py-2 rounded-lg text-sm font-semibold">
+                            <input type="password" name="password" placeholder="Password" required class="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:ring-emerald-100 px-3 py-2 rounded-lg text-sm font-semibold">
+                            <select name="role_id" required class="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:ring-emerald-100 px-3 py-2 rounded-lg text-sm font-bold cursor-pointer col-span-2">
                                 <option value="" disabled selected>Assign Role...</option>
                                 <?php foreach ($roles_list as $role): ?>
                                     <option value="<?php echo $role['role_id']; ?>"><?php echo htmlspecialchars($role['role_name']); ?></option>
@@ -265,7 +396,7 @@ $current_user_id = $_SESSION['user_id'];
 
                     <div x-data="{ search: '', page: 1, limit: 7, items: usersData, get filtered() { return this.search === '' ? this.items : this.items.filter(i => i.full_name.toLowerCase().includes(this.search.toLowerCase()) || i.username.toLowerCase().includes(this.search.toLowerCase())); }, get paginated() { return this.filtered.slice((this.page - 1) * this.limit, this.page * this.limit); }, get maxPage() { return Math.ceil(this.filtered.length / this.limit) || 1; } }" class="flex flex-col flex-1 overflow-hidden">
                         <div class="px-5 pt-3 pb-2 border-b border-slate-100 dark:border-[#123f29]">
-                            <input type="text" x-model="search" @input="page = 1" placeholder="Search user..." class="w-full input-premium px-3 py-2 rounded-lg text-sm font-semibold">
+                            <input type="text" x-model="search" @input="page = 1" placeholder="Search user..." class="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:ring-emerald-100 px-3 py-2 rounded-lg text-sm font-semibold">
                         </div>
                         <div class="p-5 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
                             <template x-for="u in paginated" :key="u.user_id">
@@ -289,7 +420,7 @@ $current_user_id = $_SESSION['user_id'];
                     </div>
                 </div>
 
-                <div class="bento-card overflow-hidden flex flex-col h-[600px]">
+                <div class="bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm overflow-hidden flex flex-col h-[600px]">
                     <div class="bg-slate-50/50 dark:bg-slate-900/50 p-5 border-b border-[#d1f0e0] dark:border-[#123f29]">
                         <h2 class="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
                             <i class="fa-solid fa-location-dot text-amber-500"></i> Venues
@@ -300,7 +431,7 @@ $current_user_id = $_SESSION['user_id'];
                         <form method="POST" class="space-y-4">
                             <input type="hidden" name="action" value="add_venue">
                             <div class="flex gap-2">
-                                <input type="text" name="venue_name" placeholder="New Venue Name" required class="flex-1 input-premium px-4 py-2.5 rounded-lg text-sm font-semibold">
+                                <input type="text" name="venue_name" placeholder="New Venue Name" required class="flex-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-amber-500 focus:ring-amber-100 px-4 py-2.5 rounded-lg text-sm font-semibold">
                                 <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-2.5 rounded-xl transition-all shadow-md text-sm">Add</button>
                             </div>
                             <label class="flex items-center gap-3 cursor-pointer group">
@@ -332,7 +463,7 @@ $current_user_id = $_SESSION['user_id'];
                     </div>
                 </div>
 
-                <div class="bento-card overflow-hidden flex flex-col h-[600px]">
+                <div class="bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm overflow-hidden flex flex-col h-[600px]">
                     <div class="bg-slate-50/50 dark:bg-slate-900/50 p-5 border-b border-[#d1f0e0] dark:border-[#123f29]">
                         <h2 class="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
                             <i class="fa-solid fa-tags text-emerald-500"></i> Event Categories
@@ -342,8 +473,8 @@ $current_user_id = $_SESSION['user_id'];
                     <div class="p-5 border-b border-slate-100 dark:border-[#123f29] bg-slate-50/30 dark:bg-transparent">
                         <form method="POST" class="grid grid-cols-2 gap-3">
                             <input type="hidden" name="action" value="add_category">
-                            <input type="text" name="category_name" placeholder="Name (e.g. Mass)" required class="input-premium px-4 py-2.5 rounded-lg text-sm font-semibold">
-                            <input type="text" name="category_type" placeholder="Type (e.g. Religious)" required class="input-premium px-4 py-2.5 rounded-lg text-sm font-semibold">
+                            <input type="text" name="category_name" placeholder="Name (e.g. Mass)" required class="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:ring-emerald-100 px-4 py-2.5 rounded-lg text-sm font-semibold">
+                            <input type="text" name="category_type" placeholder="Type (e.g. Religious)" required class="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:ring-emerald-100 px-4 py-2.5 rounded-lg text-sm font-semibold">
                             <button type="submit" class="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition-all shadow-md text-sm">Create Category</button>
                         </form>
                     </div>
@@ -368,7 +499,7 @@ $current_user_id = $_SESSION['user_id'];
                     </div>
                 </div>
 
-                <div class="bento-card overflow-hidden flex flex-col h-[600px]">
+                <div class="bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm overflow-hidden flex flex-col h-[600px]">
                     <div class="bg-slate-50/50 dark:bg-slate-900/50 p-5 border-b border-[#d1f0e0] dark:border-[#123f29]">
                         <h2 class="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
                             <i class="fa-solid fa-users-viewfinder text-pink-500"></i> Participants
@@ -378,9 +509,9 @@ $current_user_id = $_SESSION['user_id'];
                     <div class="p-5 border-b border-slate-100 dark:border-[#123f29] bg-slate-50/30 dark:bg-transparent">
                         <form method="POST" class="grid grid-cols-2 gap-3">
                             <input type="hidden" name="action" value="add_participant">
-                            <input type="text" name="participant_name" placeholder="Grade (e.g. Grade 11)" required class="input-premium px-4 py-2.5 rounded-lg text-sm font-semibold">
-                            <input type="text" name="strand" placeholder="Strand (Optional)" class="input-premium px-4 py-2.5 rounded-lg text-sm font-semibold">
-                            <select name="department" required class="input-premium px-4 py-2.5 rounded-lg text-sm font-bold cursor-pointer col-span-2">
+                            <input type="text" name="participant_name" placeholder="Grade (e.g. Grade 11)" required class="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-pink-500 focus:ring-pink-100 px-4 py-2.5 rounded-lg text-sm font-semibold">
+                            <input type="text" name="strand" placeholder="Strand (Optional)" class="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-pink-500 focus:ring-pink-100 px-4 py-2.5 rounded-lg text-sm font-semibold">
+                            <select name="department" required class="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:ring-emerald-100 px-4 py-2.5 rounded-lg text-sm font-bold cursor-pointer col-span-2">
                                 <option value="" disabled selected>Select Department...</option>
                                 <?php foreach ($departments_list as $dept): ?>
                                     <option value="<?php echo $dept['id']; ?>"><?php echo htmlspecialchars($dept['name']); ?></option>
@@ -410,7 +541,152 @@ $current_user_id = $_SESSION['user_id'];
                     </div>
                 </div>
 
-                <div class="bento-card flex flex-col col-span-1 lg:col-span-2 mt-4 relative"
+                <!-- Activity Logs -->
+                <div id="activity-logs" class="bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm overflow-hidden flex flex-col col-span-1 lg:col-span-2 mt-4">
+                    <div class="sticky top-0 z-30 bg-emerald-50 dark:bg-[#052514] backdrop-blur-sm p-5 border-b border-emerald-100 dark:border-emerald-900 flex flex-wrap items-center justify-between gap-3">
+                        <h2 class="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-emerald-600"></i> Recent Activity Logs
+                        </h2>
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <!-- Filters -->
+                            <form method="GET" action="admin_manage.php#activity-logs" class="flex flex-wrap items-center gap-2">
+                                <select name="filter_user" class="border rounded-md bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 px-3 py-2 text-sm min-w-[180px]">
+                                    <option value="">All users</option>
+                                    <?php foreach ($users as $u): ?>
+                                        <option value="<?php echo $u['user_id']; ?>" <?php echo ($filter_user && $filter_user == $u['user_id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($u['full_name'] . ' @' . $u['username']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <select name="filter_action" class="border rounded-md bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 px-3 py-2 text-sm min-w-[160px]">
+                                    <option value="">All actions</option>
+                                    <?php foreach ($actionsList as $action): ?>
+                                        <option value="<?php echo htmlspecialchars($action); ?>" <?php echo ($filter_action && $filter_action == $action) ? 'selected' : ''; ?>><?php echo htmlspecialchars($action); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if ($hasLevel): ?>
+                                    <select name="filter_level" class="border rounded-md bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 px-3 py-2 text-sm w-28">
+                                        <option value="">All levels</option>
+                                        <?php foreach ($levelsList as $lvl): ?>
+                                            <option value="<?php echo $lvl; ?>" <?php echo ($filter_level && $filter_level == $lvl) ? 'selected' : ''; ?>><?php echo strtoupper($lvl); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                <?php endif; ?>
+                                <input type="date" name="filter_from" value="<?php echo htmlspecialchars($filter_from ?? ''); ?>" class="border rounded-md bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 px-3 py-2 text-sm">
+                                <input type="date" name="filter_to" value="<?php echo htmlspecialchars($filter_to ?? ''); ?>" class="border rounded-md bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 px-3 py-2 text-sm">
+                                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1 rounded text-sm shrink-0">Apply</button>
+                                <a href="admin_manage.php#activity-logs" class="text-sm text-slate-600 font-bold px-2">Clear</a>
+                            </form>
+
+                            <!-- Archive with preview modal -->
+                            <div x-data="{ showArchiveModal:false, archiveDays:90, previewCount:null, previewing:false, previewArchive(){ this.previewing=true; fetch('archive_logs.php?preview=1&days='+this.archiveDays).then(r=>{ if(!r.ok) throw r; return r.json(); }).then(j=>{ this.previewCount = j.count; this.previewing=false; this.showArchiveModal = true; }).catch(async e=>{ this.previewing=false; let text='Preview failed'; try{ const err = await e.json(); text = err.error || text; }catch(err){} alert(text); }); }, doArchive(){ window.location.href='archive_logs.php?days='+this.archiveDays; } }" class="flex items-center gap-2 flex-shrink-0">
+                                <form @submit.prevent="previewArchive()" class="flex flex-wrap items-center gap-2">
+                                    <label class="text-xs text-slate-500">Archive older than</label>
+                                    <input type="number" name="days" x-model="archiveDays" value="90" min="1" class="border rounded-md bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 px-3 py-2 text-sm w-20 min-w-[64px]">
+                                    <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-1 rounded text-sm shrink-0">Archive</button>
+                                </form>
+                                <a href="export_archived_logs.php" class="text-sm text-emerald-700 dark:text-emerald-300 font-semibold hover:underline">Export archived</a>
+
+                                <!-- Modal -->
+                                <div x-show="showArchiveModal" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                                    <div @click.away="showArchiveModal=false" class="bg-white dark:bg-[#0b1120] rounded-xl p-6 w-full max-w-md shadow-lg">
+                                        <h3 class="text-lg font-bold mb-3">Confirm Archive</h3>
+                                        <p class="mb-4">This will archive <strong><span x-text="previewCount"></span></strong> log entries older than <strong><span x-text="archiveDays"></span></strong> days. This action cannot be undone.</p>
+                                        <div class="flex justify-end gap-3">
+                                            <button @click="showArchiveModal=false" class="px-4 py-2 rounded bg-gray-100">Cancel</button>
+                                            <button @click="doArchive()" class="px-4 py-2 rounded bg-amber-500 text-white font-bold">Confirm Archive</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 overflow-y-auto custom-scrollbar max-h-[52vh] lg:max-h-[560px]">
+                        <?php if (!empty($selected_group_logs)): ?>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="text-sm font-bold">Showing logs for <?php echo ($selected_logs_for === '0' ? 'System' : 'publish #' . htmlspecialchars($selected_logs_for)); ?></div>
+                                <a href="admin_manage.php?<?php echo http_build_query($filterQueryParams); ?>#activity-logs" class="text-xs text-blue-600 font-semibold">← Back to summary</a>
+                            </div>
+                            <ul class="space-y-3">
+                                <?php foreach ($selected_group_logs as $log): ?>
+                                    <li class="p-3 rounded-lg bg-[#f8fafc] dark:bg-[#0a1a12] border border-slate-100 dark:border-[#123f29] break-words whitespace-pre-line">
+                                        <div class="flex items-start justify-between">
+                                            <div class="mr-4">
+                                                <div class="text-sm font-bold text-slate-800 dark:text-white"><?php echo htmlspecialchars($log['action']); ?>
+                                                    <?php if (!empty($log['event_publish_id'])): ?>
+                                                        <span class="text-xs font-medium text-slate-400">#<?php echo htmlspecialchars($log['event_publish_id']); ?></span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1"><?php echo htmlspecialchars($log['details']); ?></div>
+                                            </div>
+                                            <div class="text-xs text-slate-400 text-right">
+                                                <div class="font-bold"><?php echo htmlspecialchars($log['full_name'] ?? $log['username'] ?? 'System'); ?></div>
+                                                <div class="mt-1"><?php echo date('M d, Y H:i', strtotime($log['created_at'])); ?></div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+
+                            <?php if (!empty($total_pages) && $total_pages > 1): ?>
+                                <div class="mt-4 flex items-center justify-between">
+                                    <div class="text-sm text-slate-500">Showing page <?php echo $log_page; ?> of <?php echo $total_pages; ?> (<?php echo intval($total_count); ?> entries)</div>
+                                    <div class="flex items-center gap-2">
+                                        <?php
+                                            $baseParams = $filterQueryParams;
+                                            $baseParams['logs_for'] = $selected_logs_for;
+                                        ?>
+                                        <?php if ($log_page > 1): ?>
+                                            <?php $baseParams['log_page'] = $log_page - 1; $prevQuery = http_build_query($baseParams); ?>
+                                            <a href="?<?php echo $prevQuery; ?>#activity-logs" class="px-3 py-1 rounded border bg-white text-sm">Prev</a>
+                                        <?php endif; ?>
+                                        <?php if ($log_page < $total_pages): ?>
+                                            <?php $baseParams['log_page'] = $log_page + 1; $nextQuery = http_build_query($baseParams); ?>
+                                            <a href="?<?php echo $nextQuery; ?>#activity-logs" class="px-3 py-1 rounded bg-blue-600 text-white text-sm">Next</a>
+                                        <?php endif; ?>
+                                        <?php if ($total_count > $per_page): ?>
+                                            <?php $baseParams['show_all'] = 1; $showAllQuery = http_build_query($baseParams); ?>
+                                            <a href="?<?php echo $showAllQuery; ?>#activity-logs" class="px-3 py-1 rounded border text-sm">Show all</a>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <?php if (empty($log_groups)): ?>
+                                <div class="text-sm text-slate-500 italic p-4">No activity logs yet.</div>
+                            <?php else: ?>
+                                <ul class="space-y-3">
+                                    <?php foreach ($log_groups as $g): ?>
+                                        <li class="p-3 rounded-lg bg-[#f8fafc] dark:bg-[#0a1a12] border border-slate-100 dark:border-[#123f29] break-words whitespace-pre-line">
+                                                            <div class="flex items-start justify-between">
+                                                                <div class="mr-4">
+                                                                    <div class="text-sm font-bold text-slate-800 dark:text-white"><?php echo htmlspecialchars($g['action']); ?>
+                                                                        <?php if ($g['publish_id'] !== null): ?>
+                                                                            <span class="text-xs font-medium text-slate-400">#<?php echo htmlspecialchars($g['publish_id']); ?></span>
+                                                                        <?php else: ?>
+                                                                            <span class="text-xs font-medium text-slate-400">System</span>
+                                                                        <?php endif; ?>
+                                                                        <?php if (!empty($g['level'])): ?>
+                                                                            <span class="ml-2 inline-block px-2 py-0.5 text-xs rounded uppercase <?php echo ($g['level'] === 'error' ? 'bg-red-100 text-red-700' : ($g['level'] === 'warn' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700')); ?>"><?php echo htmlspecialchars(strtoupper($g['level'])); ?></span>
+                                                                        <?php endif; ?>
+                                                                    </div>
+                                                                    <div class="text-xs text-slate-500 dark:text-slate-400 mt-1"><?php echo htmlspecialchars($g['details']); ?></div>
+                                                                </div>
+                                                                <div class="text-xs text-slate-400 text-right">
+                                                                    <div class="font-bold"><?php echo htmlspecialchars($g['full_name'] ?? $g['username'] ?? 'System'); ?></div>
+                                                                    <div class="mt-1"><?php echo date('M d, Y H:i', strtotime($g['created_at'])); ?></div>
+                                                                    <div class="mt-2 text-[11px] text-slate-500"><?php echo intval($g['cnt']); ?> entries</div>
+                                                                    <?php $viewAllQuery = http_build_query(array_merge($filterQueryParams, ['logs_for' => ($g['publish_id'] === null ? '0' : intval($g['publish_id']))])); ?>
+                                                                    <a href="?<?php echo $viewAllQuery; ?>#activity-logs" class="block mt-2 text-xs text-blue-600">View all</a>
+                                                                </div>
+                                                            </div>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm flex flex-col col-span-1 lg:col-span-2 mt-4 relative"
                      x-data="{ 
                         search: '', page: 1, limit: 7, items: eventsData, 
                         showDeleteModal: false, eventToDelete: null,
@@ -429,7 +705,7 @@ $current_user_id = $_SESSION['user_id'];
                         <div class="p-4 border-b border-slate-100 dark:border-[#123f29] bg-slate-50/30 dark:bg-transparent flex gap-3 items-center">
                             <div class="relative flex-1">
                                 <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                                <input type="text" x-model="search" @input="page = 1" placeholder="Search events by title or category name..." class="w-full pl-10 pr-4 py-3 input-premium rounded-xl text-sm font-semibold">
+                                <input type="text" x-model="search" @input="page = 1" placeholder="Search events by title or category name..." class="w-full pl-10 pr-4 py-3 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-xl text-sm font-semibold">
                             </div>
                         </div>
 

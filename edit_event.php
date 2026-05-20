@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_r
 
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php'; 
+require_once 'functions/logs.php'; 
 
 $message = '';
 $msgType = 'error'; 
@@ -273,6 +274,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
 
                 $pdo->commit();
+
+                // Log update
+                if (function_exists('write_event_log')) {
+                    $evStmt = $pdo->prepare("SELECT event_id FROM events WHERE publish_id = ? LIMIT 1");
+                    $evStmt->execute([$publish_id]);
+                    $evRow = $evStmt->fetch(PDO::FETCH_ASSOC);
+                    $event_id = $evRow['event_id'] ?? null;
+
+                    $details = json_encode([
+                        'title' => $title,
+                        'category_id' => $category_id,
+                        'venue_id' => $venue_id,
+                        'start_date' => $start_date,
+                        'start_time' => $start_time,
+                        'end_date' => $end_date,
+                        'end_time' => $end_time
+                    ]);
+                    write_event_log($pdo, $_SESSION['user_id'] ?? null, 'update_event', $publish_id, $event_id, $details);
+                }
 
                 header("Location: index.php?sync_status=success&sync_msg=" . urlencode("Event '$title' successfully updated!"));
                 exit();
