@@ -201,18 +201,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $stmt_link = $pdo->prepare("INSERT INTO participant_schedule (event_publish_id, participant_id, start_time, end_time) VALUES (?, ?, ?, ?)");
                         
                         foreach ($participant_ids as $pid) {
-                            if ($is_all_day) {
-                                $p_start = '00:00:00';
-                                $p_end = '23:59:59';
+                            // Apply the exact same fix here to successfully save the data to the database
+                            if (isset($custom_times[$pid])) {
+                                $p_start = $custom_times[$pid]['start'];
+                                $p_end = $custom_times[$pid]['end'];
                             } else {
-                                if (isset($custom_times[$pid])) {
-                                    $p_start = $custom_times[$pid]['start'];
-                                    $p_end = $custom_times[$pid]['end'];
-                                } else {
-                                    $p_start = $start_time;
-                                    $p_end = $end_time;
-                                }
+                                $p_start = $start_time;
+                                $p_end = $end_time;
                             }
+                            
                             $stmt_link->execute([$publish_id, $pid, $p_start, $p_end]);
                         }
 
