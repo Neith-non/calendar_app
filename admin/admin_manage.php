@@ -322,6 +322,22 @@ $current_user_id = $_SESSION['user_id'];
         const categoriesData = <?php echo json_encode($categories, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const participantsData = <?php echo json_encode($participants, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
         const eventsData = <?php echo json_encode($events_list, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        const logGroupsData = <?php
+            $log_groups_json = array_map(function($g) {
+                return [
+                    'publish_id' => $g['publish_id'],
+                    'action'     => $g['action'] ?? '',
+                    'level'      => $g['level'] ?? '',
+                    'cnt'        => intval($g['cnt']),
+                    'full_name'  => $g['full_name'] ?? null,
+                    'username'   => $g['username'] ?? null,
+                    'created_at' => $g['created_at'] ?? '',
+                    'details'    => $g['details'] ?? '',
+                ];
+            }, $log_groups);
+            echo json_encode($log_groups_json, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        ?>;
+        const logFilterParams = <?php echo json_encode($filterQueryParams, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
     </script>
 </head>
 
@@ -688,74 +704,124 @@ $current_user_id = $_SESSION['user_id'];
                                 </div>
                             <?php endif; ?>
                         <?php else: ?>
-                            
-                            <?php if (empty($log_groups)): ?>
-                                <div class="text-center text-xs text-slate-400 italic py-8 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-white/50 dark:bg-slate-900/10">
-                                    <i class="fa-regular fa-folder-open text-xl block mb-2 text-slate-300"></i> No activity logs matching selected matrix.
-                                </div>
-                            <?php else: ?>
-                                <ul class="space-y-2">
-                                    <?php foreach ($log_groups as $g): ?>
-                                        <?php 
-                                            $isError = isset($g['level']) && $g['level'] === 'error';
-                                            $isWarn = isset($g['level']) && $g['level'] === 'warn';
-                                            $borderAccent = $isError ? 'border-l-red-500' : ($isWarn ? 'border-l-amber-500' : 'border-l-emerald-500');
-                                        ?>
-                                        <li class="p-3 rounded-xl bg-white dark:bg-[#0a1a12] border border-slate-100 dark:border-[#123f29] border-l-4 <?php echo $borderAccent; ?> shadow-2xs hover:shadow-xs transition-shadow">
-                                            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                                                
-                                                <div class="md:col-span-3 min-w-0">
-                                                    <div class="flex items-center gap-1.5 flex-wrap">
-                                                        <span class="text-xs font-extrabold text-slate-800 dark:text-white truncate"><?php echo htmlspecialchars($g['action']); ?></span>
-                                                        <?php if ($g['publish_id'] !== null): ?>
-                                                            <span class="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 dark:bg-slate-800/60 px-1 py-0.5 rounded">#<?php echo htmlspecialchars($g['publish_id']); ?></span>
-                                                        <?php else: ?>
-                                                            <span class="text-[9px] uppercase tracking-wider font-extrabold text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-100/30 dark:border-blue-900/30 px-1 py-0.5 rounded">System</span>
-                                                        <?php endif; ?>
-                                                        <?php if (!empty($g['level'])): ?>
-                                                            <span class="text-[9px] px-1 py-0.5 rounded font-black uppercase tracking-wide <?php echo ($isError ? 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400' : ($isWarn ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400' : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400')); ?>"><?php echo htmlspecialchars($g['level']); ?></span>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </div>
-
-                                                <div class="md:col-span-5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                                                    <?php 
-                                                        $detailsData = json_decode($g['details'], true);
-                                                        if (json_last_error() === JSON_ERROR_NONE && is_array($detailsData)) {
-                                                            $detailsPills = [];
-                                                            foreach ($detailsData as $key => $val) {
-                                                                if (is_bool($val)) $val = $val ? 'true' : 'false';
-                                                                if (is_array($val)) $val = json_encode($val);
-                                                                $detailsPills[] = "<span class='inline-block bg-slate-50 dark:bg-slate-900/60 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800 text-[11px]'><strong class='text-slate-400 dark:text-slate-500 font-semibold'>" . htmlspecialchars($key) . ":</strong> " . htmlspecialchars($val) . "</span>";
-                                                            }
-                                                            echo '<div class="flex flex-wrap gap-1">' . implode('', $detailsPills) . '</div>';
-                                                        } else {
-                                                            echo htmlspecialchars($g['details']);
-                                                        }
-                                                    ?>
-                                                </div>
-
-                                                <div class="md:col-span-2 text-left md:text-right text-[11px]">
-                                                    <div class="font-bold text-slate-700 dark:text-slate-300 truncate"><i class="fa-regular fa-user text-[10px] text-slate-400 mr-1 md:hidden"></i><?php echo htmlspecialchars($g['full_name'] ?? $g['username'] ?? 'System'); ?></div>
-                                                    <div class="text-slate-400 font-medium mt-0.5"><?php echo date('M d, Y H:i', strtotime($g['created_at'])); ?></div>
-                                                </div>
-
-                                                <div class="md:col-span-2 flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t border-slate-100 dark:border-slate-800 md:border-none">
-                                                    <span class="text-[11px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold"><?php echo intval($g['cnt']); ?> entries</span>
-                                                    <?php $viewAllQuery = http_build_query(array_merge($filterQueryParams, ['logs_for' => ($g['publish_id'] === null ? '0' : intval($g['publish_id']))])); ?>
-                                                    <a href="?<?php echo $viewAllQuery; ?>#activity-logs" class="text-xs text-blue-600 dark:text-blue-400 font-bold hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-0.5 transition-colors">View <i class="fa-solid fa-angle-right text-[10px]"></i></a>
-                                                </div>
-
-                                            </div>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php endif; ?>
                         <?php endif; ?>
+                    </div>
+
+                    <!-- Alpine.js summary pagination (mirrors Manage Events Database) -->
+                    <div x-data="{
+                            search: '',
+                            page: 1,
+                            limit: 7,
+                            items: logGroupsData,
+                            get filtered() {
+                                if (this.search === '') return this.items;
+                                var q = this.search.toLowerCase();
+                                return this.items.filter(function(g) {
+                                    return g.action.toLowerCase().includes(q) ||
+                                        (g.full_name && g.full_name.toLowerCase().includes(q)) ||
+                                        (g.username && g.username.toLowerCase().includes(q)) ||
+                                        (g.publish_id !== null && String(g.publish_id).includes(q));
+                                });
+                            },
+                            get paginated() { return this.filtered.slice((this.page - 1) * this.limit, this.page * this.limit); },
+                            get maxPage() { return Math.ceil(this.filtered.length / this.limit) || 1; },
+                            viewUrl(g) {
+                                var pid = g.publish_id === null ? '0' : g.publish_id;
+                                var p = Object.assign({}, logFilterParams, { logs_for: pid });
+                                return '?' + Object.entries(p).map(function(e) { return encodeURIComponent(e[0])+'='+encodeURIComponent(e[1]); }).join('&') + '#activity-logs';
+                            },
+                            levelClass(level) {
+                                if (level === 'error') return 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400';
+                                if (level === 'warn')  return 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400';
+                                return 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400';
+                            },
+                            borderClass(level) {
+                                if (level === 'error') return 'border-l-red-500';
+                                if (level === 'warn')  return 'border-l-amber-500';
+                                return 'border-l-emerald-500';
+                            },
+                            formatDate(s) {
+                                if (!s) return '';
+                                var d = new Date(s.replace(' ', 'T'));
+                                return d.toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' })
+                                    + ' ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
+                            }
+                         }" class="flex flex-col flex-1 overflow-hidden">
+
+                        <!-- Search bar same as Events -->
+                        <div class="p-4 border-b border-slate-100 dark:border-[#123f29] bg-slate-50/30 dark:bg-transparent flex gap-3 items-center">
+                            <div class="relative flex-1">
+                                <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                <input type="text" x-model="search" @input="page = 1"
+                                    placeholder="Search by action, user, or publish ID..."
+                                    class="w-full pl-10 pr-4 py-3 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-xl text-sm font-semibold">
+                            </div>
+                        </div>
+
+                        <!-- Log rows -->
+                        <div class="p-5 space-y-3 overflow-y-auto flex-1 custom-scrollbar min-h-[300px] max-h-[560px]">
+                            <template x-for="g in paginated" :key="g.action + '_' + g.publish_id">
+                                <div class="flex justify-between items-center p-4 bg-[#f8fafc] dark:bg-[#0a1a12] rounded-2xl border-l-4 border border-slate-100 dark:border-[#123f29] hover:border-blue-200 dark:hover:border-blue-900/50 transition-colors group"
+                                     :class="borderClass(g.level)">
+                                    <div class="min-w-0 flex-1 pr-3">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
+                                            <p class="text-[15px] font-black text-slate-800 dark:text-white" x-text="g.action"></p>
+                                            <template x-if="g.publish_id !== null">
+                                                <span class="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 dark:bg-slate-800/60 px-1.5 py-0.5 rounded" x-text="'#' + g.publish_id"></span>
+                                            </template>
+                                            <template x-if="g.publish_id === null">
+                                                <span class="text-[9px] uppercase tracking-wider font-extrabold text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-100/30 dark:border-blue-900/30 px-1.5 py-0.5 rounded">System</span>
+                                            </template>
+                                            <template x-if="g.level">
+                                                <span class="text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wide" :class="levelClass(g.level)" x-text="g.level"></span>
+                                            </template>
+                                        </div>
+                                        <div class="flex flex-wrap items-center gap-3 mt-2">
+                                            <span class="text-[11px] text-slate-500 font-bold">
+                                                <i class="fa-regular fa-user text-slate-400 mr-1"></i>
+                                                <span x-text="g.full_name || g.username || 'System'"></span>
+                                            </span>
+                                            <span class="text-[11px] text-slate-500 font-bold">
+                                                <i class="fa-regular fa-clock text-slate-400 mr-1"></i>
+                                                <span x-text="formatDate(g.created_at)"></span>
+                                            </span>
+                                            <span class="text-[11px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold" x-text="g.cnt + ' entries'"></span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                        <a :href="viewUrl(g)"
+                                           class="w-10 h-10 rounded-xl flex items-center justify-center text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all border border-transparent hover:border-blue-100 dark:hover:border-blue-900"
+                                           title="View entries">
+                                            <i class="fa-solid fa-angle-right text-sm"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <div x-show="filtered.length === 0" class="flex flex-col items-center justify-center py-12 text-slate-500">
+                                <i class="fa-regular fa-folder-open text-4xl mb-3 text-slate-300 dark:text-slate-600"></i>
+                                <span class="font-medium">No activity logs matching your search.</span>
+                            </div>
+                        </div>
+
+                        <!-- Pagination bar identical to Events -->
+                        <div class="p-4 border-t border-slate-100 dark:border-[#123f29] bg-slate-50/50 dark:bg-[#0a1a12] rounded-b-[1.5rem] flex justify-between items-center text-sm font-bold text-slate-600 dark:text-slate-400">
+                            <button @click="if(page > 1) page--" :class="{'opacity-50 cursor-not-allowed': page === 1}"
+                                    class="px-4 py-2 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition shadow-sm">
+                                <i class="fa-solid fa-chevron-left mr-1.5"></i> Prev
+                            </button>
+                            <span x-text="'Page ' + page + ' of ' + maxPage"
+                                  class="bg-white dark:bg-slate-800 px-3 py-1 rounded border border-slate-200 dark:border-slate-700"></span>
+                            <button @click="if(page < maxPage) page++" :class="{'opacity-50 cursor-not-allowed': page === maxPage}"
+                                    class="px-4 py-2 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition shadow-sm">
+                                Next <i class="fa-solid fa-chevron-right ml-1.5"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 <div class="bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm flex flex-col col-span-1 lg:col-span-2 mt-4 relative"
+
                      x-data="{ 
                         search: '', page: 1, limit: 7, items: eventsData, 
                         showDeleteModal: false, eventToDelete: null,
