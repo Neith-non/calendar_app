@@ -16,6 +16,10 @@ require_once 'functions/logs.php';
 $message = '';
 $msgType = 'error'; 
 
+// --- FAILSAFE: Auto-create special categories if they don't exist ---
+$pdo->exec("INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Personal', 'Personal')");
+$pdo->exec("INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Placeholder', 'Placeholder')");
+
 // Fetch all holidays to pass to Javascript
 $holidayStmt = $pdo->query("SELECT start_date, title FROM events WHERE category_id = 5");
 $holidays = [];
@@ -32,19 +36,23 @@ while($row = $busyStmt->fetch(PDO::FETCH_ASSOC)) {
 }
 $busyDatesJson = json_encode(array_values(array_unique($busyDatesArr)));
 
-// Fetch the special 'Personal' Category ID
+// Fetch the special 'Personal' and 'Placeholder' Category IDs
 $personalCatStmt = $pdo->query("SELECT category_id FROM event_categories WHERE category_name = 'Personal' LIMIT 1");
 $personalCategory = $personalCatStmt->fetch();
 $personal_category_id = $personalCategory ? $personalCategory['category_id'] : null;
 
-// 1. Fetch Categories and Venues (Exclude Personal and Holidays from dropdown)
-$stmt_cats = $pdo->query("SELECT * FROM event_categories WHERE category_name NOT IN ('Holidays', 'Personal') ORDER BY category_name ASC");
+$placeholderCatStmt = $pdo->query("SELECT category_id FROM event_categories WHERE category_name = 'Placeholder' LIMIT 1");
+$placeholderCategory = $placeholderCatStmt->fetch();
+$placeholder_category_id = $placeholderCategory ? $placeholderCategory['category_id'] : null;
+
+// 1. Fetch Categories and Venues (Exclude Personal, Placeholder and Holidays from dropdown)
+$stmt_cats = $pdo->query("SELECT * FROM event_categories WHERE category_name NOT IN ('Holidays', 'Personal', 'Placeholder') ORDER BY category_name ASC");
 $categories = $stmt_cats->fetchAll();
 
 $stmt_venues = $pdo->query("SELECT * FROM venues ORDER BY venue_name ASC");
 $venues = $stmt_venues->fetchAll();
 
-// 2. Fetch all participants and group them by your 'department' table dynamically
+// 2. Fetch all participants
 $partStmt = $pdo->query("
     SELECT p.id AS participant_id, p.name, d.name AS department 
     FROM participants p
@@ -63,19 +71,30 @@ foreach ($participantsList as $p) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title = trim($_POST['title']);
     $description = trim($_POST['description']);
-    $participant_ids = $_POST['participants'] ?? []; 
     
     $is_personal = isset($_POST['is_personal']);
-    $category_id = $is_personal ? $personal_category_id : (int) $_POST['category_id'];
+    $is_placeholder = isset($_POST['is_placeholder']);
     
-    // Venue is optional for both now, but specifically preserved if they picked one
+    // Default variable setups
     $venue_id = !empty($_POST['venue_id']) ? (int) $_POST['venue_id'] : null;
-
+    $participant_ids = $_POST['participants'] ?? []; 
     $start_date = $_POST['start_date'];
     $end_date = $_POST['end_date'];
-
     $is_all_day = isset($_POST['is_all_day']);
-    
+
+    // --- OVERRIDES FOR SPECIFIC EVENT TYPES ---
+    if ($is_personal) {
+        $category_id = $personal_category_id;
+    } elseif ($is_placeholder) {
+        // Force placeholder attributes: Category is placeholder, No Venue, No Participants, Always All-Day
+        $category_id = $placeholder_category_id;
+        $venue_id = null;
+        $participant_ids = [];
+        $is_all_day = true;
+    } else {
+        $category_id = (int) $_POST['category_id'];
+    }
+
     if ($is_all_day) {
         $start_time = '00:00:00';
         $end_time = '23:59:59';
@@ -90,8 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $start_datetime = $start_date . ' ' . $start_time;
     $end_datetime = $end_date . ' ' . $end_time;
 
-    // Validation (Participants only required if NOT personal)
-    if (!$is_personal && empty($participant_ids)) {
+    // Validation (Participants only required if NOT personal AND NOT placeholder)
+    if (!$is_personal && !$is_placeholder && empty($participant_ids)) {
         $message = "Oops! You must select at least one participant group for a public event.";
     } elseif (strtotime($end_datetime) <= strtotime($start_datetime)) {
         $message = "Oops! The End Date/Time must be after the Start Date/Time.";
@@ -109,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         // --- EXTRACT CUSTOM TIMES EARLY ---
         $custom_times = [];
-        if (isset($_POST['custom_blocks']) && is_array($_POST['custom_blocks'])) {
+        if (!$is_placeholder && isset($_POST['custom_blocks']) && is_array($_POST['custom_blocks'])) {
             foreach ($_POST['custom_blocks'] as $block) {
                 if (isset($block['pids']) && is_array($block['pids'])) {
                     foreach ($block['pids'] as $pid) {
@@ -124,8 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         $hasConflict = false;
 
-        // Bypassing strict conflicts if it's a personal event
-        if (!$is_personal) {
+        // Bypassing strict conflicts if it's a personal event OR a placeholder
+        if (!$is_personal && !$is_placeholder) {
             // --- SMART VENUE CHECKER ---
             if (!$is_off_campus && $venue_id) {
                 $venueConflictStmt = $pdo->prepare("
@@ -205,21 +224,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             try {
                 $pdo->beginTransaction();
 
-                // Personal events are automatically approved for the user who created them
+                // Personal events are automatically approved. Placeholders stay Pending until confirmed.
                 $status = $is_personal ? 'Approved' : 'Pending';
                 $approved_by = $is_personal ? $_SESSION['user_id'] : null;
                 $approved_date = $is_personal ? date('Y-m-d H:i:s') : null;
 
-                $stmt_pub = $pdo->prepare("INSERT INTO event_publish (venue_id, title, description, status, is_personal, approved_by, approved_date) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt_pub->execute([$venue_id, $title, $description, $status, $is_personal ? 1 : 0, $approved_by, $approved_date]);
+                $stmt_pub = $pdo->prepare("INSERT INTO event_publish (venue_id, title, description, status, is_personal, is_placeholder, approved_by, approved_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt_pub->execute([$venue_id, $title, $description, $status, $is_personal ? 1 : 0, $is_placeholder ? 1 : 0, $approved_by, $approved_date]);
                 $publish_id = $pdo->lastInsertId();
 
                 $stmt_event = $pdo->prepare("INSERT INTO events (publish_id, category_id, title, description, start_date, start_time, end_date, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt_event->execute([$publish_id, $category_id, $title, $description, $start_date, $start_time, $end_date, $end_time]);
                 $event_id = $pdo->lastInsertId();
 
-                // Insert participants (Even for personal events, if they chose to add them for their own tracking)
-                if (!empty($participant_ids)) {
+                // Insert participants (Not applicable for placeholders)
+                if (!empty($participant_ids) && !$is_placeholder) {
                     $stmt_link = $pdo->prepare("INSERT INTO participant_schedule (event_publish_id, participant_id, start_time, end_time) VALUES (?, ?, ?, ?)");
                     
                     foreach ($participant_ids as $pid) {
@@ -242,6 +261,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         'title' => $title,
                         'category_id' => $category_id,
                         'venue_id' => $venue_id,
+                        'is_placeholder' => $is_placeholder ? 1 : 0,
                         'start_date' => $start_date,
                         'start_time' => $start_time,
                         'end_date' => $end_date,
@@ -250,7 +270,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     write_event_log($pdo, $_SESSION['user_id'] ?? null, 'create_event', $publish_id, $event_id ?? null, $details);
                 }
 
-                header("Location: index.php?sync_status=success&sync_msg=" . urlencode("Event '$title' successfully submitted for approval!"));
+                $successMsg = $is_personal ? "Personal Event '$title' successfully added to your calendar!" : ($is_placeholder ? "Placeholder Event '$title' successfully added!" : "Event '$title' successfully submitted for approval!");
+                header("Location: index.php?sync_status=success&sync_msg=" . urlencode($successMsg));
                 exit();
 
             } catch (PDOException $e) {
@@ -384,28 +405,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
                 <?php endif; ?>
 
-                <form action="add_event.php" method="POST" id="eventForm" class="space-y-12" x-data="{ selectedDept: '', isPersonal: false }">
+                <form action="add_event.php" method="POST" id="eventForm" class="space-y-12" x-data="{ selectedDept: '', isPersonal: false, isPlaceholder: false }">
 
-                    <div class="flex items-center gap-3 mb-6 bg-white dark:bg-[#1f2937] p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-max relative z-50">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <div class="relative flex items-center">
-                                <input type="checkbox" name="is_personal" id="is_personal" x-model="isPersonal" @change="checkDateWarnings()" class="sr-only peer">
-                                <div class="w-9 h-5 bg-slate-300 dark:bg-slate-600 rounded-full peer peer-checked:bg-sky-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4 peer-checked:after:border-white"></div>
-                            </div>
-                            <span class="text-sm font-bold text-slate-700 dark:text-slate-300">Personal Event</span>
-                        </label>
+                    <div class="flex flex-wrap items-center gap-4 mb-6">
                         
-                        <div class="relative group flex items-center">
-                            <i class="fa-solid fa-circle-question text-slate-400 hover:text-sky-500 transition-colors cursor-help text-sm"></i>
+                        <div class="flex items-center gap-3 bg-white dark:bg-[#1f2937] p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-max relative z-50">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <div class="relative flex items-center">
+                                    <input type="checkbox" name="is_personal" id="is_personal" x-model="isPersonal" @change="if(isPersonal) isPlaceholder = false; checkDateWarnings(); setTimeout(updateTimeFields, 10);" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-slate-300 dark:bg-slate-600 rounded-full peer peer-checked:bg-sky-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4 peer-checked:after:border-white"></div>
+                                </div>
+                                <span class="text-sm font-bold text-slate-700 dark:text-slate-300">Personal Event</span>
+                            </label>
                             
-                            <div class="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 hidden group-hover:block w-64 bg-slate-800 dark:bg-slate-700 text-white text-xs rounded-xl p-3.5 shadow-2xl z-[9999] text-center font-medium leading-relaxed pointer-events-none">
-                                Personal events are visible only to you and do not require administrative approval or conflict checks. 
-                                <br><br>
-                                <span class="text-sky-300 font-bold block border-t border-slate-600 pt-2">Note: The personal event can be viewed on the calendar only.</span>
+                            <div class="relative group flex items-center">
+                                <i class="fa-solid fa-circle-question text-slate-400 hover:text-sky-500 transition-colors cursor-help text-sm"></i>
                                 
-                                <div class="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-x-[6px] border-x-transparent border-b-[6px] border-b-slate-800 dark:border-b-slate-700"></div>
+                                <div class="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 hidden group-hover:block w-64 bg-slate-800 dark:bg-slate-700 text-white text-xs rounded-xl p-3.5 shadow-2xl z-[9999] text-center font-medium leading-relaxed pointer-events-none">
+                                    Personal events are visible only to you and do not require administrative approval or conflict checks. 
+                                    <br><br>
+                                    <span class="text-sky-300 font-bold block border-t border-slate-600 pt-2">Note: The personal event can be viewed on the calendar only.</span>
+                                    
+                                    <div class="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-x-[6px] border-x-transparent border-b-[6px] border-b-slate-800 dark:border-b-slate-700"></div>
+                                </div>
                             </div>
                         </div>
+
+                        <div class="flex items-center gap-3 bg-white dark:bg-[#1f2937] p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-max relative z-[49]">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <div class="relative flex items-center">
+                                    <input type="checkbox" name="is_placeholder" id="is_placeholder" x-model="isPlaceholder" @change="if(isPlaceholder) isPersonal = false; checkDateWarnings(); setTimeout(updateTimeFields, 10);" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-slate-300 dark:bg-slate-600 rounded-full peer peer-checked:bg-amber-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4 peer-checked:after:border-white"></div>
+                                </div>
+                                <span class="text-sm font-bold text-slate-700 dark:text-slate-300">Placeholder Event</span>
+                            </label>
+                            
+                            <div class="relative group flex items-center">
+                                <i class="fa-solid fa-circle-question text-slate-400 hover:text-amber-500 transition-colors cursor-help text-sm"></i>
+                                
+                                <div class="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 hidden group-hover:block w-64 bg-slate-800 dark:bg-slate-700 text-white text-xs rounded-xl p-3.5 shadow-2xl z-[9999] text-center font-medium leading-relaxed pointer-events-none">
+                                    A placeholder event simply reserves a specific date on the calendar. Detailed categories, venues, and conflict checks are ignored.
+                                    
+                                    <div class="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-x-[6px] border-x-transparent border-b-[6px] border-b-slate-800 dark:border-b-slate-700"></div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
 
                     <div>
@@ -424,15 +469,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                             <div>
                                 <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                                    Description <span x-show="isPersonal" class="text-xs font-normal text-sky-500 ml-1">(Optional)</span>
+                                    Description <span x-show="isPersonal || isPlaceholder" class="text-xs font-normal text-sky-500 ml-1" x-cloak>(Optional)</span>
                                 </label>
                                 <textarea name="description" rows="3" placeholder="Optional details, instructions, or agenda..."
                                     class="input-premium w-full px-4 py-3 rounded-lg font-medium text-sm resize-none"><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5" x-show="!isPlaceholder" x-transition x-cloak>
                                 
-                                <div x-show="!isPersonal" x-transition>
+                                <div x-show="!isPersonal">
                                     <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Category</label>
                                     <div x-data="{
                                             open: false,
@@ -463,7 +508,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                             }
                                         }" class="relative">
                                         
-                                        <input type="hidden" name="category_id" :value="selectedId" :required="!isPersonal">
+                                        <input type="hidden" name="category_id" :value="selectedId" :required="!isPersonal && !isPlaceholder">
 
                                         <div @click="open = !open" 
                                              class="input-premium w-full px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer flex justify-between items-center transition-colors"
@@ -535,7 +580,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                             }
                                         }" class="relative">
                                         
-                                        <input type="hidden" name="venue_id" :value="selectedId" :required="!isPersonal">
+                                        <input type="hidden" name="venue_id" :value="selectedId" :required="!isPersonal && !isPlaceholder">
 
                                         <div @click="open = !open" 
                                              class="input-premium w-full px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer flex justify-between items-center transition-colors"
@@ -579,7 +624,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 Schedule
                             </h3>
                             
-                            <label for="is_all_day" class="flex items-center gap-3 cursor-pointer bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 transition-colors shadow-sm">
+                            <label for="is_all_day" x-show="!isPlaceholder" class="flex items-center gap-3 cursor-pointer bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 transition-colors shadow-sm">
                                 <span class="text-xs text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">All-Day Event</span>
                                 <div class="relative">
                                     <input type="checkbox" name="is_all_day" id="is_all_day" class="sr-only-custom peer" <?php echo isset($_POST['is_all_day']) ? 'checked' : ''; ?>>
@@ -610,7 +655,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                             value="<?php echo $_POST['start_date'] ?? $_GET['date'] ?? ''; ?>"
                                             class="input-premium w-full px-4 py-2.5 rounded-lg text-sm font-semibold cursor-pointer">
                                     </div>
-                                    <div class="main-time-input-container transition-all duration-300 overflow-hidden">
+                                    <div class="main-time-input-container transition-all duration-300 overflow-hidden" x-show="!isPlaceholder">
                                         <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Time</label>
                                         <input type="time" name="start_time" id="main_start_time"
                                             value="<?php echo $_POST['start_time'] ?? ''; ?>"
@@ -630,7 +675,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                             value="<?php echo $_POST['end_date'] ?? $_GET['date'] ?? ''; ?>"
                                             class="input-premium w-full px-4 py-2.5 rounded-lg text-sm font-semibold cursor-pointer">
                                     </div>
-                                    <div class="main-time-input-container transition-all duration-300 overflow-hidden">
+                                    <div class="main-time-input-container transition-all duration-300 overflow-hidden" x-show="!isPlaceholder">
                                         <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Time</label>
                                         <input type="time" name="end_time" id="main_end_time" 
                                             value="<?php echo $_POST['end_time'] ?? ''; ?>"
@@ -641,7 +686,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </div>
                     </div>
 
-                    <div>
+                    <div x-show="!isPlaceholder" x-collapse x-cloak>
                         <div class="border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
                             <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                 <span class="bg-sjsfi-green dark:bg-emerald-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black">3</span>
@@ -726,9 +771,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </a>
                         <button type="submit"
                             class="flex-1 bg-sjsfi-green dark:bg-emerald-500 hover:bg-sjsfi-greenHover dark:hover:bg-emerald-400 text-white font-bold py-3.5 rounded-xl transition-colors shadow-lg flex justify-center items-center gap-2 text-sm">
-                            <i class="fa-solid fa-paper-plane" x-show="!isPersonal"></i> 
-                            <i class="fa-solid fa-floppy-disk" x-show="isPersonal" x-cloak></i> 
-                            <span x-text="isPersonal ? 'Save Personal Event' : 'Submit Request'"></span>
+                            <i class="fa-solid fa-paper-plane" x-show="!isPersonal && !isPlaceholder"></i> 
+                            <i class="fa-solid fa-floppy-disk" x-show="isPersonal || isPlaceholder" x-cloak></i> 
+                            <span x-text="isPlaceholder ? 'Save Placeholder Event' : (isPersonal ? 'Save Personal Event' : 'Submit Request')"></span>
                         </button>
                     </div>
 
@@ -813,14 +858,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     let isHolidayBypassed = false; 
     let conflictingHolidays = []; 
 
-    // --- USER FRIENDLY ALL-DAY LOGIC ---
+    // --- USER FRIENDLY ALL-DAY & PLACEHOLDER TIME LOGIC ---
     const allDayToggle = document.getElementById('is_all_day');
+    const placeholderToggle = document.getElementById('is_placeholder');
 
     function updateTimeFields() {
         const mainTimeContainers = document.querySelectorAll('.main-time-input-container');
         const mainTimeInputs = document.querySelectorAll('.main-time-input');
 
-        if (allDayToggle.checked) {
+        // Dynamically strip the required attribute if it's All-Day OR a Placeholder
+        // This fixes the silent HTML5 validation bug that blocks submission!
+        const disableTimes = (allDayToggle && allDayToggle.checked) || (placeholderToggle && placeholderToggle.checked);
+
+        if (disableTimes) {
             mainTimeContainers.forEach(container => {
                 container.style.height = '0px';
                 container.style.opacity = '0';
@@ -993,7 +1043,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     function validateBlockTime(inputElement) {
-        if (allDayToggle.checked) return;
+        if (allDayToggle && allDayToggle.checked) return;
 
         const mainStart = mainStartTimeInput.value;
         const mainEnd = mainEndTimeInput.value;
@@ -1067,6 +1117,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         const startVal = startDateInput.value;
         const endVal = endDateInput.value || startVal; 
         const isPersonalChecked = document.getElementById('is_personal').checked;
+        const isPlaceholderChecked = document.getElementById('is_placeholder').checked;
         
         conflictingHolidays = []; 
         let hasBusyDate = false;
@@ -1083,6 +1134,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     hasBusyDate = true;
                 }
             });
+        }
+
+        // Hide ALL conflict warnings if it's a Placeholder
+        if (isPlaceholderChecked) {
+            warningText.classList.add('hidden');
+            document.getElementById('busy-date-warning').classList.add('hidden');
+            return; 
         }
 
         // Show/Hide Holiday Warning
@@ -1134,8 +1192,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     eventForm.addEventListener('submit', function (e) {
         const isPersonalChecked = document.getElementById('is_personal').checked;
+        const isPlaceholderChecked = document.getElementById('is_placeholder').checked;
         
-        if (!isPersonalChecked) {
+        if (!isPersonalChecked && !isPlaceholderChecked) {
             const checkboxes = document.querySelectorAll('.participant-cb:checked');
             if (checkboxes.length === 0) {
                 e.preventDefault();
@@ -1144,8 +1203,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
 
-        // Only enforce holiday block if it's NOT a personal event
-        if (!isPersonalChecked && conflictingHolidays.length > 0 && !isHolidayBypassed) {
+        // Only enforce holiday block if it's a standard event
+        if (!isPersonalChecked && !isPlaceholderChecked && conflictingHolidays.length > 0 && !isHolidayBypassed) {
             e.preventDefault(); 
             modalNameSpan.textContent = conflictingHolidays.join(' and ');
             modal.classList.remove('hidden');

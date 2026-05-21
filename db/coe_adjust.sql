@@ -184,3 +184,6 @@ ALTER TABLE event_publish MODIFY venue_id INT NULL;
 
 -- 3. Create the 'Personal' Category
 INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Personal', 'Personal');
+
+ALTER TABLE event_publish ADD COLUMN is_placeholder BOOLEAN NOT NULL DEFAULT FALSE;
+INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Placeholder', 'Placeholder');
