@@ -2,6 +2,7 @@
 // approve_event.php
 session_start();
 require_once 'functions/database.php';
+require_once 'functions/logs.php';
 
 // 1. Check Permissions (Only Admin and Head Scheduler allowed)
 $allowed_roles = ['Head Scheduler', 'Admin'];
@@ -27,16 +28,36 @@ $separator = (parse_url($previousPage, PHP_URL_QUERY) == NULL) ? '?' : '&';
 
 try {
     if ($action === 'approve') {
+        // Capture related event info
+        $evStmt = $pdo->prepare("SELECT event_id, title FROM events WHERE publish_id = ? LIMIT 1");
+        $evStmt->execute([$publish_id]);
+        $ev = $evStmt->fetch(PDO::FETCH_ASSOC);
+        $event_id = $ev['event_id'] ?? null;
+        $title = $ev['title'] ?? null;
+
         // Update the status to 'Approved'
         $stmt = $pdo->prepare("UPDATE event_publish SET status = 'Approved' WHERE id = ?");
         $stmt->execute([$publish_id]);
 
+        // Log approval
+        if (function_exists('write_event_log')) {
+            $details = json_encode(['title' => $title]);
+            write_event_log($pdo, $_SESSION['user_id'] ?? null, 'approve_event', $publish_id, $event_id, $details);
+        }
+
         $msg = "Event successfully approved!";
 
     } elseif ($action === 'reject') {
-        // If rejected, we must remove it from the calendar queue (events table) 
+        // If rejected, fetch events, remove them from the calendar queue (events table) 
         // and mark it as Rejected in the publish table.
         $pdo->beginTransaction();
+
+        // Fetch related events before deletion
+        $fetchEvt = $pdo->prepare("SELECT event_id, title FROM events WHERE publish_id = ?");
+        $fetchEvt->execute([$publish_id]);
+        $eventsToRemove = $fetchEvt->fetchAll(PDO::FETCH_ASSOC);
+        $event_ids = array_column($eventsToRemove, 'event_id');
+        $event_titles = array_column($eventsToRemove, 'title');
 
         // Remove from the calendar
         $stmt_delete = $pdo->prepare("DELETE FROM events WHERE publish_id = ?");
@@ -47,6 +68,12 @@ try {
         $stmt_update->execute([$publish_id]);
 
         $pdo->commit();
+
+        // Log rejection
+        if (function_exists('write_event_log')) {
+            $details = json_encode(['event_ids' => $event_ids, 'titles' => $event_titles]);
+            write_event_log($pdo, $_SESSION['user_id'] ?? null, 'reject_event', $publish_id, null, $details);
+        }
 
         $msg = "Event request rejected and removed from the calendar.";
 

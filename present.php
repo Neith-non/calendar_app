@@ -26,7 +26,7 @@ $prevMonth = date('Y-m', strtotime("-1 month", strtotime($dateString)));
 $nextMonth = date('Y-m', strtotime("+1 month", strtotime($dateString)));
 
 // 2. Fetch Categories for the Setup Checkboxes
-$stmtCats = $pdo->query("SELECT * FROM event_categories ORDER BY category_name ASC");
+$stmtCats = $pdo->query("SELECT * FROM event_categories WHERE category_name != 'Personal' ORDER BY category_name ASC");
 $categories = $stmtCats->fetchAll();
 
 // Generate an array of category names to pre-fill Alpine.js (so all boxes are checked by default)
@@ -42,6 +42,7 @@ $stmt = $pdo->prepare("
     LEFT JOIN venues v ON p.venue_id = v.venue_id 
     WHERE DATE_FORMAT(e.start_date, '%Y-%m') = ?
     AND (p.status = 'Approved' OR e.publish_id IS NULL)
+    AND c.category_name != 'Personal'
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
 $stmt->execute(["$year-$month"]);

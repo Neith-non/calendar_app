@@ -13,10 +13,18 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_r
 $isAdmin = true; 
 
 require_once 'functions/database.php';
+require_once 'functions/logs.php';
 
 // --- Handle Deletion of Rejected Requests ---
 if (isset($_GET['delete_id'])) {
     $delete_id = (int) $_GET['delete_id'];
+
+    // Delete from events table first
+    // Fetch existing event info for logging
+    $fetchEvt = $pdo->prepare("SELECT event_id, title FROM events WHERE publish_id = ?");
+    $fetchEvt->execute([$delete_id]);
+    $events = $fetchEvt->fetchAll(PDO::FETCH_ASSOC);
+    $titles = array_column($events, 'title');
 
     // Delete from events table first
     $stmt_del_event = $pdo->prepare("DELETE FROM events WHERE publish_id = ?");
@@ -25,6 +33,12 @@ if (isset($_GET['delete_id'])) {
     // Delete from publish table (only if it's actually rejected, as a safety measure)
     $stmt_del_pub = $pdo->prepare("DELETE FROM event_publish WHERE id = ? AND status = 'Rejected'");
     $stmt_del_pub->execute([$delete_id]);
+
+    // Log permanent deletion
+    if (function_exists('write_event_log')) {
+        $details = json_encode(['titles' => $titles]);
+        write_event_log($pdo, $_SESSION['user_id'] ?? null, 'permanent_delete', $delete_id, null, $details);
+    }
 
     // Refresh the page and show a success message!
     header("Location: request_status.php?sync_status=success&sync_msg=" . urlencode("Event permanently deleted."));
@@ -64,6 +78,7 @@ $stmt = $pdo->query("
     LEFT JOIN venues v ON p.venue_id = v.venue_id
     LEFT JOIN events e ON p.id = e.publish_id
     LEFT JOIN event_categories c ON e.category_id = c.category_id
+    WHERE p.is_personal != 1
     ORDER BY 
         CASE WHEN e.start_date IS NULL THEN 1 ELSE 0 END, 
         e.start_date ASC, 

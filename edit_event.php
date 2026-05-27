@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role_name'], $allowed_r
 
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php'; 
+require_once 'functions/logs.php'; 
 
 $message = '';
 $msgType = 'error'; 
@@ -25,7 +26,7 @@ if (!$publish_id) {
 
 // 2. Fetch existing event data
 $stmt_event = $pdo->prepare("
-    SELECT p.id, p.title, p.description, p.venue_id, p.status, 
+    SELECT p.id, p.title, p.description, p.venue_id, p.status, p.is_personal, p.approved_by,
            e.category_id, e.start_date, e.start_time, e.end_date, e.end_time
     FROM event_publish p
     JOIN events e ON p.id = e.publish_id
@@ -34,7 +35,23 @@ $stmt_event = $pdo->prepare("
 $stmt_event->execute([$publish_id]);
 $eventData = $stmt_event->fetch(PDO::FETCH_ASSOC);
 
-if (!$eventData || $eventData['status'] !== 'Pending') {
+if (!$eventData) {
+    header("Location: index.php?error=cannot_edit");
+    exit;
+}
+
+// Check if user can edit: must be Admin/Head Scheduler OR owner of personal event
+$isPersonalOwner = ($eventData['is_personal'] && $eventData['approved_by'] == $_SESSION['user_id']);
+$canEdit = in_array($_SESSION['role_name'], $allowed_roles) || $isPersonalOwner;
+
+if (!$canEdit) {
+    header("Location: index.php?error=unauthorized");
+    exit;
+}
+
+// For pending events: must be admin/scheduler. For personal: owner can edit anytime.
+$isPendingEvent = ($eventData['status'] === 'Pending');
+if (!$isPersonalOwner && !$isPendingEvent) {
     header("Location: index.php?error=cannot_edit");
     exit;
 }
@@ -273,6 +290,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
 
                 $pdo->commit();
+
+                // Log update
+                if (function_exists('write_event_log')) {
+                    $evStmt = $pdo->prepare("SELECT event_id FROM events WHERE publish_id = ? LIMIT 1");
+                    $evStmt->execute([$publish_id]);
+                    $evRow = $evStmt->fetch(PDO::FETCH_ASSOC);
+                    $event_id = $evRow['event_id'] ?? null;
+
+                    $details = json_encode([
+                        'title' => $title,
+                        'category_id' => $category_id,
+                        'venue_id' => $venue_id,
+                        'start_date' => $start_date,
+                        'start_time' => $start_time,
+                        'end_date' => $end_date,
+                        'end_time' => $end_time
+                    ]);
+                    write_event_log($pdo, $_SESSION['user_id'] ?? null, 'update_event', $publish_id, $event_id, $details);
+                }
 
                 header("Location: index.php?sync_status=success&sync_msg=" . urlencode("Event '$title' successfully updated!"));
                 exit();

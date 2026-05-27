@@ -14,7 +14,7 @@ if (!isset($_SESSION['user_id'])) {
 require_once 'functions/database.php';
 require_once 'functions/get_pending_count.php';
 
-$stmt = $pdo->query("SELECT * FROM event_categories ORDER BY category_id ASC");
+$stmt = $pdo->query("SELECT * FROM event_categories WHERE category_name != 'Personal' ORDER BY category_id ASC");
 $categories = $stmt->fetchAll();
 
 // Fetch all participants linked to events using the upgraded ERD structure
@@ -60,6 +60,7 @@ $stmt = $pdo->prepare("
     WHERE e.start_date >= DATE_FORMAT(CURDATE(), '%Y-01-01')
       AND e.start_date <= DATE_FORMAT(CURDATE(), '%Y-12-31')
       $statusFilter
+      AND p.is_personal != 1
     ORDER BY e.start_date ASC, e.start_time ASC
 ");
 $stmt->execute();
