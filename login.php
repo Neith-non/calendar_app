@@ -1,12 +1,9 @@
 <?php
 require 'functions/database.php';
-// 1. Start the Session (Give out the VIP wristbands)
 session_start();
-// 1. Tell the browser NEVER to cache this page
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-// 2. If they already have a wristband, send them straight to the dashboard!
 if (isset($_SESSION['user_id'])) {
     header("Location: index.php");
     exit;
@@ -14,15 +11,11 @@ if (isset($_SESSION['user_id'])) {
 
 $error = '';
 
-// 3. Process the form when they click "Sign In"
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // CHANGE THIS LINE to match your actual database connection file!
     $username = trim($_POST['username']);
     $password = $_POST['password'];
 
     if (!empty($username) && !empty($password)) {
-
-        // 1. We JOIN the users and roles tables together to get the role_name!
         $stmt = $pdo->prepare("
             SELECT u.user_id, u.role_id, u.username, u.password, u.full_name, r.role_name 
             FROM users u 
@@ -32,22 +25,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->execute([$username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // 2. Check if the user exists AND the password matches (supports hashed and legacy plaintext)
         if ($user) {
             $stored = $user['password'];
             $password_ok = false;
 
-            // First try modern password verification (bcrypt/argon etc.)
             if (!empty($stored) && password_verify($password, $stored)) {
                 $password_ok = true;
-                // If hashing algo changed, rehash to current default
                 if (password_needs_rehash($stored, PASSWORD_DEFAULT)) {
                     $newHash = password_hash($password, PASSWORD_DEFAULT);
                     $upd = $pdo->prepare("UPDATE users SET password = ? WHERE user_id = ?");
                     $upd->execute([$newHash, $user['user_id']]);
                 }
             } elseif ($password === $stored) {
-                // Legacy plaintext password matched — upgrade to hashed password
                 $newHash = password_hash($password, PASSWORD_DEFAULT);
                 $upd = $pdo->prepare("UPDATE users SET password = ? WHERE user_id = ?");
                 $upd->execute([$newHash, $user['user_id']]);
@@ -55,13 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
 
             if ($password_ok) {
-                // 3. Success! Give them their Session Wristband with all the correct info
-                $_SESSION['user_id'] = $user['user_id'];
-                $_SESSION['role_id'] = $user['role_id'];
+                $_SESSION['user_id']   = $user['user_id'];
+                $_SESSION['role_id']   = $user['role_id'];
                 $_SESSION['full_name'] = $user['full_name'];
                 $_SESSION['role_name'] = $user['role_name'];
-
-                // Send them to the dashboard
                 header("Location: index.php");
                 exit;
             } else {
@@ -112,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <style>
         body {
-            background-color: #d1e8df; 
+            background-color: #d1e8df;
             background-image: 
                 radial-gradient(at 0% 0%, rgba(0, 71, 49, 0.15) 0px, transparent 60%),
                 radial-gradient(at 100% 100%, rgba(255, 187, 0, 0.1) 0px, transparent 50%);
@@ -138,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         .input-premium {
             background-color: #ffffff;
-            border: 1px solid #bce3d4; 
+            border: 1px solid #bce3d4;
             color: #004731;
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -169,49 +155,121 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(0, 71, 49, 0.35);
         }
+
+        .developer-footer {
+            background: linear-gradient(135deg, rgba(0, 71, 49, 0.04), rgba(0, 71, 49, 0.08));
+            border: 1px solid rgba(0, 71, 49, 0.1);
+        }
+
+        .dev-chip {
+            background: rgba(0, 71, 49, 0.07);
+            border: 1px solid rgba(0, 71, 49, 0.15);
+            transition: all 0.2s ease;
+        }
+
+        .dev-chip:hover {
+            background: rgba(0, 71, 49, 0.13);
+            transform: translateY(-1px);
+        }
+
+        /* WMSU footer logo separator */
+        .wmsu-footer-divider {
+            border: none;
+            border-top: 1px dashed rgba(0, 71, 49, 0.15);
+            margin: 14px 0 12px;
+        }
+
+        .wmsu-logo-ring {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: #fff;
+            border: 1.5px solid rgba(155, 28, 28, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+            flex-shrink: 0;
+        }
+
+        .wmsu-logo-ring:hover {
+            transform: scale(1.07);
+            box-shadow: 0 4px 14px rgba(155, 28, 28, 0.15);
+        }
+
+        .wmsu-logo-ring img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 50%;
+        }
+
+        /* Password toggle button */
+        .pw-toggle {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: rgba(0, 71, 49, 0.4);
+            font-size: 13px;
+            padding: 2px 4px;
+            transition: color 0.2s;
+        }
+        .pw-toggle:hover { color: #004731; }
     </style>
 </head>
 
 <body class="flex items-center justify-center min-h-screen p-4 text-sjsfi-green">
 
-    <div class="premium-card p-8 sm:p-12 rounded-[2rem] w-full max-w-md z-10">
+    <div class="premium-card p-8 sm:p-10 rounded-[2rem] w-full max-w-md z-10">
 
-        <div class="flex flex-col items-center justify-center mb-8 text-center">
-            
-            <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg mb-4 p-1 border-2 border-green-100 relative group transition-transform duration-300 hover:scale-105">
-                <img src="assets/img/sjsfi_schoologo.png" alt="SJSFI Logo" 
-                     class="w-full h-full object-contain rounded-full relative z-10" 
-                     onerror="this.outerHTML='<i class=\'fa-solid fa-graduation-cap text-sjsfi-green text-4xl relative z-10\'></i>'">
+        <!-- ── TOP: SJSFI Logo + School Name ── -->
+        <div class="flex flex-col items-center mb-7 text-center">
+
+            <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg mb-4 p-1 border-2 border-green-100 transition-transform duration-300 hover:scale-105">
+                <img src="assets/img/sjsfi_schoologo.png" alt="SJSFI Logo"
+                     class="w-full h-full object-contain rounded-full"
+                     onerror="this.outerHTML='<i class=\'fa-solid fa-graduation-cap text-sjsfi-green text-4xl\'></i>'">
             </div>
-            
+
             <h2 class="text-xl sm:text-2xl font-extrabold text-sjsfi-green tracking-tight leading-tight mb-1">
                 Saint Joseph School<br>Foundation Incorporated
             </h2>
-            
+
             <h3 class="text-lg sm:text-xl font-bold font-chinese text-sjsfi-green/80 tracking-widest mb-3">
                 三寶颜忠義中學
-</h3>
-            
-            <p class="text-sjsfi-green/70 text-xs font-bold tracking-widest uppercase">Calendar of Events</p>
+            </h3>
+
+            <div class="flex items-center gap-2">
+                <div class="h-px w-8 bg-green-200"></div>
+                <p class="text-sjsfi-green/60 text-[10px] font-bold tracking-widest uppercase">Calendar of Events</p>
+                <div class="h-px w-8 bg-green-200"></div>
+            </div>
         </div>
 
+        <!-- ── Error ── -->
         <?php if ($error): ?>
             <div class="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl mb-6 text-sm font-semibold flex items-center gap-3">
                 <i class="fa-solid fa-circle-exclamation text-red-500 text-lg"></i>
-                <?php echo $error; ?>
+                <?php echo htmlspecialchars($error); ?>
             </div>
         <?php endif; ?>
 
+        <!-- ── Form ── -->
         <form method="POST" action="">
-            
+
             <div class="mb-5 group">
                 <label class="block text-sjsfi-green text-xs font-bold mb-2 uppercase tracking-wide">Username</label>
                 <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                         <i class="fa-solid fa-user text-green-700/50 group-focus-within:text-sjsfi-green transition-colors duration-300"></i>
                     </div>
-                    <input type="text" name="username" required
-                        class="input-premium w-full pl-11 pr-4 py-3.5 rounded-xl text-sm font-medium" 
+                    <input type="text" name="username" required autocomplete="username"
+                        class="input-premium w-full pl-11 pr-4 py-3.5 rounded-xl text-sm font-medium"
                         placeholder="Enter your username">
                 </div>
             </div>
@@ -222,9 +280,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                         <i class="fa-solid fa-lock text-green-700/50 group-focus-within:text-sjsfi-green transition-colors duration-300"></i>
                     </div>
-                    <input type="password" name="password" required
-                        class="input-premium w-full pl-11 pr-4 py-3.5 rounded-xl text-sm font-medium" 
+                    <input type="password" id="passwordInput" name="password" required autocomplete="current-password"
+                        class="input-premium w-full pl-11 pr-11 py-3.5 rounded-xl text-sm font-medium"
                         placeholder="Enter your password">
+                    <button type="button" class="pw-toggle" id="togglePw" aria-label="Show password">
+                        <i class="fa-regular fa-eye" id="eyeIcon"></i>
+                    </button>
                 </div>
             </div>
 
@@ -232,13 +293,78 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <span>Sign In</span>
                 <i class="fa-solid fa-arrow-right-to-bracket"></i>
             </button>
-            
+
         </form>
-        
-        <div class="mt-8 text-center border-t border-green-200/60 pt-6">
-            <p class="text-sjsfi-green/60 text-xs font-medium tracking-wide">© <?php echo date('Y'); ?> Saint Joseph School Foundation Incorporated</p>
+
+        <!-- ── Developer Footer ── -->
+        <div class="mt-7 developer-footer rounded-2xl p-4">
+
+            <!-- "Developed by" label -->
+            <div class="flex items-center gap-1.5 mb-3 justify-center">
+                <i class="fa-solid fa-code text-sjsfi-green/50 text-xs"></i>
+                <p class="text-sjsfi-green/60 text-[10px] font-bold tracking-widest uppercase">Developed by</p>
+                <i class="fa-solid fa-code text-sjsfi-green/50 text-xs"></i>
+            </div>
+
+            <!-- Developer names -->
+            <div class="flex flex-wrap gap-1.5 justify-center mb-0">
+                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Johan C. Buenaventura
+                </span>
+                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Neithan Deniel B. Gula
+                </span>
+                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Mathew JG S. Payopelin
+                </span>
+                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Paolo S. Garcia
+                </span>
+                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Aljon V. Reyes
+                </span>
+            </div>
+
+            <!-- Dashed separator -->
+            <hr class="wmsu-footer-divider">
+
+            <!-- WMSU branding row -->
+            <div class="flex items-center justify-center gap-3">
+                <div class="wmsu-logo-ring">
+                    <img src="assets/img/wmsulogo.jpg" alt="WMSU Logo"
+                         onerror="this.outerHTML='<i class=\'fa-solid fa-university\' style=\'font-size:20px;color:#9b1c1c\'></i>'">
+                </div>
+                <div class="text-left">
+                    <p class="text-[10px] font-bold text-sjsfi-green/50 uppercase tracking-widest leading-tight">In Partial Fulfillment of</p>
+                    <p class="text-[11px] font-extrabold text-sjsfi-green/70 leading-tight">Western Mindanao State University</p>
+                    <p class="text-[10px] font-semibold text-sjsfi-green/45 leading-tight">Internship Program</p>
+                </div>
+            </div>
+
         </div>
+
+        <!-- ── Copyright ── -->
+        <div class="mt-5 text-center">
+            <p class="text-sjsfi-green/50 text-[10px] font-medium tracking-wide">
+                &copy; <?php echo date('Y'); ?> Saint Joseph School Foundation Incorporated
+            </p>
+        </div>
+
     </div>
+
+    <script>
+        const togglePw   = document.getElementById('togglePw');
+        const pwInput    = document.getElementById('passwordInput');
+        const eyeIcon    = document.getElementById('eyeIcon');
+
+        togglePw.addEventListener('click', function () {
+            const hidden = pwInput.type === 'password';
+            pwInput.type = hidden ? 'text' : 'password';
+            eyeIcon.classList.toggle('fa-eye',       !hidden);
+            eyeIcon.classList.toggle('fa-eye-slash',  hidden);
+            togglePw.setAttribute('aria-label', hidden ? 'Hide password' : 'Show password');
+        });
+    </script>
 
 </body>
 </html>
