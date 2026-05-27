@@ -248,7 +248,8 @@ function getCategoryColor($categoryName) {
 
     <main class="flex-1 flex flex-col min-w-0 h-full relative custom-scrollbar overflow-y-auto">
 
-        <div x-show="!isPresenting" x-transition.opacity.duration.300ms class="p-6 md:p-8 lg:p-10">
+        <!-- Enhanced Setup Dashboard -->
+        <div x-show="!isPresenting" x-transition.opacity.duration.300ms class="p-6 md:p-8 lg:p-10 max-w-[1400px] mx-auto w-full">
             
             <div class="lg:hidden flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800 w-full">
                 <h2 class="text-lg font-bold text-slate-800 dark:text-white">Menu</h2>
@@ -257,86 +258,122 @@ function getCategoryColor($categoryName) {
                 </button>
             </div>
 
-            <div class="mb-8">
-                <h1 class="text-3xl font-extrabold tracking-tight text-sjsfi-green dark:text-slate-100 mb-2">Presentation Setup</h1>
-                <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Configure what data will be shown before entering immersive mode.</p>
+            <div class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div>
+                    <h1 class="text-3xl font-extrabold tracking-tight text-sjsfi-green dark:text-slate-100 mb-2">Presentation Setup</h1>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Configure what data will be shown before entering immersive mode.</p>
+                </div>
+                <!-- Launch Button (Header) -->
+                <button @click="startPresentation()" 
+                        :disabled="selectedCategories.length === 0"
+                        :class="selectedCategories.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-400 dark:bg-slate-700 text-slate-200 dark:text-slate-400' : 'bg-sjsfi-green dark:bg-emerald-600 hover:bg-sjsfi-greenHover dark:hover:bg-emerald-500 text-white shadow-xl transform hover:scale-105'"
+                        class="font-extrabold text-sm sm:text-base py-3.5 px-8 rounded-2xl transition-all duration-300 flex items-center justify-center gap-3">
+                    <i class="fa-solid fa-desktop"></i> Launch Presentation
+                </button>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 
-                <div class="bento-card p-6">
+                <!-- Timeline Card -->
+                <div class="bento-card p-6 flex flex-col h-full">
                     <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                         <i class="fa-regular fa-calendar text-sjsfi-green dark:text-emerald-500"></i> Select Timeline
                     </h3>
-                    <div class="space-y-3">
-                        <select id="timeline-select" onchange="window.location.href='?timeline='+this.value" class="w-full px-4 py-3 text-sm font-bold border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-sjsfi-green text-slate-800 dark:text-slate-200 cursor-pointer">
+                    <div class="relative mt-auto">
+                        <select id="timeline-select" onchange="window.location.href='?timeline='+this.value" class="w-full px-5 py-4 text-base font-bold border-2 border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-900 focus:outline-none focus:border-sjsfi-green dark:focus:border-emerald-500 text-slate-800 dark:text-slate-200 cursor-pointer appearance-none transition-colors">
                             <?php
-                            // Generate exactly 12 months strictly for the currently selected year
                             for ($m = 1; $m <= 12; $m++) {
-                                // Format the value as YYYY-MM (e.g., "2026-04")
                                 $val = sprintf("%04d-%02d", $year, $m);
-                                // Format the label as "Month Year" (e.g., "April 2026")
-                                $lbl = date('F', mktime(0, 0, 0, $m, 10));
-                                
+                                $lbl = date('F Y', mktime(0, 0, 0, $m, 10, $year));
                                 $sel = ($val === $timeline) ? 'selected' : '';
                                 echo "<option value='$val' $sel>$lbl</option>";
                             }
                             ?>
                         </select>
+                        <i class="fa-solid fa-chevron-down absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
                     </div>
                 </div>
 
-                <div class="bento-card p-6">
+                <!-- Categories Card -->
+                <div class="bento-card p-6 lg:col-span-2">
                     <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
-                        <i class="fa-solid fa-filter text-sjsfi-green dark:text-emerald-500"></i> Event Categories
+                        <i class="fa-solid fa-filter text-sjsfi-green dark:text-emerald-500"></i> Include Categories
                     </h3>
-                    <div class="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto custom-scrollbar">
-                        <?php foreach ($categories as $cat): ?>
-                            <label class="flex items-center space-x-3 cursor-pointer group">
-                                <input type="checkbox" value="<?php echo htmlspecialchars($cat['category_name']); ?>" x-model="selectedCategories" class="custom-checkbox w-5 h-5 rounded border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
-                                <span class="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-sjsfi-green dark:group-hover:text-emerald-400 transition"><?php echo htmlspecialchars($cat['category_name']); ?></span>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        <?php foreach ($categories as $cat): 
+                            $safeCat = addslashes($cat['category_name']);
+                        ?>
+                            <label class="cursor-pointer relative group">
+                                <input type="checkbox" value="<?php echo htmlspecialchars($cat['category_name']); ?>" x-model="selectedCategories" class="sr-only">
+                                <div class="px-4 py-3.5 rounded-xl border-2 transition-all duration-200 flex items-center justify-between shadow-sm"
+                                     :class="selectedCategories.includes('<?php echo $safeCat; ?>') 
+                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 dark:border-blue-500/50' 
+                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-200 dark:hover:border-slate-600'">
+                                    
+                                    <span class="text-sm font-bold transition-colors"
+                                          :class="selectedCategories.includes('<?php echo $safeCat; ?>') ? 'text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-300'">
+                                        <?php echo htmlspecialchars($cat['category_name']); ?>
+                                    </span>
+                                    
+                                    <div class="w-5 h-5 rounded-md flex items-center justify-center transition-all"
+                                         :class="selectedCategories.includes('<?php echo $safeCat; ?>') ? 'bg-blue-500 text-white scale-100' : 'bg-slate-100 dark:bg-slate-700 text-transparent scale-90 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'">
+                                        <i class="fa-solid fa-check text-[10px]"></i>
+                                    </div>
+                                </div>
                             </label>
                         <?php endforeach; ?>
                     </div>
                 </div>
 
-                <div class="bento-card p-6">
+                <!-- Display Columns Card -->
+                <div class="bento-card p-6 lg:col-span-3">
                     <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
-                        <i class="fa-solid fa-table-columns text-sjsfi-green dark:text-emerald-500"></i> Display Columns
+                        <i class="fa-solid fa-table-columns text-sjsfi-green dark:text-emerald-500"></i> Display Columns (Table View)
                     </h3>
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="flex items-center space-x-3 cursor-pointer group opacity-50" title="Event Name cannot be hidden">
-                            <input type="checkbox" checked disabled class="w-5 h-5 rounded border-slate-300 dark:border-slate-600 bg-slate-200 dark:bg-slate-700">
-                            <span class="text-sm font-bold text-slate-600 dark:text-slate-300">Event Name</span>
-                        </label>
-                        <label class="flex items-center space-x-3 cursor-pointer group">
-                            <input type="checkbox" x-model="colDate" class="custom-checkbox w-5 h-5 rounded border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
-                            <span class="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-sjsfi-green transition">Date & Time</span>
-                        </label>
-                        <label class="flex items-center space-x-3 cursor-pointer group">
-                            <input type="checkbox" x-model="colDetails" class="custom-checkbox w-5 h-5 rounded border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
-                            <span class="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-sjsfi-green transition">Event Details</span>
-                        </label>
-                        <label class="flex items-center space-x-3 cursor-pointer group">
-                            <input type="checkbox" x-model="colVenue" class="custom-checkbox w-5 h-5 rounded border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
-                            <span class="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-sjsfi-green transition">Venue</span>
-                        </label>
-                        <label class="flex items-center space-x-3 cursor-pointer group">
-                            <input type="checkbox" x-model="colParticipants" class="custom-checkbox w-5 h-5 rounded border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
-                            <span class="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-sjsfi-green transition">Participants</span>
-                        </label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                        
+                        <!-- Event Name (Disabled) -->
+                        <div class="px-4 py-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between opacity-60 cursor-not-allowed">
+                            <span class="text-sm font-bold text-slate-500 dark:text-slate-400">Event Name</span>
+                            <div class="w-5 h-5 rounded-md bg-slate-300 dark:bg-slate-600 text-white flex items-center justify-center"><i class="fa-solid fa-lock text-[10px]"></i></div>
+                        </div>
+
+                        <!-- Toggle Cards for Columns -->
+                        <?php
+                        $cols = [
+                            ['model' => 'colDate', 'label' => 'Date & Time'],
+                            ['model' => 'colDetails', 'label' => 'Event Details'],
+                            ['model' => 'colVenue', 'label' => 'Venue'],
+                            ['model' => 'colParticipants', 'label' => 'Participants'],
+                        ];
+                        foreach ($cols as $c): ?>
+                            <label class="cursor-pointer relative group">
+                                <input type="checkbox" x-model="<?php echo $c['model']; ?>" class="sr-only">
+                                <div class="px-4 py-3.5 rounded-xl border-2 transition-all duration-200 flex items-center justify-between shadow-sm"
+                                     :class="<?php echo $c['model']; ?> 
+                                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-500/10 dark:border-purple-500/50' 
+                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-purple-200 dark:hover:border-slate-600'">
+                                    
+                                    <span class="text-sm font-bold transition-colors"
+                                          :class="<?php echo $c['model']; ?> ? 'text-purple-700 dark:text-purple-400' : 'text-slate-600 dark:text-slate-300'">
+                                        <?php echo $c['label']; ?>
+                                    </span>
+                                    
+                                    <div class="w-5 h-5 rounded-md flex items-center justify-center transition-all"
+                                         :class="<?php echo $c['model']; ?> ? 'bg-purple-500 text-white scale-100' : 'bg-slate-100 dark:bg-slate-700 text-transparent scale-90 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'">
+                                        <i class="fa-solid fa-check text-[10px]"></i>
+                                    </div>
+                                </div>
+                            </label>
+                        <?php endforeach; ?>
                     </div>
                 </div>
-            </div>
-
-            <div class="flex justify-end">
-                <button @click="startPresentation()" class="bg-sjsfi-green dark:bg-emerald-600 hover:bg-sjsfi-greenHover dark:hover:bg-emerald-500 text-white font-extrabold text-lg py-4 px-10 rounded-2xl transition shadow-xl flex items-center justify-center gap-3 transform hover:scale-105 duration-300">
-                    <i class="fa-solid fa-desktop"></i> Start Presentation
-                </button>
             </div>
         </div>
 
 
+        <!-- ORIGINAL PRESENTATION LAYER (RESTORED) -->
         <div id="presentation-layer" x-show="isPresenting" x-transition.opacity.duration.500ms style="display: none;" class="absolute inset-0 z-50 bg-[#f8faf9] dark:bg-[#030712] flex flex-col h-screen w-screen overflow-hidden">
             
             <div class="bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800 shadow-sm shrink-0 flex items-center justify-between px-6">
@@ -491,6 +528,7 @@ function getCategoryColor($categoryName) {
                 </div>
             </div>
 
+            <!-- FLOATING RED EXIT BUTTON (RESTORED) -->
             <button x-show="isPresenting" @click="showQuitModal = true" title="Exit Presentation (ESC)" class="fixed top-6 right-6 z-[100] bg-red-600/90 backdrop-blur-md text-white w-12 h-12 rounded-full font-bold shadow-2xl flex items-center justify-center hover:bg-red-700 transition-all duration-500 transform hover:scale-105 border border-red-500">
                 <i class="fa-solid fa-right-from-bracket text-lg"></i>
             </button>
@@ -498,6 +536,7 @@ function getCategoryColor($categoryName) {
         
     </main>
 
+    <!-- Original Quit Modal (Restored) -->
     <div x-show="showQuitModal" style="display: none;" class="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
         <div @click.away="showQuitModal = false" x-show="showQuitModal" x-transition.scale.origin.center class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md overflow-hidden transform transition-all">
             <div class="p-8 text-center">
@@ -565,50 +604,50 @@ function getCategoryColor($categoryName) {
         });
 
         // --- FIX: AJAX NAVIGATION TO PREVENT FULL-SCREEN EXIT ---
-async function navigatePresentation(url) {
-    try {
-        document.body.style.cursor = 'wait';
-        
-        const response = await fetch(url);
-        const html = await response.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
+        async function navigatePresentation(url) {
+            try {
+                document.body.style.cursor = 'wait';
+                
+                const response = await fetch(url);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
 
-        // 1. Swap the Table & Calendar Grids
-        const idsToReplace = ['events-table-body', 'calendar-grid-wrapper', 'presentMonthTitle', 'timeline-select'];
-        
-        idsToReplace.forEach(id => {
-            const currentEl = document.getElementById(id);
-            const newEl = doc.getElementById(id);
-            if (currentEl && newEl) {
-                currentEl.innerHTML = newEl.innerHTML;
+                // 1. Swap the Table & Calendar Grids
+                const idsToReplace = ['events-table-body', 'calendar-grid-wrapper', 'presentMonthTitle', 'timeline-select'];
+                
+                idsToReplace.forEach(id => {
+                    const currentEl = document.getElementById(id);
+                    const newEl = doc.getElementById(id);
+                    if (currentEl && newEl) {
+                        currentEl.innerHTML = newEl.innerHTML;
 
-                // === ADD THIS FIX HERE ===
-                // Re-initialize Alpine.js on the newly injected DOM elements
-                if (window.Alpine) {
-                    Alpine.initTree(currentEl);
-                }
+                        // === ADD THIS FIX HERE ===
+                        // Re-initialize Alpine.js on the newly injected DOM elements
+                        if (window.Alpine) {
+                            Alpine.initTree(currentEl);
+                        }
+                    }
+                });
+
+                // 2. Update the hidden URLs on the navigation arrows
+                const prevBtn = document.getElementById('presentPrevBtn');
+                const nextBtn = document.getElementById('presentNextBtn');
+                const newPrev = doc.getElementById('presentPrevBtn');
+                const newNext = doc.getElementById('presentNextBtn');
+                
+                if (prevBtn && newPrev) prevBtn.href = newPrev.href;
+                if (nextBtn && newNext) nextBtn.href = newNext.href;
+
+                window.history.pushState({}, '', url);
+
+            } catch (error) {
+                console.error('Seamless traversal failed:', error);
+                window.location.href = url; // Fallback to normal load
+            } finally {
+                document.body.style.cursor = 'default';
             }
-        });
-
-        // 2. Update the hidden URLs on the navigation arrows
-        const prevBtn = document.getElementById('presentPrevBtn');
-        const nextBtn = document.getElementById('presentNextBtn');
-        const newPrev = doc.getElementById('presentPrevBtn');
-        const newNext = doc.getElementById('presentNextBtn');
-        
-        if (prevBtn && newPrev) prevBtn.href = newPrev.href;
-        if (nextBtn && newNext) nextBtn.href = newNext.href;
-
-        window.history.pushState({}, '', url);
-
-    } catch (error) {
-        console.error('Seamless traversal failed:', error);
-        window.location.href = url; // Fallback to normal load
-    } finally {
-        document.body.style.cursor = 'default';
-    }
-}
+        }
 
         // Intercept Mouse Clicks on the Arrows
         document.addEventListener('click', (e) => {
