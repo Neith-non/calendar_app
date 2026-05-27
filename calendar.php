@@ -433,8 +433,11 @@ function getCategoryColor($categoryName)
                                 $accentBorder = $evt['is_start_of_event'] ? "border-l-[4px] {$color['accent']}" : "border-l border-l-transparent";
                                 $opacity = ($evt['status'] === 'Pending') ? 'opacity-90 bg-white dark:bg-[#07160f]' : 'shadow-sm shadow-black/5';
                                 
-                                // Don't show [PENDING] badge for placeholder events
+                                // Placeholder event styling - Noticeable pulsing icon and highlighted badge
                                 $isPlaceholder = $evt['is_placeholder'] ?? false;
+                                $placeholderIcon = $isPlaceholder ? '<i class="fa-solid fa-thumbtack text-[11px] text-amber-500 dark:text-amber-400 mr-1 animate-pulse drop-shadow-md"></i><span class="text-[9px] uppercase tracking-wider text-amber-700 dark:text-amber-300 font-black mr-1.5 bg-amber-100/80 dark:bg-amber-900/40 px-1.5 py-0.5 rounded shadow-sm border border-amber-300 dark:border-amber-700/60">[PLACEHOLDER]</span> ' : '';
+
+                                // Don't show [PENDING] badge for placeholder events
                                 $pendingIcon = ($evt['status'] === 'Pending' && !$isPlaceholder) ? '<i class="fa-solid fa-hourglass-half text-[9px] mr-1 opacity-70"></i><span class="text-[9px] uppercase tracking-wider opacity-80 font-extrabold mr-1">[PENDING]</span> ' : '';
                                 
                                 // Personal event styling - subtle blue highlight with person icon
@@ -496,7 +499,7 @@ function getCategoryColor($categoryName)
                                     data-participants='<?php echo $jsParticipants; ?>'
                                     onclick='openModal(this)'>
                                     <div class="truncate w-full">
-                                        <?php echo $personalIcon . $pendingIcon . $timeDisplay . $shortTitle; ?>
+                                        <?php echo $personalIcon . $placeholderIcon . $pendingIcon . $timeDisplay . $shortTitle; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
