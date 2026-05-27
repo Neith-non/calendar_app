@@ -97,12 +97,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </script>
 
     <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             background-color: #d1e8df;
             background-image: 
                 radial-gradient(at 0% 0%, rgba(0, 71, 49, 0.15) 0px, transparent 60%),
                 radial-gradient(at 100% 100%, rgba(255, 187, 0, 0.1) 0px, transparent 50%);
             background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .content-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .premium-card {
@@ -156,9 +172,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             box-shadow: 0 8px 25px rgba(0, 71, 49, 0.35);
         }
 
-        .developer-footer {
+        /* Sticky footer styles */
+        .sticky-footer {
             background: linear-gradient(135deg, rgba(0, 71, 49, 0.04), rgba(0, 71, 49, 0.08));
-            border: 1px solid rgba(0, 71, 49, 0.1);
+            border-top: 1px solid rgba(0, 71, 49, 0.1);
+            padding: 1rem 2rem;
+            margin-top: auto;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            gap: 3rem;
+        }
+
+        .footer-wmsu-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-shrink: 0;
+        }
+
+        .footer-developers-section {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
         }
 
         .dev-chip {
@@ -172,16 +211,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             transform: translateY(-1px);
         }
 
-        /* WMSU footer logo separator */
-        .wmsu-footer-divider {
-            border: none;
-            border-top: 1px dashed rgba(0, 71, 49, 0.15);
-            margin: 14px 0 12px;
-        }
-
         .wmsu-logo-ring {
-            width: 52px;
-            height: 52px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
             background: #fff;
             border: 1.5px solid rgba(155, 28, 28, 0.2);
@@ -205,6 +237,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border-radius: 50%;
         }
 
+        .wmsu-text-section {
+            text-align: left;
+        }
+
         /* Password toggle button */
         .pw-toggle {
             position: absolute;
@@ -220,137 +256,149 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             transition: color 0.2s;
         }
         .pw-toggle:hover { color: #004731; }
+
+        @media (max-width: 768px) {
+            .sticky-footer {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 1rem;
+            }
+
+            .footer-wmsu-section {
+                flex-direction: column;
+            }
+
+            .wmsu-text-section {
+                text-align: center;
+            }
+
+            .footer-developers-section {
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 
-<body class="flex items-center justify-center min-h-screen p-4 text-sjsfi-green">
+<body class="text-sjsfi-green">
 
-    <div class="premium-card p-8 sm:p-10 rounded-[2rem] w-full max-w-md z-10">
+    <div class="content-wrapper p-4">
+        <div class="premium-card p-8 sm:p-10 rounded-[2rem] w-full max-w-md z-10">
 
-        <!-- ── TOP: SJSFI Logo + School Name ── -->
-        <div class="flex flex-col items-center mb-7 text-center">
+            <!-- ── TOP: SJSFI Logo + School Name ── -->
+            <div class="flex flex-col items-center mb-7 text-center">
 
-            <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg mb-4 p-1 border-2 border-green-100 transition-transform duration-300 hover:scale-105">
-                <img src="assets/img/sjsfi_schoologo.png" alt="SJSFI Logo"
-                     class="w-full h-full object-contain rounded-full"
-                     onerror="this.outerHTML='<i class=\'fa-solid fa-graduation-cap text-sjsfi-green text-4xl\'></i>'">
+                <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg mb-4 p-1 border-2 border-green-100 transition-transform duration-300 hover:scale-105">
+                    <img src="assets/img/sjsfi_schoologo.png" alt="SJSFI Logo"
+                         class="w-full h-full object-contain rounded-full"
+                         onerror="this.outerHTML='<i class=\'fa-solid fa-graduation-cap text-sjsfi-green text-4xl\'></i>'">
+                </div>
+
+                <h2 class="text-xl sm:text-2xl font-extrabold text-sjsfi-green tracking-tight leading-tight mb-1">
+                    Saint Joseph School<br>Foundation Incorporated
+                </h2>
+
+                <h3 class="text-lg sm:text-xl font-bold font-chinese text-sjsfi-green/80 tracking-widest mb-3">
+                    三寶颜忠義中學
+                </h3>
+
+                <div class="flex items-center gap-2">
+                    <div class="h-px w-8 bg-green-200"></div>
+                    <p class="text-sjsfi-green/60 text-[10px] font-bold tracking-widest uppercase">Calendar of Events</p>
+                    <div class="h-px w-8 bg-green-200"></div>
+                </div>
             </div>
 
-            <h2 class="text-xl sm:text-2xl font-extrabold text-sjsfi-green tracking-tight leading-tight mb-1">
-                Saint Joseph School<br>Foundation Incorporated
-            </h2>
+            <!-- ── Error ── -->
+            <?php if ($error): ?>
+                <div class="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl mb-6 text-sm font-semibold flex items-center gap-3">
+                    <i class="fa-solid fa-circle-exclamation text-red-500 text-lg"></i>
+                    <?php echo htmlspecialchars($error); ?>
+                </div>
+            <?php endif; ?>
 
-            <h3 class="text-lg sm:text-xl font-bold font-chinese text-sjsfi-green/80 tracking-widest mb-3">
-                三寶颜忠義中學
-            </h3>
+            <!-- ── Form ── -->
+            <form method="POST" action="">
 
-            <div class="flex items-center gap-2">
-                <div class="h-px w-8 bg-green-200"></div>
-                <p class="text-sjsfi-green/60 text-[10px] font-bold tracking-widest uppercase">Calendar of Events</p>
-                <div class="h-px w-8 bg-green-200"></div>
-            </div>
-        </div>
-
-        <!-- ── Error ── -->
-        <?php if ($error): ?>
-            <div class="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl mb-6 text-sm font-semibold flex items-center gap-3">
-                <i class="fa-solid fa-circle-exclamation text-red-500 text-lg"></i>
-                <?php echo htmlspecialchars($error); ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- ── Form ── -->
-        <form method="POST" action="">
-
-            <div class="mb-5 group">
-                <label class="block text-sjsfi-green text-xs font-bold mb-2 uppercase tracking-wide">Username</label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <i class="fa-solid fa-user text-green-700/50 group-focus-within:text-sjsfi-green transition-colors duration-300"></i>
+                <div class="mb-5 group">
+                    <label class="block text-sjsfi-green text-xs font-bold mb-2 uppercase tracking-wide">Username</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-user text-green-700/50 group-focus-within:text-sjsfi-green transition-colors duration-300"></i>
+                        </div>
+                        <input type="text" name="username" required autocomplete="username"
+                            class="input-premium w-full pl-11 pr-4 py-3.5 rounded-xl text-sm font-medium"
+                            placeholder="Enter your username">
                     </div>
-                    <input type="text" name="username" required autocomplete="username"
-                        class="input-premium w-full pl-11 pr-4 py-3.5 rounded-xl text-sm font-medium"
-                        placeholder="Enter your username">
                 </div>
-            </div>
 
-            <div class="mb-8 group">
-                <label class="block text-sjsfi-green text-xs font-bold mb-2 uppercase tracking-wide">Password</label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <i class="fa-solid fa-lock text-green-700/50 group-focus-within:text-sjsfi-green transition-colors duration-300"></i>
+                <div class="mb-8 group">
+                    <label class="block text-sjsfi-green text-xs font-bold mb-2 uppercase tracking-wide">Password</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-lock text-green-700/50 group-focus-within:text-sjsfi-green transition-colors duration-300"></i>
+                        </div>
+                        <input type="password" id="passwordInput" name="password" required autocomplete="current-password"
+                            class="input-premium w-full pl-11 pr-11 py-3.5 rounded-xl text-sm font-medium"
+                            placeholder="Enter your password">
+                        <button type="button" class="pw-toggle" id="togglePw" aria-label="Show password">
+                            <i class="fa-regular fa-eye" id="eyeIcon"></i>
+                        </button>
                     </div>
-                    <input type="password" id="passwordInput" name="password" required autocomplete="current-password"
-                        class="input-premium w-full pl-11 pr-11 py-3.5 rounded-xl text-sm font-medium"
-                        placeholder="Enter your password">
-                    <button type="button" class="pw-toggle" id="togglePw" aria-label="Show password">
-                        <i class="fa-regular fa-eye" id="eyeIcon"></i>
-                    </button>
                 </div>
-            </div>
 
-            <button type="submit" class="btn-premium w-full py-4 rounded-xl flex justify-center items-center gap-3 text-sm">
-                <span>Sign In</span>
-                <i class="fa-solid fa-arrow-right-to-bracket"></i>
-            </button>
+                <button type="submit" class="btn-premium w-full py-4 rounded-xl flex justify-center items-center gap-3 text-sm">
+                    <span>Sign In</span>
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                </button>
 
-        </form>
+            </form>
 
-        <!-- ── Developer Footer ── -->
-        <div class="mt-7 developer-footer rounded-2xl p-4">
-
-            <!-- "Developed by" label -->
-            <div class="flex items-center gap-1.5 mb-3 justify-center">
-                <i class="fa-solid fa-code text-sjsfi-green/50 text-xs"></i>
-                <p class="text-sjsfi-green/60 text-[10px] font-bold tracking-widest uppercase">Developed by</p>
-                <i class="fa-solid fa-code text-sjsfi-green/50 text-xs"></i>
-            </div>
-
-            <!-- Developer names -->
-            <div class="flex flex-wrap gap-1.5 justify-center mb-0">
-                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Johan C. Buenaventura
-                </span>
-                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Neithan Deniel B. Gula
-                </span>
-                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Mathew JG S. Payopelin
-                </span>
-                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Paolo S. Garcia
-                </span>
-                <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                    <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Aljon V. Reyes
-                </span>
-            </div>
-
-            <!-- Dashed separator -->
-            <hr class="wmsu-footer-divider">
-
-            <!-- WMSU branding row -->
-            <div class="flex items-center justify-center gap-3">
-                <div class="wmsu-logo-ring">
-                    <img src="assets/img/wmsulogo.jpg" alt="WMSU Logo"
-                         onerror="this.outerHTML='<i class=\'fa-solid fa-university\' style=\'font-size:20px;color:#9b1c1c\'></i>'">
-                </div>
-                <div class="text-left">
-                    <p class="text-[10px] font-bold text-sjsfi-green/50 uppercase tracking-widest leading-tight">In Partial Fulfillment of</p>
-                    <p class="text-[11px] font-extrabold text-sjsfi-green/70 leading-tight">Western Mindanao State University</p>
-                    <p class="text-[10px] font-semibold text-sjsfi-green/45 leading-tight">Internship Program</p>
-                </div>
+            <!-- ── Copyright ── -->
+            <div class="mt-5 text-center">
+                <p class="text-sjsfi-green/50 text-[10px] font-medium tracking-wide">
+                    &copy; <?php echo date('Y'); ?> Saint Joseph School Foundation Incorporated
+                </p>
             </div>
 
         </div>
-
-        <!-- ── Copyright ── -->
-        <div class="mt-5 text-center">
-            <p class="text-sjsfi-green/50 text-[10px] font-medium tracking-wide">
-                &copy; <?php echo date('Y'); ?> Saint Joseph School Foundation Incorporated
-            </p>
-        </div>
-
     </div>
+
+    <!-- ── Sticky Footer with WMSU + Developers ── -->
+    <footer class="sticky-footer">
+        <!-- WMSU Branding (Left) -->
+        <div class="footer-wmsu-section">
+            <div class="wmsu-logo-ring">
+                <img src="assets/img/wmsulogo.jpg" alt="WMSU Logo"
+                     onerror="this.outerHTML='<i class=\'fa-solid fa-university\' style=\'font-size:20px;color:#9b1c1c\'></i>'">
+            </div>
+            <div class="wmsu-text-section">
+                <p class="text-[10px] font-bold text-sjsfi-green/50 uppercase tracking-widest leading-tight">In Partial Fulfillment of</p>
+                <p class="text-[11px] font-extrabold text-sjsfi-green/70 leading-tight">Western Mindanao State University</p>
+                <p class="text-[10px] font-semibold text-sjsfi-green/45 leading-tight">Internship Program</p>
+            </div>
+        </div>
+
+        <!-- Developers (Right) -->
+        <div class="footer-developers-section">
+            <span class="text-sjsfi-green/60 text-[10px] font-bold tracking-widest uppercase mr-2">Developed by:</span>
+            <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Johan C. Buenaventura
+            </span>
+            <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Neithan Deniel B. Gula
+            </span>
+            <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Mathew JG S. Payopelin
+            </span>
+            <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Paolo S. Garcia
+            </span>
+            <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Aljon V. Reyes
+            </span>
+        </div>
+    </footer>
 
     <script>
         const togglePw   = document.getElementById('togglePw');
