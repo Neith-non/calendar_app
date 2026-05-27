@@ -78,7 +78,7 @@ $stmt = $pdo->query("
     LEFT JOIN venues v ON p.venue_id = v.venue_id
     LEFT JOIN events e ON p.id = e.publish_id
     LEFT JOIN event_categories c ON e.category_id = c.category_id
-    WHERE p.is_personal != 1
+    WHERE p.is_personal != 1 AND p.is_placeholder != 1 
     ORDER BY 
         CASE WHEN e.start_date IS NULL THEN 1 ELSE 0 END, 
         e.start_date ASC, 
