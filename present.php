@@ -194,6 +194,19 @@ function getCategoryColor($categoryName) {
 
         .custom-checkbox:checked { background-color: #004731; border-color: #004731; }
         .dark .custom-checkbox:checked { background-color: #10b981; border-color: #10b981; }
+
+        /* Customizes the native date/month picker to fit the dark theme */
+        input[type="month"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        input[type="month"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
+        }
+        .dark input[type="month"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
     </style>
 </head>
 
@@ -248,7 +261,6 @@ function getCategoryColor($categoryName) {
 
     <main class="flex-1 flex flex-col min-w-0 h-full relative custom-scrollbar overflow-y-auto">
 
-        <!-- Enhanced Setup Dashboard -->
         <div x-show="!isPresenting" x-transition.opacity.duration.300ms class="p-6 md:p-8 lg:p-10 max-w-[1400px] mx-auto w-full">
             
             <div class="lg:hidden flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800 w-full">
@@ -263,7 +275,6 @@ function getCategoryColor($categoryName) {
                     <h1 class="text-3xl font-extrabold tracking-tight text-sjsfi-green dark:text-slate-100 mb-2">Presentation Setup</h1>
                     <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Configure what data will be shown before entering immersive mode.</p>
                 </div>
-                <!-- Launch Button (Header) -->
                 <button @click="startPresentation()" 
                         :disabled="selectedCategories.length === 0"
                         :class="selectedCategories.length === 0 ? 'opacity-50 cursor-not-allowed bg-slate-400 dark:bg-slate-700 text-slate-200 dark:text-slate-400' : 'bg-sjsfi-green dark:bg-emerald-600 hover:bg-sjsfi-greenHover dark:hover:bg-emerald-500 text-white shadow-xl transform hover:scale-105'"
@@ -274,27 +285,18 @@ function getCategoryColor($categoryName) {
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 
-                <!-- Timeline Card -->
                 <div class="bento-card p-6 flex flex-col h-full">
                     <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                         <i class="fa-regular fa-calendar text-sjsfi-green dark:text-emerald-500"></i> Select Timeline
                     </h3>
-                    <div class="relative mt-auto">
-                        <select id="timeline-select" onchange="window.location.href='?timeline='+this.value" class="w-full px-5 py-4 text-base font-bold border-2 border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-900 focus:outline-none focus:border-sjsfi-green dark:focus:border-emerald-500 text-slate-800 dark:text-slate-200 cursor-pointer appearance-none transition-colors">
-                            <?php
-                            for ($m = 1; $m <= 12; $m++) {
-                                $val = sprintf("%04d-%02d", $year, $m);
-                                $lbl = date('F Y', mktime(0, 0, 0, $m, 10, $year));
-                                $sel = ($val === $timeline) ? 'selected' : '';
-                                echo "<option value='$val' $sel>$lbl</option>";
-                            }
-                            ?>
-                        </select>
-                        <i class="fa-solid fa-chevron-down absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                    <div class="relative">
+                        <input type="month" id="timeline-select" 
+                               value="<?php echo htmlspecialchars($timeline); ?>" 
+                               onchange="window.location.href='?timeline='+this.value" 
+                               class="w-full px-5 py-4 text-base font-bold border-2 border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-900 focus:outline-none focus:border-sjsfi-green dark:focus:border-emerald-500 text-slate-800 dark:text-slate-200 cursor-pointer transition-colors shadow-sm">
                     </div>
                 </div>
 
-                <!-- Categories Card -->
                 <div class="bento-card p-6 lg:col-span-2">
                     <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                         <i class="fa-solid fa-filter text-sjsfi-green dark:text-emerald-500"></i> Include Categories
@@ -326,20 +328,17 @@ function getCategoryColor($categoryName) {
                     </div>
                 </div>
 
-                <!-- Display Columns Card -->
                 <div class="bento-card p-6 lg:col-span-3">
                     <h3 class="text-sm font-extrabold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                         <i class="fa-solid fa-table-columns text-sjsfi-green dark:text-emerald-500"></i> Display Columns (Table View)
                     </h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                         
-                        <!-- Event Name (Disabled) -->
                         <div class="px-4 py-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between opacity-60 cursor-not-allowed">
                             <span class="text-sm font-bold text-slate-500 dark:text-slate-400">Event Name</span>
                             <div class="w-5 h-5 rounded-md bg-slate-300 dark:bg-slate-600 text-white flex items-center justify-center"><i class="fa-solid fa-lock text-[10px]"></i></div>
                         </div>
 
-                        <!-- Toggle Cards for Columns -->
                         <?php
                         $cols = [
                             ['model' => 'colDate', 'label' => 'Date & Time'],
@@ -373,7 +372,6 @@ function getCategoryColor($categoryName) {
         </div>
 
 
-        <!-- ORIGINAL PRESENTATION LAYER (RESTORED) -->
         <div id="presentation-layer" x-show="isPresenting" x-transition.opacity.duration.500ms style="display: none;" class="absolute inset-0 z-50 bg-[#f8faf9] dark:bg-[#030712] flex flex-col h-screen w-screen overflow-hidden">
             
             <div class="bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800 shadow-sm shrink-0 flex items-center justify-between px-6">
@@ -528,7 +526,6 @@ function getCategoryColor($categoryName) {
                 </div>
             </div>
 
-            <!-- FLOATING RED EXIT BUTTON (RESTORED) -->
             <button x-show="isPresenting" @click="showQuitModal = true" title="Exit Presentation (ESC)" class="fixed top-6 right-6 z-[100] bg-red-600/90 backdrop-blur-md text-white w-12 h-12 rounded-full font-bold shadow-2xl flex items-center justify-center hover:bg-red-700 transition-all duration-500 transform hover:scale-105 border border-red-500">
                 <i class="fa-solid fa-right-from-bracket text-lg"></i>
             </button>
@@ -536,7 +533,6 @@ function getCategoryColor($categoryName) {
         
     </main>
 
-    <!-- Original Quit Modal (Restored) -->
     <div x-show="showQuitModal" style="display: none;" class="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
         <div @click.away="showQuitModal = false" x-show="showQuitModal" x-transition.scale.origin.center class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md overflow-hidden transform transition-all">
             <div class="p-8 text-center">
@@ -622,7 +618,6 @@ function getCategoryColor($categoryName) {
                     if (currentEl && newEl) {
                         currentEl.innerHTML = newEl.innerHTML;
 
-                        // === ADD THIS FIX HERE ===
                         // Re-initialize Alpine.js on the newly injected DOM elements
                         if (window.Alpine) {
                             Alpine.initTree(currentEl);
