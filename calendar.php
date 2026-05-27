@@ -42,6 +42,7 @@ $stmt = $pdo->prepare("
         c.category_name, 
         p.status,
         p.is_personal,
+        p.is_placeholder,
         p.approved_by,
         v.venue_name 
     FROM events e
@@ -431,7 +432,10 @@ function getCategoryColor($categoryName)
                                 $presentationHideClass = ($evt['status'] === 'Pending') ? 'hide-in-presentation' : '';
                                 $accentBorder = $evt['is_start_of_event'] ? "border-l-[4px] {$color['accent']}" : "border-l border-l-transparent";
                                 $opacity = ($evt['status'] === 'Pending') ? 'opacity-90 bg-white dark:bg-[#07160f]' : 'shadow-sm shadow-black/5';
-                                $pendingIcon = ($evt['status'] === 'Pending') ? '<i class="fa-solid fa-hourglass-half text-[9px] mr-1 opacity-70"></i><span class="text-[9px] uppercase tracking-wider opacity-80 font-extrabold mr-1">[PENDING]</span> ' : '';
+                                
+                                // Don't show [PENDING] badge for placeholder events
+                                $isPlaceholder = $evt['is_placeholder'] ?? false;
+                                $pendingIcon = ($evt['status'] === 'Pending' && !$isPlaceholder) ? '<i class="fa-solid fa-hourglass-half text-[9px] mr-1 opacity-70"></i><span class="text-[9px] uppercase tracking-wider opacity-80 font-extrabold mr-1">[PENDING]</span> ' : '';
                                 
                                 // Personal event styling - subtle blue highlight with person icon
                                 $isPersonal = $evt['is_personal'] ?? false;
@@ -479,6 +483,7 @@ function getCategoryColor($categoryName)
                                     data-publish-id='<?php echo htmlspecialchars($evt['publish_id'] ?? ''); ?>'
                                     data-status='<?php echo strtolower($evt['status'] ?? ''); ?>'
                                     data-is-personal='<?php echo $isPersonal ? 'true' : 'false'; ?>'
+                                    data-is-placeholder='<?php echo $isPlaceholder ? 'true' : 'false'; ?>'
                                     data-approved-by='<?php echo htmlspecialchars($evt['approved_by'] ?? ''); ?>'
                                     data-title='<?php echo $safeTitle; ?>'
                                     data-desc='<?php echo $safeDesc; ?>'
@@ -504,7 +509,7 @@ function getCategoryColor($categoryName)
     </main>
 
     <div id="eventModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[110] backdrop-blur-sm transition-opacity p-4">
-        <div class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-[#d1f0e0] dark:border-[#123f29] transform transition-all scale-95 opacity-0" id="modalContent">
+        <div class="bg-white dark:bg-[#0b1120] rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-[#d1f0e0] dark:border-[#123f29] transform transition-all scale-95 opacity-0" id="modalContent">
             
             <div class="bg-[#f0fcf5] dark:bg-[#0a1a12] p-6 flex justify-between items-start border-b border-[#d1f0e0] dark:border-[#123f29]">
                 <h2 id="modalTitle" class="text-xl font-extrabold text-emerald-900 dark:text-emerald-100 leading-tight pr-4">Event Title</h2>
@@ -570,20 +575,18 @@ function getCategoryColor($categoryName)
             </div>
 
             <div class="bg-white dark:bg-[#07160f] px-6 py-4 border-t border-[#d1f0e0] dark:border-[#123f29] flex justify-end gap-3">
-                <?php if ($isAdmin): ?>
-                    <a id="modalEditBtn" href="#" class="hidden bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
-                        <i class="fa-solid fa-pen-to-square"></i> Edit Event
-                    </a>
-                    <button id="modalDeleteBtn" class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
-                        <i class="fa-solid fa-trash"></i> Delete Event
-                    </button>
-                    <button id="modalApproveBtn" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
-                        <i class="fa-solid fa-check-circle"></i> Approve
-                    </button>
-                    <button id="modalRejectBtn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm items-center gap-2">
-                        <i class="fa-solid fa-circle-xmark"></i> Reject
-                    </button>
-                <?php endif; ?>
+                <a id="modalEditBtn" href="#" class="hidden bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm items-center gap-2 min-w-max">
+                    <i class="fa-solid fa-pen-to-square"></i> Edit Event
+                </a>
+                <button id="modalDeleteBtn" class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm items-center gap-2 min-w-max">
+                    <i class="fa-solid fa-trash"></i> Delete Event
+                </button>
+                <button id="modalApproveBtn" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm items-center gap-2 min-w-max">
+                    <i class="fa-solid fa-check-circle"></i> Approve
+                </button>
+                <button id="modalRejectBtn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm items-center gap-2 min-w-max">
+                    <i class="fa-solid fa-circle-xmark"></i> Reject
+                </button>
                 <button onclick="closeModal()" class="bg-white dark:bg-[#0a1a12] border border-[#d1f0e0] dark:border-[#123f29] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-800 dark:text-emerald-200 font-bold py-2.5 px-6 rounded-xl transition shadow-sm text-sm">Close Details</button>
             </div>
         </div>

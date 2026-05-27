@@ -16,9 +16,9 @@ require_once 'functions/logs.php';
 $message = '';
 $msgType = 'error'; 
 
-// --- FAILSAFE: Auto-create special categories if they don't exist ---
-$pdo->exec("INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Personal', 'Personal')");
-$pdo->exec("INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Placeholder', 'Placeholder')");
+// // --- FAILSAFE: Auto-create special categories if they don't exist ---
+// $pdo->exec("INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Personal', 'Personal')");
+// $pdo->exec("INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Placeholder', 'Placeholder')");
 
 // Fetch all holidays to pass to Javascript
 $holidayStmt = $pdo->query("SELECT start_date, title FROM events WHERE category_id = 5");

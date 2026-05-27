@@ -58,6 +58,7 @@ function openModal(element) {
     let status = element.dataset.status;
     let publishId = element.dataset.publishId;
     let isPersonal = element.dataset.isPersonal === 'true';
+    let isPlaceholder = element.dataset.isPlaceholder === 'true';
     let approvedBy = element.dataset.approvedBy;
     let currentUserId = document.body.dataset.userId || '';
 
@@ -81,14 +82,33 @@ function openModal(element) {
             deleteBtn.classList.remove('hidden');
             deleteBtn.classList.add('flex');
         }
-    } else if (status === 'pending' && publishId) {
-        // Show Edit for pending events (approval workflow)
+    } else if (isPlaceholder && publishId) {
+        // Show Edit, Reject, and Delete for placeholder events
         if (editBtn) {
             editBtn.href = 'edit_event.php?id=' + publishId;
             editBtn.classList.remove('hidden');
             editBtn.classList.add('flex');
         }
-        // Show Approve
+        // Show Reject
+        if (rejectBtn) {
+            rejectBtn.setAttribute('onclick', `confirmAction('approve_event.php?id=${publishId}&action=reject', 'reject')`);
+            rejectBtn.classList.remove('hidden');
+            rejectBtn.classList.add('flex');
+        }
+        // // Show Delete
+        // if (deleteBtn) {
+        //     deleteBtn.setAttribute('onclick', `confirmDelete(${publishId})`);
+        //     deleteBtn.classList.remove('hidden');
+        //     deleteBtn.classList.add('flex');
+        // }
+    } else if (status === 'pending' && publishId && !isPlaceholder) {
+        // Show Edit for pending events (approval workflow) - but NOT for placeholder events
+        if (editBtn) {
+            editBtn.href = 'edit_event.php?id=' + publishId;
+            editBtn.classList.remove('hidden');
+            editBtn.classList.add('flex');
+        }
+        // Show Approve - but NOT for placeholder events
         if (approveBtn) {
             approveBtn.setAttribute('onclick', `confirmAction('approve_event.php?id=${publishId}&action=approve', 'approve', '${safeHolidayString}')`);
             approveBtn.classList.remove('hidden');
