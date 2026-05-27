@@ -558,156 +558,184 @@ $current_user_id = $_SESSION['user_id'];
                 </div>
 
                 <!-- Activity Logs -->
-               <div id="activity-logs" class="bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm overflow-hidden flex flex-col col-span-1 lg:col-span-2 mt-4 transition-all">
-                    
-                    <div class="sticky top-0 z-30 bg-slate-50/90 dark:bg-[#051c10]/95 backdrop-blur-md p-4 border-b border-slate-100 dark:border-emerald-900/40 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                        <div class="flex items-center gap-2">
-                            <div class="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-900/30">
-                                <i class="fa-solid fa-clock-rotate-left text-sm"></i>
+                <div id="activity-logs" class="bg-white dark:bg-[#07160f] border border-slate-100 dark:border-[#123f29] rounded-[1.5rem] shadow-sm overflow-hidden flex flex-col col-span-1 lg:col-span-2 mt-4 transition-all">
+
+                    <!-- Header: title + filter bar -->
+                    <div class="bg-slate-50/50 dark:bg-slate-900/50 p-5 border-b border-[#d1f0e0] dark:border-[#123f29] rounded-t-[1.5rem]">
+
+                        <!-- Top row: title + export/archive actions -->
+                        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                            <h2 class="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-clock-rotate-left text-emerald-500"></i> Recent Activity Logs
+                            </h2>
+
+                            <!-- Archive + Export Controls -->
+                            <div x-data="{ showArchiveModal:false, archiveDays:90, previewCount:null, previewing:false, previewArchive(){ this.previewing=true; fetch('archive_logs.php?preview=1&days='+this.archiveDays).then(r=>{ if(!r.ok) throw r; return r.json(); }).then(j=>{ this.previewCount = j.count; this.previewing=false; this.showArchiveModal = true; }).catch(async e=>{ this.previewing=false; let text='Preview failed'; try{ const err = await e.json(); text = err.error || text; }catch(err){} alert(text); }); }, doArchive(){ window.location.href='archive_logs.php?days='+this.archiveDays; } }" class="flex flex-wrap items-center gap-2">
+                                <form @submit.prevent="previewArchive()" class="flex items-center gap-2 bg-white dark:bg-[#0a1a12] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-xs">
+                                    <i class="fa-solid fa-box-archive text-amber-500 text-sm"></i>
+                                    <span class="text-slate-500 dark:text-slate-400 font-semibold">Archive older than</span>
+                                    <input type="number" name="days" x-model="archiveDays" min="1" class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-lg font-black w-14 text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:border-amber-500 transition-colors">
+                                    <span class="text-slate-400 dark:text-slate-500 font-medium">days</span>
+                                    <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm text-xs">Run</button>
+                                </form>
+                                <a href="export_archived_logs.php" class="flex items-center gap-1.5 bg-white dark:bg-[#0a1a12] hover:bg-slate-50 dark:hover:bg-slate-800 text-emerald-700 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 font-bold py-2 px-3.5 rounded-xl transition-all shadow-sm text-xs">
+                                    <i class="fa-solid fa-file-export"></i> Export
+                                </a>
+
+                                <!-- Archive Confirm Modal -->
+                                <div x-show="showArchiveModal" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" x-transition>
+                                    <div @click.away="showArchiveModal=false" class="bg-white dark:bg-[#0b1120] rounded-[1.5rem] p-8 w-full max-w-sm border border-slate-100 dark:border-slate-800 shadow-2xl text-center">
+                                        <div class="w-16 h-16 bg-amber-50 dark:bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-5 border border-amber-100 dark:border-amber-500/20">
+                                            <i class="fa-solid fa-box-archive text-2xl"></i>
+                                        </div>
+                                        <h3 class="text-lg font-black text-slate-800 dark:text-white mb-2">Confirm Archive</h3>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">This will move <strong class="text-amber-600"><span x-text="previewCount"></span></strong> log entries older than <strong><span x-text="archiveDays"></span> days</strong> into historical archives. This action cannot be reversed.</p>
+                                        <div class="flex gap-3 text-sm font-bold">
+                                            <button @click="showArchiveModal=false" class="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition">Cancel</button>
+                                            <button @click="doArchive()" class="flex-1 py-3 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition shadow-lg shadow-amber-500/20">Confirm Archive</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <h2 class="text-base font-black text-slate-800 dark:text-white tracking-tight">Recent Activity Logs</h2>
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-3 text-xs">
-                            <form method="GET" action="admin_manage.php#activity-logs" class="flex flex-wrap items-center gap-2 bg-white/50 dark:bg-slate-900/30 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
-                                <select name="filter_user" class="bg-transparent text-slate-700 dark:text-slate-300 px-2 py-1.5 rounded-lg font-medium focus:outline-none max-w-[140px]">
+                        <!-- Filter bar -->
+                        <form method="GET" action="admin_manage.php#activity-logs" class="flex flex-wrap items-center gap-2 text-xs">
+                            <div class="flex flex-wrap items-center gap-2 bg-white dark:bg-[#0a1a12] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex-1 min-w-0">
+                                <i class="fa-solid fa-filter text-slate-400 text-[11px]"></i>
+
+                                <select name="filter_user" class="bg-transparent text-slate-700 dark:text-slate-300 px-1 py-1 rounded-lg font-semibold focus:outline-none max-w-[150px] cursor-pointer">
                                     <option value="">All users</option>
                                     <?php foreach ($users as $u): ?>
                                         <option value="<?php echo $u['user_id']; ?>" <?php echo ($filter_user && $filter_user == $u['user_id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($u['full_name'] . ' @' . $u['username']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                                <span class="h-4 w-px bg-slate-200 dark:bg-slate-800"></span>
-                                <select name="filter_action" class="bg-transparent text-slate-700 dark:text-slate-300 px-2 py-1.5 rounded-lg font-medium focus:outline-none max-w-[130px]">
+
+                                <span class="h-4 w-px bg-slate-200 dark:bg-slate-700 shrink-0"></span>
+
+                                <select name="filter_action" class="bg-transparent text-slate-700 dark:text-slate-300 px-1 py-1 rounded-lg font-semibold focus:outline-none max-w-[140px] cursor-pointer">
                                     <option value="">All actions</option>
                                     <?php foreach ($actionsList as $action): ?>
                                         <option value="<?php echo htmlspecialchars($action); ?>" <?php echo ($filter_action && $filter_action == $action) ? 'selected' : ''; ?>><?php echo htmlspecialchars($action); ?></option>
                                     <?php endforeach; ?>
                                 </select>
+
                                 <?php if ($hasLevel): ?>
-                                    <span class="h-4 w-px bg-slate-200 dark:bg-slate-800"></span>
-                                    <select name="filter_level" class="bg-transparent text-slate-700 dark:text-slate-300 px-2 py-1.5 rounded-lg font-medium focus:outline-none">
+                                    <span class="h-4 w-px bg-slate-200 dark:bg-slate-700 shrink-0"></span>
+                                    <select name="filter_level" class="bg-transparent text-slate-700 dark:text-slate-300 px-1 py-1 rounded-lg font-semibold focus:outline-none cursor-pointer">
                                         <option value="">All levels</option>
                                         <?php foreach ($levelsList as $lvl): ?>
                                             <option value="<?php echo $lvl; ?>" <?php echo ($filter_level && $filter_level == $lvl) ? 'selected' : ''; ?>><?php echo strtoupper($lvl); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                 <?php endif; ?>
-                                <span class="h-4 w-px bg-slate-200 dark:bg-slate-800"></span>
-                                <input type="date" name="filter_from" value="<?php echo htmlspecialchars($filter_from ?? ''); ?>" class="bg-transparent text-slate-600 dark:text-slate-400 px-1 py-1 focus:outline-none max-w-[115px]">
-                                <span class="text-slate-300 dark:text-slate-700 font-light">to</span>
-                                <input type="date" name="filter_to" value="<?php echo htmlspecialchars($filter_to ?? ''); ?>" class="bg-transparent text-slate-600 dark:text-slate-400 px-1 py-1 focus:outline-none max-w-[115px]">
-                                
-                                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg transition-colors ml-1 shadow-sm shadow-blue-600/10">Apply</button>
-                                <a href="admin_manage.php#activity-logs" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold px-2 py-1.5 transition-colors">Clear</a>
-                            </form>
 
-                            <div x-data="{ showArchiveModal:false, archiveDays:90, previewCount:null, previewing:false, previewArchive(){ this.previewing=true; fetch('archive_logs.php?preview=1&days='+this.archiveDays).then(r=>{ if(!r.ok) throw r; return r.json(); }).then(j=>{ this.previewCount = j.count; this.previewing=false; this.showArchiveModal = true; }).catch(async e=>{ this.previewing=false; let text='Preview failed'; try{ const err = await e.json(); text = err.error || text; }catch(err){} alert(text); }); }, doArchive(){ window.location.href='archive_logs.php?days='+this.archiveDays; } }" class="flex items-center gap-2">
-                                <form @submit.prevent="previewArchive()" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
-                                    <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium pl-2">Older than</span>
-                                    <input type="number" name="days" x-model="archiveDays" min="1" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-1 rounded-md font-bold w-12 text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:border-amber-500">
-                                    <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium pr-1">days</span>
-                                    <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-2.5 py-1.5 rounded-lg transition-colors shadow-sm shadow-amber-500/10">Archive</button>
-                                </form>
-                                <a href="export_archived_logs.php" class="bg-white dark:bg-[#0a1a12] hover:bg-slate-50 dark:hover:bg-slate-800 text-emerald-700 dark:text-emerald-400 border border-slate-200 dark:border-slate-800 font-bold py-2 px-3 rounded-xl transition-all shadow-sm flex items-center gap-1.5">
-                                    <i class="fa-solid fa-file-export opacity-80"></i> Export
-                                </a>
+                                <span class="h-4 w-px bg-slate-200 dark:bg-slate-700 shrink-0"></span>
 
-                                <div x-show="showArchiveModal" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" x-transition>
-                                    <div @click.away="showArchiveModal=false" class="bg-white dark:bg-[#0b1120] rounded-2xl p-6 w-full max-w-sm border border-slate-100 dark:border-slate-800 shadow-xl text-center">
-                                        <div class="w-12 h-12 bg-amber-50 dark:bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-100 dark:border-amber-500/20">
-                                            <i class="fa-solid fa-box-archive text-lg"></i>
-                                        </div>
-                                        <h3 class="text-base font-bold text-slate-800 dark:text-white mb-1">Confirm Archive</h3>
-                                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">This will move <strong><span x-text="previewCount" class="text-amber-600"></span></strong> log entries older than <strong><span x-text="archiveDays"></span></strong> days into historical archives. This action is definitive.</p>
-                                        <div class="flex gap-2.5 text-xs font-bold">
-                                            <button @click="showArchiveModal=false" class="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition">Cancel</button>
-                                            <button @click="doArchive()" class="flex-1 py-2.5 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition shadow-md shadow-amber-500/10">Confirm Archive</button>
-                                        </div>
-                                    </div>
+                                <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                                    <i class="fa-regular fa-calendar text-slate-400 text-[11px]"></i>
+                                    <input type="date" name="filter_from" value="<?php echo htmlspecialchars($filter_from ?? ''); ?>" class="bg-transparent text-slate-600 dark:text-slate-400 font-semibold px-1 py-1 focus:outline-none max-w-[120px]">
+                                    <span class="text-slate-300 dark:text-slate-700 font-light">→</span>
+                                    <input type="date" name="filter_to" value="<?php echo htmlspecialchars($filter_to ?? ''); ?>" class="bg-transparent text-slate-600 dark:text-slate-400 font-semibold px-1 py-1 focus:outline-none max-w-[120px]">
                                 </div>
                             </div>
-                        </div>
+
+                            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl transition-colors shadow-md shadow-emerald-600/15 flex items-center gap-1.5 shrink-0">
+                                <i class="fa-solid fa-magnifying-glass text-[11px]"></i> Apply
+                            </button>
+                            <a href="admin_manage.php#activity-logs" class="bg-white dark:bg-[#0a1a12] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold px-3.5 py-2.5 rounded-xl transition-all shadow-sm shrink-0">Clear</a>
+                        </form>
                     </div>
 
-                    <div class="p-4 overflow-y-auto custom-scrollbar max-h-[52vh] lg:max-h-[560px] bg-slate-50/20 dark:bg-transparent">
-                        <?php if (!empty($selected_group_logs)): ?>
-                            <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-slate-800/60">
-                                <div class="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                    Logs for <?php echo ($selected_logs_for === '0' ? 'System Space' : 'Publish Container #' . htmlspecialchars($selected_logs_for)); ?>
-                                </div>
-                                <a href="admin_manage.php?<?php echo http_build_query($filterQueryParams); ?>#activity-logs" class="text-xs text-blue-600 hover:underline font-bold flex items-center gap-1"><i class="fa-solid fa-arrow-left text-[10px]"></i> Back to summary</a>
+                    <!-- Drilldown: selected group logs -->
+                    <?php if (!empty($selected_group_logs)): ?>
+                    <div class="p-5 overflow-y-auto custom-scrollbar max-h-[52vh] lg:max-h-[560px]">
+                        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-[#123f29]">
+                            <div class="flex items-center gap-2 text-sm font-black text-slate-700 dark:text-slate-300">
+                                <span class="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                                <span>Logs for <?php echo ($selected_logs_for === '0' ? 'System Space' : 'Publish Container <span class="font-mono text-blue-600 dark:text-blue-400">#' . htmlspecialchars($selected_logs_for) . '</span>'); ?></span>
                             </div>
-                            <ul class="space-y-2">
-                                <?php foreach ($selected_group_logs as $log): ?>
-                                    <?php 
-                                        $isError = isset($log['level']) && $log['level'] === 'error';
-                                        $isWarn = isset($log['level']) && $log['level'] === 'warn';
-                                        $borderAccent = $isError ? 'border-l-red-500' : ($isWarn ? 'border-l-amber-500' : 'border-l-emerald-500');
-                                    ?>
-                                    <li class="p-3 rounded-xl bg-white dark:bg-[#0a1a12] border border-slate-100 dark:border-[#123f29] border-l-4 <?php echo $borderAccent; ?> shadow-2xs hover:shadow-xs transition-shadow">
-                                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                                            <div class="md:col-span-3 min-w-0">
-                                                <div class="flex items-center gap-1.5 flex-wrap">
-                                                    <span class="text-xs font-extrabold text-slate-800 dark:text-white truncate"><?php echo htmlspecialchars($log['action']); ?></span>
-                                                    <?php if (!empty($log['event_publish_id'])): ?>
-                                                        <span class="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">#<?php echo htmlspecialchars($log['event_publish_id']); ?></span>
-                                                    <?php endif; ?>
-                                                </div>
-                                            </div>
-                                            <div class="md:col-span-6 text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                                                <?php 
-                                                    $detailsData = json_decode($log['details'], true);
-                                                    if (json_last_error() === JSON_ERROR_NONE && is_array($detailsData)) {
-                                                        $detailsPills = [];
-                                                        foreach ($detailsData as $key => $val) {
-                                                            if (is_bool($val)) $val = $val ? 'true' : 'false';
-                                                            if (is_array($val)) $val = json_encode($val);
-                                                            $detailsPills[] = "<span class='inline-block bg-slate-50 dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800 text-[11px]'><strong class='text-slate-400 dark:text-slate-500 font-semibold'>" . htmlspecialchars($key) . ":</strong> " . htmlspecialchars($val) . "</span>";
-                                                        }
-                                                        echo '<div class="flex flex-wrap gap-1">' . implode('', $detailsPills) . '</div>';
-                                                    } else {
-                                                        echo htmlspecialchars($log['details']);
-                                                    }
-                                                ?>
-                                            </div>
-                                            <div class="md:col-span-3 text-right flex md:flex-col items-center md:items-end justify-between md:justify-center gap-1">
-                                                <div class="text-xs font-bold text-slate-700 dark:text-slate-300"><i class="fa-regular fa-user text-[11px] text-slate-400 mr-1"></i><?php echo htmlspecialchars($log['full_name'] ?? $log['username'] ?? 'System'); ?></div>
-                                                <div class="text-[10px] text-slate-400 font-medium"><?php echo date('M d, Y H:i', strtotime($log['created_at'])); ?></div>
+                            <a href="admin_manage.php?<?php echo http_build_query($filterQueryParams); ?>#activity-logs"
+                               class="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-emerald-700 dark:hover:text-emerald-400 bg-white dark:bg-[#0a1a12] border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl hover:border-emerald-200 dark:hover:border-emerald-900 transition-all shadow-sm">
+                                <i class="fa-solid fa-arrow-left text-[10px]"></i> Back to summary
+                            </a>
+                        </div>
+
+                        <ul class="space-y-2">
+                            <?php foreach ($selected_group_logs as $log): ?>
+                                <?php
+                                    $isError = isset($log['level']) && $log['level'] === 'error';
+                                    $isWarn  = isset($log['level']) && $log['level'] === 'warn';
+                                    $borderAccent = $isError ? 'border-l-red-500' : ($isWarn ? 'border-l-amber-500' : 'border-l-emerald-500');
+                                    $levelBadge = '';
+                                    if ($isError) $levelBadge = '<span class="text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wide bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400">error</span>';
+                                    elseif ($isWarn) $levelBadge = '<span class="text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wide bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400">warn</span>';
+                                ?>
+                                <li class="p-4 rounded-2xl bg-[#f8fafc] dark:bg-[#0a1a12] border border-slate-100 dark:border-[#123f29] border-l-4 <?php echo $borderAccent; ?> hover:border-blue-200 dark:hover:border-blue-900/50 transition-colors">
+                                    <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                                        <div class="md:col-span-3 min-w-0">
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <span class="text-[13px] font-extrabold text-slate-800 dark:text-white"><?php echo htmlspecialchars($log['action']); ?></span>
+                                                <?php if (!empty($log['event_publish_id'])): ?>
+                                                    <span class="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">#<?php echo htmlspecialchars($log['event_publish_id']); ?></span>
+                                                <?php endif; ?>
+                                                <?php echo $levelBadge; ?>
                                             </div>
                                         </div>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-
-                            <?php if (!empty($total_pages) && $total_pages > 1): ?>
-                                <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-slate-500">
-                                    <div>Page <?php echo $log_page; ?> of <?php echo $total_pages; ?> <span class="font-normal opacity-60">(<?php echo intval($total_count); ?> items)</span></div>
-                                    <div class="flex items-center gap-1.5">
-                                        <?php
-                                            $baseParams = $filterQueryParams;
-                                            $baseParams['logs_for'] = $selected_logs_for;
-                                        ?>
-                                        <?php if ($log_page > 1): ?>
-                                            <?php $baseParams['log_page'] = $log_page - 1; $prevQuery = http_build_query($baseParams); ?>
-                                            <a href="?<?php echo $prevQuery; ?>#activity-logs" class="px-2.5 py-1.5 rounded-lg border bg-white dark:bg-[#0a1a12] border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">Prev</a>
-                                        <?php endif; ?>
-                                        <?php if ($log_page < $total_pages): ?>
-                                            <?php $baseParams['log_page'] = $log_page + 1; $nextQuery = http_build_query($baseParams); ?>
-                                            <a href="?<?php echo $nextQuery; ?>#activity-logs" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white shadow-sm shadow-blue-600/10 hover:bg-blue-700">Next</a>
-                                        <?php endif; ?>
-                                        <?php if ($total_count > $per_page): ?>
-                                            <?php $baseParams['show_all'] = 1; $showAllQuery = http_build_query($baseParams); ?>
-                                            <a href="?<?php echo $showAllQuery; ?>#activity-logs" class="px-2.5 py-1.5 rounded-lg border bg-white dark:bg-[#0a1a12] border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Show all</a>
-                                        <?php endif; ?>
+                                        <div class="md:col-span-6 text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                                            <?php
+                                                $detailsData = json_decode($log['details'], true);
+                                                if (json_last_error() === JSON_ERROR_NONE && is_array($detailsData)) {
+                                                    $detailsPills = [];
+                                                    foreach ($detailsData as $key => $val) {
+                                                        if (is_bool($val)) $val = $val ? 'true' : 'false';
+                                                        if (is_array($val)) $val = json_encode($val);
+                                                        $detailsPills[] = "<span class='inline-block bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200/60 dark:border-slate-800 text-[11px]'><strong class='text-slate-400 dark:text-slate-500 font-semibold'>" . htmlspecialchars($key) . ":</strong> " . htmlspecialchars($val) . "</span>";
+                                                    }
+                                                    echo '<div class="flex flex-wrap gap-1">' . implode('', $detailsPills) . '</div>';
+                                                } else {
+                                                    echo htmlspecialchars($log['details']);
+                                                }
+                                            ?>
+                                        </div>
+                                        <div class="md:col-span-3 flex md:flex-col items-center md:items-end justify-between md:justify-center gap-1 text-right">
+                                            <div class="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                <i class="fa-regular fa-user text-[11px] text-slate-400 mr-1"></i><?php echo htmlspecialchars($log['full_name'] ?? $log['username'] ?? 'System'); ?>
+                                            </div>
+                                            <div class="text-[10px] text-slate-400 font-medium"><?php echo date('M d, Y H:i', strtotime($log['created_at'])); ?></div>
+                                        </div>
                                     </div>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+
+                        <?php if (!empty($total_pages) && $total_pages > 1): ?>
+                            <div class="mt-5 pt-4 border-t border-slate-100 dark:border-[#123f29] flex items-center justify-between text-xs font-bold text-slate-500">
+                                <div class="text-slate-400">Page <?php echo $log_page; ?> of <?php echo $total_pages; ?> <span class="font-normal opacity-60">(<?php echo intval($total_count); ?> items)</span></div>
+                                <div class="flex items-center gap-1.5">
+                                    <?php
+                                        $baseParams = $filterQueryParams;
+                                        $baseParams['logs_for'] = $selected_logs_for;
+                                    ?>
+                                    <?php if ($log_page > 1): ?>
+                                        <?php $baseParams['log_page'] = $log_page - 1; $prevQuery = http_build_query($baseParams); ?>
+                                        <a href="?<?php echo $prevQuery; ?>#activity-logs" class="px-3 py-1.5 rounded-xl border bg-white dark:bg-[#0a1a12] border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"><i class="fa-solid fa-chevron-left mr-1 text-[10px]"></i>Prev</a>
+                                    <?php endif; ?>
+                                    <?php if ($log_page < $total_pages): ?>
+                                        <?php $baseParams['log_page'] = $log_page + 1; $nextQuery = http_build_query($baseParams); ?>
+                                        <a href="?<?php echo $nextQuery; ?>#activity-logs" class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-600/15 hover:bg-emerald-700 transition-colors">Next<i class="fa-solid fa-chevron-right ml-1 text-[10px]"></i></a>
+                                    <?php endif; ?>
+                                    <?php if ($total_count > $per_page): ?>
+                                        <?php $baseParams['show_all'] = 1; $showAllQuery = http_build_query($baseParams); ?>
+                                        <a href="?<?php echo $showAllQuery; ?>#activity-logs" class="px-3 py-1.5 rounded-xl border bg-white dark:bg-[#0a1a12] border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">Show all</a>
+                                    <?php endif; ?>
                                 </div>
-                            <?php endif; ?>
-                        <?php else: ?>
+                            </div>
                         <?php endif; ?>
                     </div>
+                    <?php endif; ?>
 
-                    <!-- Alpine.js summary pagination (mirrors Manage Events Database) -->
+                    <!-- Alpine.js summary list -->
                     <div x-data="{
                             search: '',
                             page: 1,
@@ -748,7 +776,7 @@ $current_user_id = $_SESSION['user_id'];
                             }
                          }" class="flex flex-col flex-1 overflow-hidden">
 
-                        <!-- Search bar same as Events -->
+                        <!-- Search bar -->
                         <div class="p-4 border-b border-slate-100 dark:border-[#123f29] bg-slate-50/30 dark:bg-transparent flex gap-3 items-center">
                             <div class="relative flex-1">
                                 <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
@@ -758,10 +786,10 @@ $current_user_id = $_SESSION['user_id'];
                             </div>
                         </div>
 
-                        <!-- Log rows -->
+                        <!-- Log summary rows -->
                         <div class="p-5 space-y-3 overflow-y-auto flex-1 custom-scrollbar min-h-[300px] max-h-[560px]">
                             <template x-for="g in paginated" :key="g.action + '_' + g.publish_id">
-                                <div class="flex justify-between items-center p-4 bg-[#f8fafc] dark:bg-[#0a1a12] rounded-2xl border-l-4 border border-slate-100 dark:border-[#123f29] hover:border-blue-200 dark:hover:border-blue-900/50 transition-colors group"
+                                <div class="flex justify-between items-center p-4 bg-[#f8fafc] dark:bg-[#0a1a12] rounded-2xl border-l-4 border border-slate-100 dark:border-[#123f29] hover:border-emerald-200 dark:hover:border-emerald-900/50 transition-colors group"
                                      :class="borderClass(g.level)">
                                     <div class="min-w-0 flex-1 pr-3">
                                         <div class="flex items-center gap-1.5 flex-wrap">
@@ -785,12 +813,12 @@ $current_user_id = $_SESSION['user_id'];
                                                 <i class="fa-regular fa-clock text-slate-400 mr-1"></i>
                                                 <span x-text="formatDate(g.created_at)"></span>
                                             </span>
-                                            <span class="text-[11px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold" x-text="g.cnt + ' entries'"></span>
+                                            <span class="text-[10px] font-extrabold uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full" x-text="g.cnt + ' entries'"></span>
                                         </div>
                                     </div>
                                     <div class="flex items-center opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0">
                                         <a :href="viewUrl(g)"
-                                           class="w-10 h-10 rounded-xl flex items-center justify-center text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all border border-transparent hover:border-blue-100 dark:hover:border-blue-900"
+                                           class="w-10 h-10 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-all border border-transparent hover:border-emerald-100 dark:hover:border-emerald-900"
                                            title="View entries">
                                             <i class="fa-solid fa-angle-right text-sm"></i>
                                         </a>
@@ -804,16 +832,16 @@ $current_user_id = $_SESSION['user_id'];
                             </div>
                         </div>
 
-                        <!-- Pagination bar identical to Events -->
+                        <!-- Pagination bar -->
                         <div class="p-4 border-t border-slate-100 dark:border-[#123f29] bg-slate-50/50 dark:bg-[#0a1a12] rounded-b-[1.5rem] flex justify-between items-center text-sm font-bold text-slate-600 dark:text-slate-400">
                             <button @click="if(page > 1) page--" :class="{'opacity-50 cursor-not-allowed': page === 1}"
-                                    class="px-4 py-2 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition shadow-sm">
+                                    class="px-4 py-2 hover:text-emerald-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition shadow-sm">
                                 <i class="fa-solid fa-chevron-left mr-1.5"></i> Prev
                             </button>
                             <span x-text="'Page ' + page + ' of ' + maxPage"
                                   class="bg-white dark:bg-slate-800 px-3 py-1 rounded border border-slate-200 dark:border-slate-700"></span>
                             <button @click="if(page < maxPage) page++" :class="{'opacity-50 cursor-not-allowed': page === maxPage}"
-                                    class="px-4 py-2 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition shadow-sm">
+                                    class="px-4 py-2 hover:text-emerald-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition shadow-sm">
                                 Next <i class="fa-solid fa-chevron-right ml-1.5"></i>
                             </button>
                         </div>
