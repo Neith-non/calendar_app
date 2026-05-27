@@ -303,18 +303,22 @@ function getCategoryColor($categoryName)
             <?php endif; ?>
         </div>
 
-        <div class="bento-card p-2 pl-4 mb-8 flex flex-col sm:flex-row items-center gap-2 relative z-10">
+        <div class="bento-card p-2 pl-4 mb-8 flex flex-col sm:flex-row items-center gap-2 relative z-10" id="search-bar-wrapper">
             <div class="relative w-full flex-1 group">
-                <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-                    <i class="fa-solid fa-search text-slate-400 group-focus-within:text-sjsfi-green dark:group-focus-within:text-emerald-500 transition-colors"></i>
+                <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none pl-1">
+                    <i class="fa-solid fa-search text-slate-400 group-focus-within:text-sjsfi-green dark:group-focus-within:text-emerald-500 transition-colors" id="search-icon"></i>
                 </div>
-                <input type="text" id="search-bar" placeholder="Search by title, category, or date (Auto-loads events)..."
-                    class="w-full pl-8 pr-4 py-3 text-sm font-medium border-none shadow-none bg-transparent focus:outline-none focus:ring-0 text-slate-800 dark:text-slate-200 dark:placeholder-slate-500">
+                <input type="text" id="search-bar"
+                    placeholder="Load events first to search..."
+                    disabled
+                    title="Click "Load Events" below to fetch data first"
+                    class="w-full pl-8 pr-4 py-3 text-sm font-medium border-none shadow-none bg-transparent focus:outline-none focus:ring-0 text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 disabled:cursor-not-allowed disabled:opacity-50 transition-opacity duration-300">
             </div>
 
             <div class="relative w-full sm:w-auto border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-700 pt-2 sm:pt-0 sm:pl-2">
-                <button onclick="document.getElementById('categoryModal').classList.remove('hidden'); document.getElementById('categoryModal').classList.add('flex')"
-                    class="w-full sm:w-56 flex items-center justify-between gap-2 font-bold text-sm py-2.5 px-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                <button id="category-filter-btn" disabled
+                    onclick="document.getElementById('categoryModal').classList.remove('hidden'); document.getElementById('categoryModal').classList.add('flex')"
+                    class="w-full sm:w-56 flex items-center justify-between gap-2 font-bold text-sm py-2.5 px-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:disabled:hover:bg-transparent">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-filter text-slate-400 dark:text-slate-500"></i>
                         <span id="filter-button-text" class="text-slate-700 dark:text-slate-300">Filter Categories</span>
@@ -328,10 +332,10 @@ function getCategoryColor($categoryName)
             
             <div id="events-unloaded-state" class="bg-white dark:bg-[#111827] rounded-3xl p-16 flex flex-col items-center justify-center text-center border border-slate-200 dark:border-slate-800 shadow-sm mt-4 transition-all duration-300">
                 <div class="w-24 h-24 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-6 border border-slate-100 dark:border-slate-700 shadow-inner">
-                    <i class="fa-solid fa-server text-5xl text-slate-300 dark:text-slate-600"></i>
+                    <i class="fa-solid fa-calendar-days text-5xl text-slate-300 dark:text-slate-600"></i>
                 </div>
-                <h3 class="text-2xl font-extrabold text-slate-800 dark:text-slate-200 mb-3 tracking-tight">Events Database on Standby</h3>
-                <p class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-8 max-w-md">To conserve bandwidth and prevent slow load times, event cards are not loaded automatically. Click below or use the search bar to fetch the database.</p>
+                <h3 class="text-2xl font-extrabold text-slate-800 dark:text-slate-200 mb-3 tracking-tight">Events Not Yet Loaded</h3>
+                <p class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-8 max-w-md">Event cards are loaded on demand to keep the page fast. Click the button below to fetch all events from the database.</p>
                 
                 <button onclick="loadEvents()" class="bg-sjsfi-green dark:bg-emerald-600 hover:bg-sjsfi-greenHover dark:hover:bg-emerald-500 text-white font-extrabold py-3.5 px-8 rounded-xl transition shadow-lg flex items-center justify-center gap-3 transform hover:scale-105">
                     <i class="fa-solid fa-cloud-arrow-down"></i> Load Events
@@ -716,33 +720,48 @@ function getCategoryColor($categoryName)
     }
 
     // --- STATE MANAGEMENT & FILTER LOGIC ---
-    const dashSearchBar = document.getElementById('search-bar');
-    const dashEventCards = document.querySelectorAll('.event-card');
-    const dashEmptyMessage = document.getElementById('empty-state-message');
-    const viewToggles = document.querySelectorAll('.view-toggle');
+    const dashSearchBar      = document.getElementById('search-bar');
+    const categoryFilterBtn  = document.getElementById('category-filter-btn');
+    const dashEventCards     = document.querySelectorAll('.event-card');
+    const dashEmptyMessage   = document.getElementById('empty-state-message');
+    const viewToggles        = document.querySelectorAll('.view-toggle');
     const categoryCheckboxes = document.querySelectorAll('.category-filter');
-    
-    const unloadedState = document.getElementById('events-unloaded-state');
-    const errorState = document.getElementById('events-error-state');
-    const loadedState = document.getElementById('events-loaded-state');
 
-    let currentTab = 'all';
+    const unloadedState = document.getElementById('events-unloaded-state');
+    const errorState    = document.getElementById('events-error-state');
+    const loadedState   = document.getElementById('events-loaded-state');
+
+    let currentTab   = 'all';
     let isDataLoaded = false;
 
-    // Trigger state to show actual data grid
+    // ── loadEvents: only called by the "Load Events" button ──────────────────
     function loadEvents() {
         isDataLoaded = true;
+
+        // Hide standby / error states
         unloadedState.classList.add('hidden');
-        errorState.classList.add('hidden');
-        
+        errorState.style.display = 'none';
+
+        // Reveal the grid with a smooth animation
         loadedState.classList.remove('hidden');
         setTimeout(() => {
             loadedState.classList.remove('opacity-0', 'translate-y-4');
         }, 10);
-        
-        applyCustomFilters(); 
+
+        // Now enable search and filter controls
+        if (dashSearchBar) {
+            dashSearchBar.disabled    = false;
+            dashSearchBar.placeholder = 'Search by title, category, date or time...';
+            dashSearchBar.focus();
+        }
+        if (categoryFilterBtn) {
+            categoryFilterBtn.disabled = false;
+        }
+
+        applyCustomFilters();
     }
 
+    // ── Tab toggle ────────────────────────────────────────────────────────────
     viewToggles.forEach(toggle => {
         toggle.addEventListener('click', (e) => {
             viewToggles.forEach(t => {
@@ -751,53 +770,59 @@ function getCategoryColor($categoryName)
             });
             e.currentTarget.classList.remove('text-slate-500', 'dark:text-slate-400', 'hover:bg-slate-200', 'dark:hover:bg-slate-800');
             e.currentTarget.classList.add('bg-sjsfi-green', 'dark:bg-emerald-600', 'text-white', 'shadow-md');
-            
+
             currentTab = e.currentTarget.getAttribute('data-view');
-            
             if (isDataLoaded) applyCustomFilters();
         });
     });
 
+    // ── Filter logic ──────────────────────────────────────────────────────────
     function applyCustomFilters() {
-        // 1. Grab the raw search input
         const rawSearch = dashSearchBar ? dashSearchBar.value.toLowerCase() : '';
-        
-        // 2. Clean the search term: remove commas, normalize spaces, and change "01" to "1"
-        const searchTerm = rawSearch.replace(/,/g, '')
-                                    .replace(/\s+/g, ' ')
-                                    .replace(/\b0([1-9])\b/g, '$1')
-                                    .trim();
+
+        // Normalise search term: strip commas, collapse spaces, remove leading zeros
+        const searchTerm = rawSearch
+            .replace(/,/g, '')
+            .replace(/\s+/g, ' ')
+            .replace(/\b0([1-9])\b/g, '$1')
+            .trim();
 
         const activeCategories = Array.from(categoryCheckboxes)
-                                      .filter(cb => cb.checked)
-                                      .map(cb => cb.value);
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+
         let visibleCount = 0;
 
         dashEventCards.forEach(card => {
-            const title = (card.getAttribute('data-title') || '').toLowerCase();
-            const category = card.getAttribute('data-category') || '';
-            const status = card.getAttribute('data-status') || '';
-            const desc = (card.getAttribute('data-desc') || '').toLowerCase();
-            
-            // 3. Clean the card's date exactly the same way so they match perfectly!
-            const date = (card.getAttribute('data-date') || '').toLowerCase()
-                                                               .replace(/,/g, '')
-                                                               .replace(/\s+/g, ' '); 
-                                                               
-            const time = (card.getAttribute('data-time') || '').toLowerCase();
+            const title    = (card.getAttribute('data-title')    || '').toLowerCase();
+            const category =  card.getAttribute('data-category') || '';
+            const status   =  card.getAttribute('data-status')   || '';
+            const desc     = (card.getAttribute('data-desc')     || '').toLowerCase();
+            const time     = (card.getAttribute('data-time')     || '').toLowerCase();
 
-            // 4. Check for matches
-            const matchesSearch = searchTerm === '' || 
-                                  title.includes(searchTerm) || 
-                                  category.toLowerCase().includes(searchTerm) || 
-                                  desc.includes(searchTerm) || 
-                                  date.includes(searchTerm) || 
-                                  time.includes(searchTerm);
+            // Normalise card date to match search normalisation
+            const date = (card.getAttribute('data-date') || '')
+                .toLowerCase()
+                .replace(/,/g, '')
+                .replace(/\s+/g, ' ');
 
-            const matchesTab = (currentTab === 'all') || (status === currentTab);
+            const matchesSearch =
+                searchTerm === '' ||
+                title.includes(searchTerm) ||
+                category.toLowerCase().includes(searchTerm) ||
+                desc.includes(searchTerm) ||
+                date.includes(searchTerm) ||
+                time.includes(searchTerm);
+
+            // "all" tab shows every status (pending, scheduled, holiday)
+            // "scheduled" tab also shows holidays since both are approved events
+            const matchesTab =
+                currentTab === 'all' ||
+                status === currentTab ||
+                (currentTab === 'scheduled' && status === 'holiday');
+
             const matchesCategory = activeCategories.includes(category);
 
-            // 5. Show or hide the card
             if (matchesSearch && matchesTab && matchesCategory) {
                 card.style.display = '';
                 visibleCount++;
@@ -806,29 +831,21 @@ function getCategoryColor($categoryName)
             }
         });
 
-        // 6. Show the ghost icon if no results match
+        // Toggle empty-state ghost
         if (dashEmptyMessage) {
-            if (visibleCount === 0) {
-                dashEmptyMessage.classList.remove('hidden');
-                dashEmptyMessage.classList.add('flex');
-            } else {
-                dashEmptyMessage.classList.add('hidden');
-                dashEmptyMessage.classList.remove('flex');
-            }
+            dashEmptyMessage.classList.toggle('hidden', visibleCount > 0);
+            dashEmptyMessage.classList.toggle('flex',   visibleCount === 0);
         }
     }
 
+    // Search only works after load (input is disabled until then)
     if (dashSearchBar) {
         dashSearchBar.addEventListener('input', () => {
-            if (!isDataLoaded && dashSearchBar.value.trim() !== '') {
-                loadEvents();
-            }
-            if (isDataLoaded) {
-                applyCustomFilters();
-            }
+            if (isDataLoaded) applyCustomFilters();
         });
     }
-    
+
+    // Category filter checkboxes
     categoryCheckboxes.forEach(cb => {
         cb.addEventListener('change', () => {
             if (isDataLoaded) applyCustomFilters();
