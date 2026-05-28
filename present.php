@@ -418,9 +418,31 @@ function getCategoryColor($categoryName) {
                                 <?php if (count($rawEvents) > 0): ?>
                                     <?php foreach ($rawEvents as $event): ?>
                                         <?php 
-                                            $color = getCategoryColor($event['category_name']); 
-                                            $formattedDate = date('M j, Y', strtotime($event['start_date']));
-                                            $formattedTime = ($event['start_time'] == '00:00:00') ? 'All Day' : date('g:i A', strtotime($event['start_time']));
+                                            $color = getCategoryColor($event['category_name']);
+
+                                            // --- DATE RANGE ---
+                                            $startTs = strtotime($event['start_date']);
+                                            $hasEndDate = !empty($event['end_date']) && $event['end_date'] !== '0000-00-00' && $event['end_date'] !== $event['start_date'];
+                                            $endTs = $hasEndDate ? strtotime($event['end_date']) : $startTs;
+
+                                            if (!$hasEndDate) {
+                                                $formattedDate = date('M j, Y', $startTs);
+                                            } elseif (date('Y-m', $startTs) === date('Y-m', $endTs)) {
+                                                $formattedDate = date('M j', $startTs) . ' – ' . date('j, Y', $endTs);
+                                            } else {
+                                                $formattedDate = date('M j', $startTs) . ' – ' . date('M j, Y', $endTs);
+                                            }
+
+                                            // --- TIME RANGE ---
+                                            $isAllDayStart = ($event['start_time'] == '00:00:00' || $event['start_time'] == '23:59:59');
+                                            $isAllDayEnd   = (empty($event['end_time']) || $event['end_time'] == '00:00:00' || $event['end_time'] == '23:59:59');
+                                            if ($isAllDayStart) {
+                                                $formattedTime = 'All Day';
+                                            } elseif ($isAllDayEnd || $event['start_time'] === $event['end_time']) {
+                                                $formattedTime = date('g:i A', strtotime($event['start_time']));
+                                            } else {
+                                                $formattedTime = date('g:i A', strtotime($event['start_time'])) . ' – ' . date('g:i A', strtotime($event['end_time']));
+                                            }
                                         ?>
                                         <tr x-show="selectedCategories.includes('<?php echo addslashes(htmlspecialchars($event['category_name'] ?? '')); ?>')" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                                             <td class="py-6 px-6 align-top">

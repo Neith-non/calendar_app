@@ -56,10 +56,10 @@ if (file_exists($imagePath)) {
 }
 
 // --- STRICT HTML PERCENTAGES TO FORCE MAX WIDTH ---
-$dateWidth = 10; 
-$catWidth = $showCat ? 14 : 0;
-$venWidth = $showVen ? 14 : 0;
-$partWidth = $showPart ? 24 : 0; 
+$dateWidth = 14; 
+$catWidth = $showCat ? 13 : 0;
+$venWidth = $showVen ? 13 : 0;
+$partWidth = $showPart ? 22 : 0; 
 $titleWidth = 100 - ($dateWidth + $catWidth + $venWidth + $partWidth);
 
 // 3. Set up the CSS and HTML structure
@@ -88,8 +88,8 @@ $html = '
         th, td { border: 1px solid #000; padding: 6px; vertical-align: top; word-wrap: break-word; }
         th { background-color: #F5F5DC; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 11px; color: #000; }
         
-        .date-col { text-align: center; font-size: 16px; font-weight: bold; }
-        .day-name { font-size: 11px; font-weight: normal; display: block; margin-bottom: 2px; text-transform: uppercase; }
+        .date-col { text-align: center; font-size: 11px; font-weight: bold; }
+        .day-name { font-size: 10px; font-weight: normal; display: block; margin-bottom: 2px; text-transform: uppercase; }
         
         .ev-title { font-weight: bold; font-size: 13px; margin-bottom: 2px; }
         .time-text { font-size: 11px; font-weight: bold; color: #444; margin-bottom: 5px; }
@@ -164,11 +164,27 @@ foreach ($selectedMonths as $month) {
                     <tbody>';
 
         foreach ($events as $event) {
-            $dayNum = date('j', strtotime($event['start_date']));
-            $dayName = date('D', strtotime($event['start_date'])); 
-            
+            // --- DATE RANGE ---
+            $startTs  = strtotime($event['start_date']);
+            $hasEnd   = !empty($event['end_date']) && $event['end_date'] !== '0000-00-00' && $event['end_date'] !== $event['start_date'];
+            $endTs    = $hasEnd ? strtotime($event['end_date']) : $startTs;
+
+            $dayName  = date('D', $startTs);   // e.g. "Thu"
+
+            if (!$hasEnd) {
+                // Single day: "May 1, 2026"
+                $dateFormatted = date('M j, Y', $startTs);
+            } elseif (date('Y-m', $startTs) === date('Y-m', $endTs)) {
+                // Same month: "May 1 - 3, 2026"
+                $dateFormatted = date('M j', $startTs) . ' - ' . date('j, Y', $endTs);
+            } else {
+                // Crosses month: "May 31 - Jun 1, 2026"
+                $dateFormatted = date('M j', $startTs) . ' - ' . date('M j, Y', $endTs);
+            }
+
+            // --- TIME RANGE ---
             $timeStart = formatTimeDisplay($event['start_time']);
-            $timeEnd = formatTimeDisplay($event['end_time']);
+            $timeEnd   = formatTimeDisplay($event['end_time']);
             if ($timeStart === 'All Day' || $timeEnd === 'All Day') {
                 $timeFormatted = 'All Day';
             } else {
@@ -216,10 +232,10 @@ foreach ($selectedMonths as $month) {
             // --- START BUILDING THE ROW ---
             $html .= '<tr>';
             
-            // COLUMN 1: Date
+            // COLUMN 1: Date (full range, e.g. "Thu, May 1, 2026" or "May 1 - 3, 2026")
             $html .= '<td class="date-col">
                         <span class="day-name">' . $dayName . '</span>
-                        ' . $dayNum . '
+                        ' . $dateFormatted . '
                       </td>';
                       
             // COLUMN 2: Event Details (Now includes Custom Times at the bottom)
