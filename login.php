@@ -392,10 +392,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://mathewpayopelin.netlify.app/" target="_blank" >Mathew JG S. Payopelin</a>
             </span>
             <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://.netlify.app/" target="_blank" >Paolo S. Garcia</a>
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://paologarciaportfolio.netlify.app/" target="_blank" >Paolo S. Garcia</a>
             </span>
             <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://.netlify.app/" target="_blank" >Aljon V. Reyes</a>
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://www.facebook.com/aljon.reyes.320669?mibextid=rS40aB7S9Ucbxw6v
+" target="_blank" >Aljon V. Reyes</a>
             </span>
             </span>
         </div>
