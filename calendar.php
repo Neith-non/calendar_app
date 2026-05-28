@@ -336,11 +336,6 @@ function getCategoryColor($categoryName)
                 
                 <a href="calendar.php" class="bg-white dark:bg-[#0a1a12] hover:bg-[#f0fcf5] dark:hover:bg-[#103322] text-emerald-700 dark:text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-bold border border-[#d1f0e0] dark:border-[#123f29] shadow-sm transition">Today</a>
                 
-                <?php if ($isAdmin): ?>
-                    <button onclick="enterPresentationMode()" class="bg-[#ebfbf3] dark:bg-[#103322] hover:bg-[#d1f0e0] dark:hover:bg-[#1a4d33] text-emerald-700 dark:text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-bold border border-[#bbf2d1] dark:border-[#215c3d] shadow-sm transition flex items-center gap-2">
-                        <i class="fa-solid fa-desktop"></i> <span>Present</span>
-                    </button>
-                <?php endif; ?>
             </div>
         </div>
 

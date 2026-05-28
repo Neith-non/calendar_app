@@ -383,19 +383,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="footer-developers-section">
             <span class="text-sjsfi-green/60 text-[10px] font-bold tracking-widest uppercase mr-2">Developed by:</span>
             <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Johan C. Buenaventura
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://johanbuenaventuraportfolio.netlify.app/" target="_blank" >Johan C. Buenaventura</a>
             </span>
             <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Neithan Deniel B. Gula
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://nitanportfolio.netlify.app/" target="_blank" >Neithan Deniel B. Gula</a>
             </span>
             <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Mathew JG S. Payopelin
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://mathewpayopelin.netlify.app/" target="_blank" >Mathew JG S. Payopelin</a>
             </span>
             <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Paolo S. Garcia
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://.netlify.app/" target="_blank" >Paolo S. Garcia</a>
             </span>
             <span class="dev-chip rounded-full px-3 py-1 text-[10px] font-semibold text-sjsfi-green/70">
-                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i>Aljon V. Reyes
+                <i class="fa-solid fa-user-code mr-1 text-[9px]"></i><a href="https://.netlify.app/" target="_blank" >Aljon V. Reyes</a>
+            </span>
             </span>
         </div>
     </footer>

@@ -6,7 +6,7 @@ require_once 'database.php';
 require_once 'holiday_api.php';
 
 // 2. Configuration
-$myApiKey = 'AIzaSyBQ7lCu6H5vVlGwXuxQ68BY9VIdfujErR4';
+$myApiKey = 'AIzaSyALi8ShQqb5sRv1zad0f7bfDyvextxqIhk';
 $holidayCategoryId = 5; // Make sure this is your actual Holiday category ID!
 
 // 3. Run the sync
