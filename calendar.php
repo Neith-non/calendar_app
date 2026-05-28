@@ -590,15 +590,13 @@ function getCategoryColor($categoryName)
         </div>
     </div>
 
-</body>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="assets/js/event_modal.js?v=<?php echo time(); ?>"></script>
+    <script src="assets/js/calendar.js?v=<?php echo time(); ?>"></script>
+    <script src="assets/js/pdf_modal.js"></script>
+    <script src="assets/js/theme_toggle.js"></script>
 
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<script src="assets/js/event_modal.js?v=<?php echo time(); ?>"></script>
-<script src="assets/js/calendar.js?v=<?php echo time(); ?>"></script>
-<script src="assets/js/pdf_modal.js"></script>
-<script src="assets/js/theme_toggle.js"></script>
-
-<script>
+    <script>
     // --- IMMERSIVE PRESENTATION & TRAVERSAL LOGIC ---
     let mouseTimer;
     const prevBtn = document.getElementById('presentPrevBtn');
@@ -671,48 +669,50 @@ function getCategoryColor($categoryName)
         }, 1500);
     }
 
-    // --- NEW: AJAX NAVIGATION TO PREVENT FULL-SCREEN EXIT ---
+    // --- AJAX NAVIGATION TO PREVENT FULL-SCREEN EXIT ---
     async function navigatePresentation(url) {
         try {
-            document.body.style.cursor = 'wait'; // Show loading cursor
+            document.body.style.cursor = 'wait';
             
-            // 1. Fetch the new month's HTML silently
             const response = await fetch(url);
             const html = await response.text();
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
 
-            // 2. Extract and replace the Calendar Grid
+            // Replace calendar grid using adoptNode+replaceWith so onclick handlers work.
+            // innerHTML does NOT preserve inline event handlers on injected nodes.
             const currentCalendar = document.querySelector('.calendar-container');
             const newCalendar = doc.querySelector('.calendar-container');
             if (currentCalendar && newCalendar) {
-                currentCalendar.innerHTML = newCalendar.innerHTML;
+                const adoptedCalendar = document.adoptNode(newCalendar);
+                currentCalendar.replaceWith(adoptedCalendar);
             }
 
-            // 3. Extract and replace the Month Header Title
-            const currentHeader = document.querySelector('.presentation-header');
-            const newHeader = doc.querySelector('.presentation-header');
-            if (currentHeader && newHeader) {
-                currentHeader.innerHTML = newHeader.innerHTML;
+            // Update ONLY the month title text, not the whole header —
+            // replacing header innerHTML would wipe the regular nav arrows.
+            const currentMonthTitle = document.getElementById('month-title');
+            const newMonthTitle = doc.getElementById('month-title');
+            if (currentMonthTitle && newMonthTitle) {
+                currentMonthTitle.innerHTML = newMonthTitle.innerHTML;
             }
 
-            // 4. Update the URLs on the invisible side-arrows
+            // Update presentation arrow hrefs.
+            // MUST use getAttribute('href'), NOT .href — DOMParser resolves relative
+            // URLs against about:blank, so .href returns "about:blank?month=06..." 
             const newPrev = doc.getElementById('presentPrevBtn');
             const newNext = doc.getElementById('presentNextBtn');
-            if (prevBtn && newPrev) prevBtn.href = newPrev.href;
-            if (nextBtn && newNext) nextBtn.href = newNext.href;
+            if (prevBtn && newPrev) prevBtn.setAttribute('href', newPrev.getAttribute('href'));
+            if (nextBtn && newNext) nextBtn.setAttribute('href', newNext.getAttribute('href'));
 
-            // 5. Update the URL in the browser address bar cleanly
             window.history.pushState({}, '', url);
 
-            // 6. Tell our filter engine to re-scan the new events
             if (typeof window.reapplyFilters === 'function') {
                 window.reapplyFilters();
             }
 
         } catch (error) {
             console.error('Failed to load new month seamlessly:', error);
-            window.location.href = url; // Fallback to a normal page reload if it fails
+            window.location.href = url;
         } finally {
             document.body.style.cursor = 'default';
         }
@@ -721,12 +721,12 @@ function getCategoryColor($categoryName)
     // Intercept the arrow clicks so they trigger the AJAX function instead of a reload
     prevBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        navigatePresentation(prevBtn.href);
+        navigatePresentation(prevBtn.getAttribute('href'));
     });
     
     nextBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        navigatePresentation(nextBtn.href);
+        navigatePresentation(nextBtn.getAttribute('href'));
     });
 
     // Event Listeners
@@ -735,8 +735,8 @@ function getCategoryColor($categoryName)
     // Keyboard navigation and ESC to close
     document.addEventListener('keydown', (e) => {
         if (isPresenting) {
-            if (e.key === 'ArrowLeft') navigatePresentation(prevBtn.href);
-            else if (e.key === 'ArrowRight') navigatePresentation(nextBtn.href);
+            if (e.key === 'ArrowLeft') navigatePresentation(prevBtn.getAttribute('href'));
+            else if (e.key === 'ArrowRight') navigatePresentation(nextBtn.getAttribute('href'));
             else if (e.key === 'Escape') exitPresentationMode();
         }
     });
@@ -747,10 +747,23 @@ function getCategoryColor($categoryName)
             exitPresentationMode();
         }
     });
+
+    // EXIT FULLSCREEN ON NAVIGATION AWAY
+    // If the user clicks a sidebar link to go to another page (e.g. present.php)
+    // while calendar.php is in presentation mode, the browser stays in fullscreen
+    // during the page transition. This causes the destination page to briefly show
+    // inside fullscreen before it can react — on present.php this means the 
+    // presentation layer flashes as "active". Always cleanly exit fullscreen first.
+    window.addEventListener('pagehide', () => {
+        if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+        }
+    });
     
     // Run an initial check if the page loaded natively into Presentation Mode
     if (isPresenting) {
         triggerMouseMove();
     }
 </script>
+</body>
 </html>

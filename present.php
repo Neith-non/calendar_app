@@ -172,6 +172,10 @@ function getCategoryColor($categoryName) {
     </script>
 
     <style>
+        /* CRITICAL: Hide Alpine-controlled elements before Alpine boots.
+           Without this, x-cloak does nothing and the presentation layer flashes on every page load. */
+        [x-cloak] { display: none !important; }
+
         body { color: #1e293b; transition: background-color 0.3s ease, color 0.3s ease; }
         .dark body { color: #f1f5f9; }
         .nav-item { color: #64748b; transition: all 0.2s ease; }
@@ -253,6 +257,7 @@ function getCategoryColor($categoryName) {
             }
         }
     "
+    x-on:presentation-exited.document="isPresenting = false; showQuitModal = false;"
     class="h-screen flex overflow-hidden bg-[#f8faf9] dark:bg-[#030712] transition-colors duration-300">
 
     <div x-show="!isPresenting" class="flex h-full shrink-0">
@@ -599,9 +604,8 @@ function getCategoryColor($categoryName) {
         
         document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement) {
-                const alpineComponent = document.querySelector('[x-data]').__x.$data;
-                alpineComponent.isPresenting = false;
-                alpineComponent.showQuitModal = false;
+                // Alpine v3: dispatch a custom event that Alpine listens to on the body
+                document.dispatchEvent(new CustomEvent('presentation-exited'));
             }
         });
 
@@ -615,30 +619,46 @@ function getCategoryColor($categoryName) {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
 
-                // 1. Swap the Table & Calendar Grids
-                const idsToReplace = ['events-table-body', 'calendar-grid-wrapper', 'presentMonthTitle', 'timeline-select'];
-                
-                idsToReplace.forEach(id => {
-                    const currentEl = document.getElementById(id);
-                    const newEl = doc.getElementById(id);
-                    if (currentEl && newEl) {
-                        currentEl.innerHTML = newEl.innerHTML;
+                // 1. Swap the Table body (innerHTML works fine for tbody)
+                const tableBody = document.getElementById('events-table-body');
+                const newTableBody = doc.getElementById('events-table-body');
+                if (tableBody && newTableBody) {
+                    tableBody.innerHTML = newTableBody.innerHTML;
+                }
 
-                        // Re-initialize Alpine.js on the newly injected DOM elements
-                        if (window.Alpine) {
-                            Alpine.initTree(currentEl);
-                        }
+                // 2. Swap the Calendar Grid wrapper
+                const calendarWrapper = document.getElementById('calendar-grid-wrapper');
+                const newCalendarWrapper = doc.getElementById('calendar-grid-wrapper');
+                if (calendarWrapper && newCalendarWrapper) {
+                    calendarWrapper.innerHTML = newCalendarWrapper.innerHTML;
+                    // Re-init Alpine on the new calendar DOM so x-show directives work
+                    if (window.Alpine) {
+                        Alpine.initTree(calendarWrapper);
                     }
-                });
+                }
 
-                // 2. Update the hidden URLs on the navigation arrows
+                // 3. Update the month title text (it's a text node, not innerHTML)
+                const monthTitle = document.getElementById('presentMonthTitle');
+                const newMonthTitle = doc.getElementById('presentMonthTitle');
+                if (monthTitle && newMonthTitle) {
+                    monthTitle.textContent = newMonthTitle.textContent;
+                }
+
+                // 4. Update the timeline month picker value (input — use .value, not innerHTML)
+                const timelineSelect = document.getElementById('timeline-select');
+                const newTimelineSelect = doc.getElementById('timeline-select');
+                if (timelineSelect && newTimelineSelect) {
+                    timelineSelect.value = newTimelineSelect.value;
+                }
+
+                // 5. Update the hidden URLs on the navigation arrows
                 const prevBtn = document.getElementById('presentPrevBtn');
                 const nextBtn = document.getElementById('presentNextBtn');
                 const newPrev = doc.getElementById('presentPrevBtn');
                 const newNext = doc.getElementById('presentNextBtn');
                 
-                if (prevBtn && newPrev) prevBtn.href = newPrev.href;
-                if (nextBtn && newNext) nextBtn.href = newNext.href;
+                if (prevBtn && newPrev) prevBtn.setAttribute('href', newPrev.getAttribute('href'));
+                if (nextBtn && newNext) nextBtn.setAttribute('href', newNext.getAttribute('href'));
 
                 window.history.pushState({}, '', url);
 
@@ -652,13 +672,13 @@ function getCategoryColor($categoryName) {
 
         // Intercept Mouse Clicks on the Arrows
         document.addEventListener('click', (e) => {
-            const prevBtn = document.getElementById('presentPrevBtn');
-            const nextBtn = document.getElementById('presentNextBtn');
+            const prevBtn = e.target.closest('#presentPrevBtn');
+            const nextBtn = e.target.closest('#presentNextBtn');
             
-            if (prevBtn && prevBtn.contains(e.target)) {
+            if (prevBtn) {
                 e.preventDefault();
                 navigatePresentation(prevBtn.href);
-            } else if (nextBtn && nextBtn.contains(e.target)) {
+            } else if (nextBtn) {
                 e.preventDefault();
                 navigatePresentation(nextBtn.href);
             }
@@ -666,10 +686,12 @@ function getCategoryColor($categoryName) {
 
         // Intercept Keyboard Left/Right Arrows for Months and ESC for Exit
         document.addEventListener('keydown', (e) => {
-            const presentingLayer = document.getElementById('presentation-layer');
+            // Check Alpine state via the body element's _x_dataStack
+            const bodyEl = document.querySelector('body[x-data]');
+            const alpineData = bodyEl && bodyEl._x_dataStack && bodyEl._x_dataStack[0];
+            const isPresenting = alpineData ? alpineData.isPresenting : false;
             
-            // Only trigger if we are actively presenting
-            if (presentingLayer && presentingLayer.style.display !== 'none') {
+            if (isPresenting) {
                 if (e.key === 'ArrowLeft') {
                     const prevBtn = document.getElementById('presentPrevBtn');
                     if (prevBtn) navigatePresentation(prevBtn.href);
