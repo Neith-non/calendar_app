@@ -79,16 +79,18 @@ try {
 
             $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, role_id) VALUES (?, ?, ?, ?)");
             $stmt->execute([$username, $password, $full_name, $role_id]);
-            $msg = "User successfully added!";
+            header("Location: admin_manage.php?msg=User+successfully+added!");
+            exit();
         }
 
         if ($_POST['action'] === 'add_venue') {
             $venue_name = trim($_POST['venue_name']);
-            $is_off_campus = isset($_POST['is_off_campus']) ? 1 : 0; 
-            
+            $is_off_campus = isset($_POST['is_off_campus']) ? 1 : 0;
+
             $stmt = $pdo->prepare("INSERT INTO venues (venue_name, is_off_campus) VALUES (?, ?)");
             $stmt->execute([$venue_name, $is_off_campus]);
-            $msg = "Venue successfully added!";
+            header("Location: admin_manage.php?msg=Venue+successfully+added!");
+            exit();
         }
 
         if ($_POST['action'] === 'add_category') {
@@ -96,13 +98,14 @@ try {
             $category_type = trim($_POST['category_type']);
             $stmt = $pdo->prepare("INSERT INTO event_categories (category_name, category_type) VALUES (?, ?)");
             $stmt->execute([$category_name, $category_type]);
-            $msg = "Category successfully added!";
+            header("Location: admin_manage.php?msg=Category+successfully+added!");
+            exit();
         }
 
         if ($_POST['action'] === 'add_participant') {
             $base_name = trim($_POST['participant_name']);
             $strand = trim($_POST['strand'] ?? '');
-            $department_id = (int) $_POST['department']; 
+            $department_id = (int) $_POST['department'];
 
             $participant_name = $base_name;
             if ($strand !== '') {
@@ -111,7 +114,8 @@ try {
 
             $stmt = $pdo->prepare("INSERT INTO participants (name, department_id) VALUES (?, ?)");
             $stmt->execute([$participant_name, $department_id]);
-            $msg = "Participant group successfully added!";
+            header("Location: admin_manage.php?msg=Participant+group+successfully+added!");
+            exit();
         }
     }
 } catch (PDOException $e) {
