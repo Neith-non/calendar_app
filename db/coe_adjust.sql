@@ -187,3 +187,34 @@ INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Pers
 
 ALTER TABLE event_publish ADD COLUMN is_placeholder BOOLEAN NOT NULL DEFAULT FALSE;
 INSERT IGNORE INTO event_categories (category_name, category_type) VALUES ('Placeholder', 'Placeholder');
+
+CREATE TABLE event_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_publish_id INT NULL,
+    event_id INT NULL,
+    user_id INT NULL,
+    action VARCHAR(100) NOT NULL,
+    details TEXT NULL,
+    level VARCHAR(16) NOT NULL DEFAULT 'info',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE event_logs_archive (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_publish_id INT NULL,
+    event_id INT NULL,
+    user_id INT NULL,
+    action VARCHAR(100) NOT NULL,
+    details TEXT NULL,
+    level VARCHAR(16) NOT NULL DEFAULT 'info',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE event_placeholders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(150) NOT NULL,
+    description TEXT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
