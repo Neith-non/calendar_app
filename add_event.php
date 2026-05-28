@@ -225,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $pdo->beginTransaction();
 
                 // Personal events are automatically approved. Placeholders stay Pending until confirmed.
-                $status = $is_personal ? 'Approved' : 'Pending';
+                $status = $is_personal || $is_placeholder ? 'Approved' : 'Pending';
                 $approved_by = $is_personal ? $_SESSION['user_id'] : null;
                 $approved_date = $is_personal ? date('Y-m-d H:i:s') : null;
 
